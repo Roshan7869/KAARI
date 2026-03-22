@@ -149,7 +149,6 @@ serve(async (req) => {
           }
         }
       )
-    )
 
     // Validate status is valid
     if (!['completed', 'failed'].includes(payload.status)) {

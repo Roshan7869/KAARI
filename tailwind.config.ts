@@ -1,24 +1,15 @@
 import type { Config } from "tailwindcss";
-import tailwindcssAnimate from "tailwindcss-animate";
 
-export default {
+const config: Config = {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
-  prefix: "",
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
+    "./hooks/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
   theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: {
-        "2xl": "1400px",
-      },
-    },
     extend: {
-      fontFamily: {
-        display: ['"Playfair Display"', 'serif'],
-        body: ['"Inter"', 'sans-serif'],
-        heritage: ['"Cormorant Garamond"', 'serif'],
-      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -54,28 +45,26 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         kaari: {
-          red: "hsl(var(--kaari-deep-red))",
-          cream: "hsl(var(--kaari-cream))",
-          gold: "hsl(var(--kaari-gold))",
-          brown: "hsl(var(--kaari-warm-brown))",
-          dark: "hsl(var(--kaari-dark))",
-          light: "hsl(var(--kaari-light-cream))",
-        },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
+          50: "#fdf8f6",
+          100: "#f2e8e5",
+          200: "#eaddd7",
+          300: "#e0cec7",
+          400: "#d2bab0",
+          500: "#a0522d",
+          600: "#8b4513",
+          700: "#cd853f",
+          800: "#daa520",
+          900: "#ffd700",
         },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        serif: ["Georgia", "Cambria", "serif"],
       },
       keyframes: {
         "accordion-down": {
@@ -86,32 +75,14 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(30px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
-        "fade-in": {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
-        },
-        "scale-in": {
-          "0%": { opacity: "0", transform: "scale(0.95)" },
-          "100%": { opacity: "1", transform: "scale(1)" },
-        },
-        "float": {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-10px)" },
-        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-up": "fade-up 0.8s ease-out forwards",
-        "fade-in": "fade-in 0.6s ease-out forwards",
-        "scale-in": "scale-in 0.5s ease-out forwards",
-        "float": "float 6s ease-in-out infinite",
       },
     },
   },
-  plugins: [tailwindcssAnimate],
-} satisfies Config;
+  plugins: [require("tailwindcss-animate")],
+};
+
+export default config;
