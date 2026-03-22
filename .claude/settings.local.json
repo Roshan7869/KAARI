@@ -31,7 +31,9 @@
       "Bash(find /mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/src/integrations -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
       "Bash(ls -la /mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/*.json /mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/*.config.*)",
       "Bash(find /mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/src/test -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
-      "Bash(find /mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/src -maxdepth 1 -name index.*)"
+      "Bash(find /mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/src -maxdepth 1 -name index.*)",
+      "Bash(find . -maxdepth 2 -type f -name *.md -o -name *.json -o -name *.config.*)",
+      "Bash(ls -la *.config.* *.json)"
     ]
   }
 }
