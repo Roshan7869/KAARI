@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import ProductCard from './ProductCard';
 import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 
 const CATEGORIES = ['All', 'Dolls', 'Flowers', 'Accessories', 'Home'];
 

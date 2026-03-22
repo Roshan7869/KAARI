@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables } from "@/types/database";
 import { trackEvent } from "@/lib/analytics";
 
 export interface CartCustomization {

@@ -10,7 +10,7 @@
  * 5. Handles idempotency (prevents duplicate processing)
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import type { PaymentWebhookPayload } from './payment';
 
 export interface WebhookProcessResult {
@@ -81,7 +81,7 @@ export async function validateWebhookSignature(
 
   // SECURITY: Never return true in production without actual validation
   // DEV mode warning is logged but validation still required
-  if (import.meta.env.DEV) {
+  if (process.env.NODE_ENV === 'development') {
     console.warn('WEBHOOK: Running in DEV mode - signature validation is enforced');
   }
 

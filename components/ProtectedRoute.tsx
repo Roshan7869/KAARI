@@ -1,6 +1,7 @@
 'use client'
-import { Navigate, useLocation } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from 'react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,7 +15,13 @@ interface ProtectedRouteProps {
  */
 export default function ProtectedRoute({ children, requireAdmin }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
-  const location = useLocation();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -28,8 +35,7 @@ export default function ProtectedRoute({ children, requireAdmin }: ProtectedRout
   }
 
   if (!user) {
-    // Redirect to login, preserving the intended destination
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return null;
   }
 
   return <>{children}</>;

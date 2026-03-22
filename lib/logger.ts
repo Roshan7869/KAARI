@@ -19,7 +19,7 @@ interface Logger {
   error: (...args: unknown[]) => void;
 }
 
-const isDev = import.meta.env.DEV;
+const isDev = process.env.NODE_ENV === 'development';
 
 /**
  * Format log arguments for cleaner output

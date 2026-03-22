@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Gift, Minus, Palette, Plus, Ruler, Type } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import type { Product } from '@/data/products';
 import { useCart } from '@/contexts/CartContext';
-import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+import { supabase } from '@/lib/supabase/client';
+import type { Tables } from '@/types/database';
 import { toast } from 'sonner';
 import { trackEvent } from '@/lib/analytics';
 
@@ -14,7 +14,7 @@ interface ProductCustomizationProps {
 }
 
 export default function ProductCustomization({ product }: ProductCustomizationProps) {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { addToCart } = useCart();
   const [selectedColor, setSelectedColor] = useState(product.colors[0]);
   const [selectedSize, setSelectedSize] = useState(product.sizes[0]);
@@ -162,7 +162,7 @@ export default function ProductCustomization({ product }: ProductCustomizationPr
       });
 
       if (buyNow) {
-        navigate('/checkout');
+        router.push('/checkout');
         return;
       }
     } catch (error) {

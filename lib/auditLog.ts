@@ -7,7 +7,7 @@
  * - Provides audit trail for investigations
  */
 
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 // Admin action types for type safety
 export type AdminAction =

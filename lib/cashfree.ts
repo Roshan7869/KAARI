@@ -6,7 +6,7 @@
  * Currency: INR (Indian Rupees)
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 
 // Cashfree API Configuration
 export interface CashfreeConfig {

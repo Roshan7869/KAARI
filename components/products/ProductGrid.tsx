@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import ProductCard from './ProductCard';
 import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
 import { categories, getProductsByCategory, type Category, type Product } from '@/data/products';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import { sanitizeTextInput } from '@/lib/sanitization';
 
 type SortOption = 'featured' | 'price_low_high' | 'price_high_low' | 'name_az';

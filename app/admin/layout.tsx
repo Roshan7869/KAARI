@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import { redirect, usePathname } from "next/navigation";
 import Link from "next/link";
 import {

@@ -7,7 +7,7 @@
  * - Blocking suspicious IPs/users temporarily
  */
 
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { logSecurity } from './logger'
 
 // Rate limit configuration
