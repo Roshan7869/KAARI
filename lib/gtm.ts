@@ -5,8 +5,8 @@
 
 declare global {
   interface Window {
-    dataLayer?: Record<string, any>[];
-    gtag?: Function;
+    dataLayer?: Record<string, unknown>[];
+    gtag?: (...args: unknown[]) => void;
   }
 }
 
@@ -21,8 +21,14 @@ export function initGTM(measurementId: string): void {
   window.dataLayer = window.dataLayer || [];
 
   // GTM window function
-  function gtag(...args: any[]) {
-    window.dataLayer?.push(arguments);
+  function gtag(...args: unknown[]) {
+    if (Array.isArray(args) && args.length > 0) {
+      const eventObj: Record<string, unknown> = {};
+      if (typeof args[0] === 'string') eventObj.event = args[0];
+      if (typeof args[1] === 'string') eventObj.eventName = args[1];
+      if (typeof args[2] === 'object') Object.assign(eventObj, args[2]);
+      window.dataLayer?.push(eventObj);
+    }
   }
 
   window.gtag = gtag;
@@ -45,7 +51,7 @@ export function initGTM(measurementId: string): void {
  */
 export function trackEvent(
   eventName: string,
-  eventData: Record<string, any> = {}
+  eventData: Record<string, string | number | boolean | undefined> = {}
 ): void {
   if (typeof window === 'undefined') return;
 
@@ -73,12 +79,23 @@ export function trackPurchase(
     quantity: number;
   }>
 ): void {
-  trackEvent('purchase', {
+  // Convert items array to individual event properties for GTM
+  const itemsData: Record<string, string | number | boolean | undefined> = {
     transaction_id: transactionId,
     value,
     currency: 'INR',
-    items,
+    item_count: items.length,
+  };
+
+  // Flatten items for GTM
+  items.forEach((item, index) => {
+    itemsData[`item_id_${index}`] = item.item_id;
+    itemsData[`item_name_${index}`] = item.item_name;
+    itemsData[`item_price_${index}`] = item.price;
+    itemsData[`item_quantity_${index}`] = item.quantity;
   });
+
+  trackEvent('purchase', itemsData);
 
   if (process.env.NODE_ENV === 'development') {
     console.log('💳 Purchase tracked:', { transactionId, value, itemCount: items.length });
@@ -100,7 +117,7 @@ export function trackPageView(path: string, title: string): void {
  */
 export function setUserProperties(
   userId: string,
-  properties: Record<string, any>
+  properties: Record<string, string | number | boolean | undefined>
 ): void {
   try {
     window.gtag?.('config', 'GA_MEASUREMENT_ID', {

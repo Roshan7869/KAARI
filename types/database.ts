@@ -9,6 +9,65 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          id: string
+          user_id: string
+          label: string
+          full_name: string
+          phone: string
+          address_line1: string
+          address_line2: string | null
+          city: string
+          state: string
+          postal_code: string
+          country: string
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          label?: string
+          full_name: string
+          phone: string
+          address_line1: string
+          address_line2?: string | null
+          city: string
+          state: string
+          postal_code: string
+          country?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          label?: string
+          full_name?: string
+          phone?: string
+          address_line1?: string
+          address_line2?: string | null
+          city?: string
+          state?: string
+          postal_code?: string
+          country?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addresses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cart_item_customizations: {
         Row: {
           budget_max: number | null
@@ -446,7 +505,8 @@ export type Database = {
           order_id: string
           provider: string
           provider_payment_id: string | null
-          status: string
+          status: 'created' | 'completed' | 'failed' | 'refunded' | 'cancelled'
+          updated_at: string
         }
         Insert: {
           amount: number
@@ -456,7 +516,8 @@ export type Database = {
           order_id: string
           provider: string
           provider_payment_id?: string | null
-          status?: string
+          status?: 'created' | 'completed' | 'failed' | 'refunded' | 'cancelled'
+          updated_at?: string
         }
         Update: {
           amount?: number
@@ -466,7 +527,8 @@ export type Database = {
           order_id?: string
           provider?: string
           provider_payment_id?: string | null
-          status?: string
+          status?: 'created' | 'completed' | 'failed' | 'refunded' | 'cancelled'
+          updated_at?: string
         }
         Relationships: [
           {
@@ -638,6 +700,238 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      admin_audit_log: {
+        Row: {
+          id: string
+          admin_id: string
+          action: string
+          resource_type: string
+          resource_id: string | null
+          changes_before: Record<string, unknown> | null
+          changes_after: Record<string, unknown> | null
+          ip_address: string | null
+          user_agent: string | null
+          metadata: Record<string, unknown> | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          admin_id: string
+          action: string
+          resource_type: string
+          resource_id?: string | null
+          changes_before?: Record<string, unknown> | null
+          changes_after?: Record<string, unknown> | null
+          ip_address?: string | null
+          user_agent?: string | null
+          metadata?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          admin_id?: string
+          action?: string
+          resource_type?: string
+          resource_id?: string | null
+          changes_before?: Record<string, unknown> | null
+          changes_after?: Record<string, unknown> | null
+          ip_address?: string | null
+          user_agent?: string | null
+          metadata?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_audit_log_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      security_events: {
+        Row: {
+          id: string
+          event_type: string
+          user_id: string | null
+          ip_address: string | null
+          user_agent: string | null
+          details: Record<string, unknown> | null
+          severity: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          event_type: string
+          user_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          details?: Record<string, unknown> | null
+          severity?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          event_type?: string
+          user_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          details?: Record<string, unknown> | null
+          severity?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rate_limit_entries: {
+        Row: {
+          id: string
+          identifier: string
+          action_type: string
+          attempt_count: number
+          first_attempt: string
+          blocked_until: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          identifier: string
+          action_type: string
+          attempt_count?: number
+          first_attempt?: string
+          blocked_until?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          identifier?: string
+          action_type?: string
+          attempt_count?: number
+          first_attempt?: string
+          blocked_until?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_gateways: {
+        Row: {
+          id: string
+          provider: string
+          is_active: boolean
+          is_test_mode: boolean
+          api_key: string | null
+          api_secret: string | null
+          webhook_secret: string | null
+          config: Record<string, unknown> | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider: string
+          is_active?: boolean
+          is_test_mode?: boolean
+          api_key?: string | null
+          api_secret?: string | null
+          webhook_secret?: string | null
+          config?: Record<string, unknown> | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: string
+          is_active?: boolean
+          is_test_mode?: boolean
+          api_key?: string | null
+          api_secret?: string | null
+          webhook_secret?: string | null
+          config?: Record<string, unknown> | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cashfree_sessions: {
+        Row: {
+          id: string
+          order_id: string
+          checkout_session_id: string | null
+          cf_order_id: string | null
+          cf_payment_session_id: string | null
+          cf_payment_id: string | null
+          amount: number
+          currency: string
+          payment_method: string | null
+          status: string
+          customer_email: string | null
+          customer_phone: string | null
+          customer_name: string | null
+          return_url: string | null
+          notify_url: string | null
+          created_at: string
+          updated_at: string
+          expires_at: string
+          paid_at: string | null
+          raw_response: Record<string, unknown> | null
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          checkout_session_id?: string | null
+          cf_order_id?: string | null
+          cf_payment_session_id?: string | null
+          cf_payment_id?: string | null
+          amount: number
+          currency?: string
+          payment_method?: string | null
+          status?: string
+          customer_email?: string | null
+          customer_phone?: string | null
+          customer_name?: string | null
+          return_url?: string | null
+          notify_url?: string | null
+          created_at?: string
+          updated_at?: string
+          expires_at?: string
+          paid_at?: string | null
+          raw_response?: Record<string, unknown> | null
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          checkout_session_id?: string | null
+          cf_order_id?: string | null
+          cf_payment_session_id?: string | null
+          cf_payment_id?: string | null
+          amount?: number
+          currency?: string
+          payment_method?: string | null
+          status?: string
+          customer_email?: string | null
+          customer_phone?: string | null
+          customer_name?: string | null
+          return_url?: string | null
+          notify_url?: string | null
+          created_at?: string
+          updated_at?: string
+          expires_at?: string
+          paid_at?: string | null
+          raw_response?: Record<string, unknown> | null
         }
         Relationships: []
       }

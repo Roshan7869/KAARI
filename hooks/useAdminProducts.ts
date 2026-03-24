@@ -166,22 +166,23 @@ export function useDeleteProduct() {
 
   return useMutation({
     mutationFn: async (productId: string) => {
-      // First delete related records
-      await Promise.all([
-        supabase.from('product_variants').delete().eq('product_id', productId),
-        supabase.from('product_media').delete().eq('product_id', productId),
-      ]);
-
-      const { error } = await supabase.from('products').delete().eq('id', productId);
+      const { error } = await supabase
+        .from('products')
+        .update({
+          is_active: false,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', productId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      toast.success('Product deleted successfully');
+      toast.success('Product archived successfully');
     },
     onError: (error) => {
       console.error('Error deleting product:', error);
-      toast.error('Failed to delete product');
+      toast.error('Failed to archive product');
     },
   });
 }
@@ -216,7 +217,8 @@ export function useUpdateVariant() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, product_id, ...variant }: TablesUpdate<'product_variants'> & { id: string; product_id: string }) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mutationFn: async ({ id, product_id: _productId, ...variant }: TablesUpdate<'product_variants'> & { id: string; product_id: string }) => {
       const { data, error } = await supabase
         .from('product_variants')
         .update(variant)
@@ -242,7 +244,8 @@ export function useDeleteVariant() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, product_id }: { id: string; product_id: string }) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    mutationFn: async ({ id, product_id: _productId }: { id: string; product_id: string }) => {
       const { error } = await supabase.from('product_variants').delete().eq('id', id);
       if (error) throw error;
     },
@@ -347,7 +350,8 @@ export function useReorderProductMedia() {
 
   return useMutation({
     mutationFn: async ({
-      productId,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      productId: _productId,
       mediaOrder,
     }: {
       productId: string;
