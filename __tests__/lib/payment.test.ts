@@ -48,13 +48,13 @@ describe('payment service', () => {
 
   it('processes payment session result', async () => {
     invoke.mockResolvedValueOnce({
-      data: { orderId: 'order-3', status: 'paid' },
+      data: { success: true, transactionId: 'txn-123', message: 'Payment processed' },
       error: null,
     });
 
-    await expect(processPaymentSession('dummy_125', 'success')).resolves.toEqual({
-      orderId: 'order-3',
-      status: 'paid',
-    });
+    const result = await processPaymentSession('dummy_125');
+    expect(result.success).toBe(true);
+    expect(result.transactionId).toBe('txn-123');
+    expect(result.message).toBe('Payment processed');
   });
 });
