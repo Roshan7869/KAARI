@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { Tables } from "@/types/database";
@@ -75,8 +75,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Use ref to track mount status to avoid dependency churn
+  const isMountedRef = useRef(false);
+
   useEffect(() => {
     setMounted(true);
+    isMountedRef.current = true;
   }, []);
 
   const calculatePricing = (items: CartItem[]) => {
@@ -146,7 +150,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshCart = useCallback(async () => {
-    if (!mounted) return;
+    if (!isMountedRef.current) return;
 
     try {
       setLoading(true);
@@ -191,7 +195,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           deliveryDeadline: item.cart_item_customizations.delivery_deadline || undefined,
           budgetMin: item.cart_item_customizations.budget_min || undefined,
           budgetMax: item.cart_item_customizations.budget_max || undefined,
-          quoteStatus: (item.cart_item_customizations.quote_status as any) || "pending",
+          quoteStatus: (item.cart_item_customizations.quote_status as "not_needed" | "pending" | "approved" | "rejected") || "pending",
           requiresManualReview: item.cart_item_customizations.requires_manual_review,
           uploads: (item.cart_item_customizations.customization_uploads || []).map((u) => ({
             id: u.id,
@@ -213,7 +217,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [getOrCreateActiveCart, mounted]);
+  }, [getOrCreateActiveCart]);
 
   const addToCart = async (item: Omit<CartItem, "cartItemId" | "lineTotal">) => {
     try {
@@ -407,6 +411,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     if (mounted) {
       refreshCart();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
   useEffect(() => {
