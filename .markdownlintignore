@@ -1,0 +1,19 @@
+# Ignore auto-generated audit/documentation files
+AUDIT_SUMMARY_SESSION_3.md
+INVESTIGATION_COMPLETE.md
+SKELETON_PAYMENT_AUDIT.md
+CLOUDINARY_IMPLEMENTATION.md
+COST_OPTIMIZATION.md
+PROJECT_STATUS.md
+CLAUDE.md
+THIS
+
+# Ignore generated directories
+.claude/
+audits/
+memory/
+nextjs-app/
+node_modules/
+.next/
+test-results/
+phase_metrics_bundle/

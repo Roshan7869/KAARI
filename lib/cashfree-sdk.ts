@@ -56,6 +56,16 @@ export const UPI_APPS: UPIApp[] = [
   { id: 'amazonpay', name: 'Amazon Pay', icon: '/upi-icons/amazonpay.png', deepLinkPrefix: 'amazonpay://upi/pay' },
 ];
 
+// ── Cashfree Mode Configuration ──────────────────────────────────────────
+const CF_MODE = (process.env.NEXT_PUBLIC_CASHFREE_MODE ?? 'sandbox') as 'sandbox' | 'production'
+
+export const cashfreeConfig = {
+  mode:       CF_MODE,
+  baseUrl:    CF_MODE === 'production'
+    ? 'https://api.cashfree.com/pg'
+    : 'https://sandbox.cashfree.com/pg',
+}
+
 // SDK Load State
 let sdkLoadPromise: Promise<void> | null = null;
 
@@ -170,7 +180,7 @@ export async function createUPIIntent(
 
     const cashfree = window.CashfreeSDK.init({
       paymentSessionId,
-      mode: 'sandbox', // Will be determined by config
+      mode: CF_MODE, // Use config, not hardcoded 'sandbox'
     });
 
     // Create UPI intent
@@ -289,10 +299,10 @@ export async function getPaymentStatusWithBackoff(
 /**
  * Handle UPI app deep link redirection
  */
-export async function redirectUPIApp(upiApp: UPIApp, paymentSessionId: string): Promise<void> {
+export async function redirectUPIApp(upiApp: UPIApp, paymentSessionId: string, amount: number): Promise<void> {
   try {
     // Create payment intent and redirect
-    const intent = await createUPIIntent(paymentSessionId, upiApp, 0);
+    const intent = await createUPIIntent(paymentSessionId, upiApp, amount);
     window.location.href = intent;
   } catch (error) {
     console.error('Failed to redirect to UPI app:', error);

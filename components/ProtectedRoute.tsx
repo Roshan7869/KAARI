@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
+import { ProtectedRouteSkeleton } from '@/components/ui/skeleton-loader';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -24,14 +25,7 @@ export default function ProtectedRoute({ children, requireAdmin }: ProtectedRout
   }, [user, loading, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="font-body text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <ProtectedRouteSkeleton />;
   }
 
   if (!user) {

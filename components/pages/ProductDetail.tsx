@@ -1,6 +1,6 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useCart } from '@/contexts/CartContext';
@@ -11,6 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Minus, Plus, ShoppingCart, Heart, ArrowLeft } from 'lucide-react';
+import { resolveProductImageUrl } from '@/lib/product-media';
+import { ProductDetailSkeleton } from '@/components/ui/skeleton-loader';
 
 interface Product {
   id: string;
@@ -24,6 +26,7 @@ interface Product {
 
 export default function ProductDetail() {
   const params = useParams();
+  const router = useRouter();
   const slug = params?.slug as string | undefined;
   const { user } = useAuth();
   const { addToCart, loading: cartLoading } = useCart();
@@ -84,10 +87,19 @@ export default function ProductDetail() {
     enabled: !!product?.id,
   });
 
-  const inStock = variants?.some((variant) => (variant.stock_qty ?? 0) > 0) ?? false;
+  const hasVariants = (variants?.length ?? 0) > 0;
+  const inStock = hasVariants
+    ? variants?.some((variant) => (variant.stock_qty ?? 0) > 0) ?? false
+    : true;
+  const primaryImageSrc = resolveProductImageUrl(images?.[0]?.file_path);
 
   const handleAddToCart = async () => {
-    if (!user || !product) return;
+    if (!product) return;
+
+    if (!user) {
+      router.push(`/login?redirect=/products/${product.slug}`);
+      return;
+    }
 
     await addToCart({
       productId: product.id,
@@ -99,17 +111,20 @@ export default function ProductDetail() {
     });
   };
 
+  const handleBuyNow = async () => {
+    if (!product) return;
+
+    if (!user) {
+      router.push(`/login?redirect=/products/${product.slug}`);
+      return;
+    }
+
+    await handleAddToCart();
+    router.push('/checkout');
+  };
+
   if (isLoading || !slug) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="font-body text-muted-foreground">Loading product...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   if (!product) {
@@ -146,7 +161,7 @@ export default function ProductDetail() {
           <div className="aspect-square bg-muted rounded-sm relative overflow-hidden">
             {images?.[0]?.file_path ? (
               <Image
-                src={images[0].file_path}
+                src={primaryImageSrc}
                 alt={images[0].alt_text || product.title}
                 fill
                 className="object-cover"
@@ -162,7 +177,7 @@ export default function ProductDetail() {
               {images.slice(1).map((img, idx) => (
                 <div key={idx} className="w-20 h-20 bg-muted rounded-sm flex-shrink-0">
                   <Image
-                    src={img.file_path}
+                    src={resolveProductImageUrl(img.file_path)}
                     alt={img.alt_text || `${product.title} ${idx + 2}`}
                     width={80}
                     height={80}
@@ -227,6 +242,15 @@ export default function ProductDetail() {
               <Heart className="w-4 h-4" />
             </Button>
           </div>
+
+          <Button
+            onClick={handleBuyNow}
+            disabled={!inStock || cartLoading}
+            className="w-full"
+            variant="secondary"
+          >
+            {inStock ? 'Buy Now' : 'Unavailable'}
+          </Button>
 
           {product.allow_customization && (
             <Card className="bg-muted/50">

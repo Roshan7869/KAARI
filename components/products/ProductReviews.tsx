@@ -58,7 +58,7 @@ export default function ProductReviews({ reviews, averageRating, totalReviews }:
               </div>
             </div>
             <p className="font-heritage text-foreground/80 text-sm leading-relaxed italic">
-              "{review.text}"
+              &quot;{review.text}&quot;
             </p>
           </motion.div>
         ))}

@@ -265,6 +265,19 @@ export function verifyDummyWebhookSignature(
 }
 
 /**
+ * Create a dummy payment session (alias for generateDummyPaymentSession)
+ * Returns a session ID that can be used to process payment
+ */
+export function createPaymentSession(
+  orderId: string,
+  amount: number,
+  paymentMethod: string
+): { sessionId: string } {
+  const session = generateDummyPaymentSession(orderId, amount, paymentMethod);
+  return { sessionId: session.session_id };
+}
+
+/**
  * Create payment record in database
  * Should be called by webhook handler
  */

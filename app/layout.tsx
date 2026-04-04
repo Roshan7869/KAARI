@@ -1,10 +1,100 @@
-import type { Metadata } from "next";
+import { Metadata } from "next";
+import { Playfair_Display, Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+  display: "swap",
+  weight: ["400", "500", "600", "700", "800", "900"],
+  style: ["normal", "italic"],
+});
+
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  variable: "--font-cormorant",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+  weight: ["300", "400", "500", "600"],
+});
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in'
+
 export const metadata: Metadata = {
-  title: "Kaari - Handmade Crochet Marketplace",
-  description: "Discover beautiful handmade crochet products crafted with love",
+  title: {
+    template: "%s | Kaari - Handmade Crochet Marketplace",
+    default: "Kaari - Handmade Crochet Marketplace",
+  },
+  description:
+    "Discover beautiful handmade crochet products crafted with love. Shop unique crocheted clothing, accessories, and home decor from Indian artisans.",
+  keywords: [
+    "handmade crochet",
+    "crochet products",
+    "handmade clothing",
+    "crochet accessories",
+    "Indian artisans",
+    "crochet home decor",
+    "custom crochet",
+  ],
+  metadataBase: new URL(APP_URL),
+  authors: [{ name: "Kaari Marketplace" }],
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: APP_URL,
+    title: "Kaari - Handmade Crochet Marketplace",
+    description:
+      "Discover beautiful handmade crochet products crafted with love",
+    siteName: "Kaari Marketplace",
+    images: [
+      {
+        url: `${APP_URL}/og-image.jpg`,
+        width: 1200,
+        height: 630,
+        alt: "Kaari Marketplace - Handmade Crochet",
+      },
+    ],
+  },
+  alternates: {
+    canonical: APP_URL,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+// Schema.org structured data for the site
+const siteStructuredData = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Kaari Marketplace",
+  url: APP_URL,
+  logo: `${APP_URL}/logo.png`,
+  description:
+    "Handmade crochet marketplace connecting artisans with customers",
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Bhopal",
+    addressRegion: "Madhya Pradesh",
+    postalCode: "462001",
+    addressCountry: "IN",
+  },
+  contactPoint: {
+    "@type": "ContactPoint",
+    telephone: "+91-9999999999",
+    contactType: "Customer Service",
+    areaServed: "IN",
+    availableLanguage: ["English", "Hindi"],
+  },
 };
 
 export default function RootLayout({
@@ -13,8 +103,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
+    <html lang="en" className={`${playfair.variable} ${cormorant.variable} ${inter.variable}`}>
+      <head>
+        <link rel="canonical" href={APP_URL} />
+        <link rel="alternate" href={`${APP_URL}/sitemap.xml`} type="application/xml" title="Sitemap" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(siteStructuredData, null, 2),
+          }}
+        />
+      </head>
+      <body className={`${inter.className} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

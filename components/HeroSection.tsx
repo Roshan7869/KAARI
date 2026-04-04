@@ -3,41 +3,41 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, useMotionValue } from 'framer-motion';
+import { getCloudinaryImageUrl } from '@/lib/cloudinary';
+
+const heroTextureSrc = process.env.NEXT_PUBLIC_CLD_HERO_TEXTURE
+  ? getCloudinaryImageUrl(process.env.NEXT_PUBLIC_CLD_HERO_TEXTURE, { quality: 'auto', format: 'auto' })
+  : '/images/hero-texture.webp';
+
+const logoSrc = process.env.NEXT_PUBLIC_CLD_LOGO
+  ? getCloudinaryImageUrl(process.env.NEXT_PUBLIC_CLD_LOGO, { quality: 'auto', format: 'auto' })
+  : '/images/kaari-logo.webp';
 
 // Parallax scroll hook
 function useParallax(value: number, distance: number) {
   return useTransform(useScroll().scrollY, [0, 1], [value, distance]);
 }
 
-// Mouse position hook for interactive effects
-function useMousePosition() {
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+export default function HeroSection() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { scrollY } = useScroll();
+
+  // Mouse motion value for logo rotation effect
+  const mouseX = useMotionValue(0);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setPosition({
-        x: (e.clientX / window.innerWidth - 0.5) * 20,
-        y: (e.clientY / window.innerHeight - 0.5) * 20,
-      });
+      mouseX.set((e.clientX / window.innerWidth - 0.5) * 20);
     };
-
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
-
-  return position;
-}
-
-export default function HeroSection() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mousePosition = useMousePosition();
-  const { scrollY } = useScroll();
+  }, [mouseX]);
 
   // Parallax transforms
   const backgroundY = useTransform(scrollY, [0, 500], [0, 150]);
   const contentY = useTransform(scrollY, [0, 500], [0, 50]);
-  const logoRotate = useTransform(mousePosition.x, [-10, 10], [-5, 5]);
+  const logoRotate = useTransform(mouseX, [-10, 10], [-5, 5]);
   const logoScale = useTransform(scrollY, [0, 200], [1, 0.8]);
 
   // Animation variants
@@ -87,14 +87,16 @@ export default function HeroSection() {
         className="absolute inset-0 z-0"
       >
         <Image
-          src="/images/hero-texture.webp"
+          src={heroTextureSrc}
           alt="Hero background texture"
           fill
           priority
           className="object-cover"
           sizes="100vw"
-          placeholder="blur"
-          blurDataURL="data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADQAQCdASoKAAoAAUAmJYgCdAEOdI0WMQAAL"
+          {...(!process.env.NEXT_PUBLIC_CLD_HERO_TEXTURE && {
+            placeholder: 'blur',
+            blurDataURL: 'data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADQAQCdASoKAAoAAUAmJYgCdAEOdI0WMQAAL',
+          })}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-kaari-dark/70 via-kaari-dark/60 to-kaari-dark/80" />
       </motion.div>
@@ -141,7 +143,7 @@ export default function HeroSection() {
           >
             <div className="relative w-28 h-28 md:w-36 md:h-36 mx-auto">
               <Image
-                src="/images/kaari-logo.webp"
+                src={logoSrc}
                 alt="Kaari Handmade Logo"
                 fill
                 className="object-contain drop-shadow-2xl"

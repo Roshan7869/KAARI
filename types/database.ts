@@ -6,6 +6,9 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// Helper type to ensure the public schema is properly typed
+type EnsurePublicSchema<T> = T extends { public?: any } ? T : { public: T }
+
 export type Database = {
   public: {
     Tables: {
@@ -664,24 +667,93 @@ export type Database = {
         }
         Relationships: []
       }
+      product_reviews: {
+        Row: {
+          content: string | null
+          created_at: string
+          deleted_at: string | null
+          helpful_count: number
+          id: string
+          is_verified_purchase: boolean
+          product_id: string
+          rating: number
+          status: string
+          title: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          helpful_count?: number
+          id?: string
+          is_verified_purchase?: boolean
+          product_id: string
+          rating: number
+          status?: string
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          helpful_count?: number
+          id?: string
+          is_verified_purchase?: boolean
+          product_id?: string
+          rating?: number
+          status?: string
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
+          email_notifications_enabled: boolean | null
           full_name: string | null
           id: string
           phone: string | null
+          sms_notifications_enabled: boolean | null
+          marketing_emails_enabled: boolean | null
         }
         Insert: {
           created_at?: string
+          email_notifications_enabled?: boolean | null
           full_name?: string | null
           id: string
           phone?: string | null
+          sms_notifications_enabled?: boolean | null
+          marketing_emails_enabled?: boolean | null
         }
         Update: {
           created_at?: string
+          email_notifications_enabled?: boolean | null
           full_name?: string | null
           id?: string
           phone?: string | null
+          sms_notifications_enabled?: boolean | null
+          marketing_emails_enabled?: boolean | null
         }
         Relationships: []
       }
@@ -827,6 +899,69 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_sessions: {
+        Row: {
+          id: string
+          session_id: string
+          order_id: string
+          user_id: string
+          amount: number
+          currency: string
+          payment_method: string
+          status: string
+          created_at: string
+          expires_at: string
+          completed_at: string | null
+          transaction_id: string | null
+          metadata: Record<string, unknown> | null
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          order_id: string
+          user_id: string
+          amount: number
+          currency?: string
+          payment_method: string
+          status?: string
+          created_at?: string
+          expires_at: string
+          completed_at?: string | null
+          transaction_id?: string | null
+          metadata?: Record<string, unknown> | null
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          order_id?: string
+          user_id?: string
+          amount?: number
+          currency?: string
+          payment_method?: string
+          status?: string
+          created_at?: string
+          expires_at?: string
+          completed_at?: string | null
+          transaction_id?: string | null
+          metadata?: Record<string, unknown> | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_sessions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       payment_gateways: {
         Row: {
           id: string
@@ -935,6 +1070,114 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          order_id: string | null
+          type: string
+          channel: string
+          status: string
+          recipient: string
+          subject: string | null
+          content: string
+          metadata: Record<string, unknown> | null
+          provider_response: Record<string, unknown> | null
+          error_message: string | null
+          sent_at: string | null
+          delivered_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          order_id?: string | null
+          type: string
+          channel: string
+          status?: string
+          recipient: string
+          subject?: string | null
+          content: string
+          metadata?: Record<string, unknown> | null
+          provider_response?: Record<string, unknown> | null
+          error_message?: string | null
+          sent_at?: string | null
+          delivered_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          order_id?: string | null
+          type?: string
+          channel?: string
+          status?: string
+          recipient?: string
+          subject?: string | null
+          content?: string
+          metadata?: Record<string, unknown> | null
+          provider_response?: Record<string, unknown> | null
+          error_message?: string | null
+          sent_at?: string | null
+          delivered_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      notification_templates: {
+        Row: {
+          id: string
+          name: string
+          type: string
+          channel: string
+          subject: string | null
+          template: string
+          variables: string[]
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          type: string
+          channel: string
+          subject?: string | null
+          template: string
+          variables?: string[]
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          type?: string
+          channel?: string
+          subject?: string | null
+          template?: string
+          variables?: string[]
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -956,12 +1199,74 @@ export type Database = {
         }
         Returns: Json
       }
+      create_payment_session: {
+        Args: {
+          p_order_id: string
+          p_user_id: string
+          p_amount: number
+          p_payment_method: string
+          p_expires_in_minutes?: number
+        }
+        Returns: {
+          session_id: string
+          order_id: string
+          amount: number
+          currency: string
+          expires_at: string
+        }[]
+      }
+      verify_payment_session: {
+        Args: {
+          p_session_id: string
+          p_user_id?: string | null
+        }
+        Returns: {
+          valid: boolean
+          session_id: string
+          order_id: string
+          amount: number
+          status: string
+          error: string | null
+        }[]
+      }
+      complete_payment_session: {
+        Args: {
+          p_session_id: string
+          p_transaction_id: string
+          p_status: string
+        }
+        Returns: {
+          success: boolean
+          order_id: string
+          message: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      queue_notification: {
+        Args: {
+          p_user_id: string
+          p_type: string
+          p_channel: string
+          p_recipient: string
+          p_subject: string | null
+          p_content: string
+          p_order_id?: string | null
+          p_metadata?: Json | null
+        }
+        Returns: string
+      }
+      mark_notification_sent: {
+        Args: {
+          p_notification_id: string
+          p_provider_response?: Json | null
+        }
+        Returns: void
       }
     }
     Enums: {
@@ -975,17 +1280,25 @@ export type Database = {
 
 type DefaultSchema = Database["public"]
 
+// Use the explicit table name as the constraint instead of keyof DefaultSchema["Tables"]
+// This helps TypeScript infer the type better
 export type Tables<
-  TableName extends keyof DefaultSchema["Tables"] = keyof DefaultSchema["Tables"],
-> = DefaultSchema["Tables"][TableName] extends { Row: infer R } ? R : never
+  TableName extends string = keyof DefaultSchema["Tables"],
+> = TableName extends keyof DefaultSchema["Tables"]
+  ? DefaultSchema["Tables"][TableName] extends { Row: infer R } ? R : never
+  : never
 
 export type TablesInsert<
-  TableName extends keyof DefaultSchema["Tables"] = keyof DefaultSchema["Tables"],
-> = DefaultSchema["Tables"][TableName] extends { Insert: infer I } ? I : never
+  TableName extends string = keyof DefaultSchema["Tables"],
+> = TableName extends keyof DefaultSchema["Tables"]
+  ? DefaultSchema["Tables"][TableName] extends { Insert: infer I } ? I : never
+  : never
 
 export type TablesUpdate<
-  TableName extends keyof DefaultSchema["Tables"] = keyof DefaultSchema["Tables"],
-> = DefaultSchema["Tables"][TableName] extends { Update: infer U } ? U : never
+  TableName extends string = keyof DefaultSchema["Tables"],
+> = TableName extends keyof DefaultSchema["Tables"]
+  ? DefaultSchema["Tables"][TableName] extends { Update: infer U } ? U : never
+  : never
 
 export type Enums<
   EnumName extends keyof DefaultSchema["Enums"] = keyof DefaultSchema["Enums"],

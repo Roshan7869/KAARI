@@ -326,39 +326,41 @@ export async function getCashfreePaymentDetails(
 }
 
 /**
- * Verify Cashfree webhook signature
- * CRITICAL: This must be implemented correctly for production!
+ * Verify Cashfree webhook signature (Node.js version - use in API routes)
+ * CRITICAL: Validates HMAC-SHA256 signature with timing-safe comparison
+ *
+ * Cashfree signs: x-webhook-timestamp + rawBody
+ * See: https://docs.cashfree.com/docs/webhooks/verify-signature
  */
 export function verifyCashfreeWebhookSignature(
-  payload: string,
+  rawBody: string,
   signature: string,
+  timestamp: string,
   secret: string
 ): boolean {
-  if (!secret) {
-    console.warn('WEBHOOK: No secret configured, skipping verification');
+  if (!secret || !signature) {
+    console.warn('WEBHOOK: Missing secret or signature');
     return false;
   }
 
   try {
-    // Cashfree uses SHA256 with secret
-    const encoder = new TextEncoder();
-    const key = encoder.encode(secret);
-    const data = encoder.encode(payload);
+    // Import Node.js crypto at runtime (works in Next.js Edge functions and API routes)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const cryptoModule = require('crypto');
 
-    // Using Web Crypto API (available in browser and Edge functions)
-    return crypto.subtle.importKey(
-      'raw',
-      key,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    ).then(async (cryptoKey) => {
-      const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, data);
-      const expectedSignature = btoa(
-        String.fromCharCode(...new Uint8Array(signatureBuffer))
-      );
-      return signature === expectedSignature;
-    }) as unknown as boolean;
+    const signedPayload = timestamp + rawBody;
+    const expected = cryptoModule
+      .createHmac('sha256', secret)
+      .update(signedPayload)
+      .digest('base64');
+
+    const sigBuffer      = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+
+    // Timing-safe comparison prevents timing attacks
+    if (sigBuffer.length !== expectedBuffer.length) return false;
+
+    return cryptoModule.timingSafeEqual(sigBuffer, expectedBuffer);
   } catch (error) {
     console.error('Webhook signature verification failed:', error);
     return false;

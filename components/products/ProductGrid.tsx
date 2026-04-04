@@ -7,6 +7,7 @@ import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
 import { categories, getProductsByCategory, type Category, type Product } from '@/data/products';
 import { supabase } from '@/lib/supabase/client';
 import { sanitizeTextInput } from '@/lib/sanitization';
+import { resolveProductImageUrl } from '@/lib/product-media';
 
 type SortOption = 'featured' | 'price_low_high' | 'price_high_low' | 'name_az';
 
@@ -87,7 +88,7 @@ export default function ProductGrid() {
         title: p.title,
         slug: p.slug,
         price: p.base_price,
-        image: p.product_media?.[0]?.file_path || '/placeholder.svg',
+        image: resolveProductImageUrl(p.product_media?.[0]?.file_path),
         category: p.category || 'Uncategorized',
         allowCustomization: p.allow_customization,
       }));

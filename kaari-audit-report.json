@@ -1,14 +1,18 @@
 {
-  "timestamp": "2026-04-02T18:09:23.636Z",
-  "score": 57,
-  "grade": "F",
+  "timestamp": "2026-04-02T20:58:11.266Z",
+  "score": 60,
+  "grade": "D",
   "base_url": "http://localhost:3000",
   "totals": {
-    "pass": 52,
-    "fail": 13,
-    "warn": 27
+    "pass": 55,
+    "fail": 12,
+    "warn": 25
   },
   "failures": [
+    {
+      "tag": "TS",
+      "msg": "0 TypeScript error(s) detected"
+    },
     {
       "tag": "LINT",
       "msg": "74 ESLint errors, 0 warnings"
@@ -22,44 +26,36 @@
       "msg": "Webhook does NOT read raw body — HMAC will always fail (body already parsed)"
     },
     {
-      "tag": "REDIS",
-      "msg": "lib/rateLimit.ts is client-only in-memory — NOT Redis. Misleadingly named."
-    },
-    {
-      "tag": "A11Y",
-      "msg": "Only 0 ARIA attributes in app/ — screen readers cannot navigate"
-    },
-    {
       "tag": "SHIP",
       "msg": "Courier selection NOT implemented — customers cannot choose delivery provider"
     },
     {
       "tag": "PAGE",
-      "msg": "/ → 0 (6ms)"
+      "msg": "/ → 0 (4ms)"
     },
     {
       "tag": "PAGE",
-      "msg": "/products → 0 (3ms)"
+      "msg": "/products → 0 (31ms)"
     },
     {
       "tag": "PAGE",
-      "msg": "/checkout → 0 (3ms)"
+      "msg": "/checkout → 0 (34ms)"
     },
     {
       "tag": "PAGE",
-      "msg": "/admin → 0 (3ms)"
+      "msg": "/admin → 0 (11ms)"
     },
     {
       "tag": "PAGE",
-      "msg": "/api/health → 0 (4ms)"
+      "msg": "/api/health → 0 (29ms)"
     },
     {
       "tag": "PAGE",
-      "msg": "/sitemap.xml → 0 (4ms)"
+      "msg": "/sitemap.xml → 0 (21ms)"
     },
     {
       "tag": "PAGE",
-      "msg": "/robots.txt → 0 (4ms)"
+      "msg": "/robots.txt → 0 (13ms)"
     }
   ],
   "warnings": [
@@ -125,10 +121,6 @@
     },
     {
       "tag": "CF",
-      "msg": "Two webhook paths: app/api/webhooks/payment/route.ts + lib/webhook.ts — only former should be active"
-    },
-    {
-      "tag": "CF",
       "msg": "Order state 'PENDING' not found in webhook handler"
     },
     {
@@ -142,10 +134,6 @@
     {
       "tag": "REDIS",
       "msg": "No fail-closed strategy — Redis outage silently allows all traffic"
-    },
-    {
-      "tag": "ISR",
-      "msg": "generateStaticParams missing — no static pre-rendering of product pages"
     },
     {
       "tag": "FONT",
@@ -190,10 +178,6 @@
       "msg": ".gitignore covers .env.production"
     },
     {
-      "tag": "TS",
-      "msg": "0 TypeScript errors"
-    },
-    {
       "tag": "CLOUD",
       "msg": "ProductGridDb.tsx uses resolveProductImageUrl() ✓"
     },
@@ -223,11 +207,19 @@
     },
     {
       "tag": "CF",
+      "msg": "Single webhook path: app/api/webhooks/payment/route.ts"
+    },
+    {
+      "tag": "CF",
       "msg": "Webhook calls verifyCashfreeWebhookSignature()"
     },
     {
       "tag": "CF",
       "msg": "Order state 'PAYMENT_FAILED' handled in webhook"
+    },
+    {
+      "tag": "REDIS",
+      "msg": "lib/rateLimit.ts removed/renamed — no misleading client limiter"
     },
     {
       "tag": "REDIS",
@@ -284,6 +276,10 @@
     {
       "tag": "ISR",
       "msg": "Product list page has revalidate export"
+    },
+    {
+      "tag": "ISR",
+      "msg": "generateStaticParams present — top products pre-rendered"
     },
     {
       "tag": "BUNDLE",
@@ -343,6 +339,10 @@
     },
     {
       "tag": "A11Y",
+      "msg": "11 ARIA attributes in app/ components"
+    },
+    {
+      "tag": "A11Y",
       "msg": "171 skeleton/loading components found"
     },
     {
@@ -375,11 +375,11 @@
     },
     {
       "tag": "PERF",
-      "msg": "/ avg 5ms p99 6ms (target <800ms)"
+      "msg": "/ avg 32ms p99 49ms (target <800ms)"
     },
     {
       "tag": "PERF",
-      "msg": "/products avg 4ms p99 4ms (target <800ms)"
+      "msg": "/products avg 39ms p99 76ms (target <800ms)"
     }
   ]
 }

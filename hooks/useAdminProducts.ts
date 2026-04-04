@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { sanitizeSearchQuery } from '@/lib/sanitization';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
+import { cloudinary } from '@/lib/cloudinary';
 
 export type Product = Tables<'products'>;
 export type ProductInsert = TablesInsert<'products'>;
@@ -269,22 +270,35 @@ export function useUploadProductMedia() {
       productId,
       file,
       altText,
-    }: {
-      productId: string;
-      file: File;
-      altText?: string;
-    }) => {
-      // Generate unique file path
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${productId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-      const filePath = `product-media/${fileName}`;
+      }: {
+        productId: string;
+        file: File;
+        altText?: string;
+      }) => {
+        const shouldUseCloudinary = Boolean(
+          process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME &&
+          process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY
+        );
 
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('product-media')
-        .upload(filePath, file);
+        let filePath = '';
 
-      if (uploadError) throw uploadError;
+        if (shouldUseCloudinary) {
+          const uploadResult = await cloudinary.uploadImage(file, {
+            folder: 'products',
+            tags: ['product', productId],
+          });
+          filePath = uploadResult.public_id;
+        } else {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${productId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+          filePath = `product-media/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('product-media')
+            .upload(filePath, file);
+
+          if (uploadError) throw uploadError;
+        }
 
       // Get current max sort order
       const { data: existingMedia } = await supabase
@@ -327,12 +341,17 @@ export function useDeleteProductMedia() {
 
   return useMutation({
     mutationFn: async ({ id, filePath }: { id: string; filePath: string; productId: string }) => {
-      // Delete from storage
-      await supabase.storage.from('product-media').remove([filePath]);
+      // Call admin API which handles both Cloudinary and Supabase deletion
+      const response = await fetch('/api/admin/media/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaId: id, publicId: filePath }),
+      });
 
-      // Delete record
-      const { error } = await supabase.from('product_media').delete().eq('id', id);
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete media');
+      }
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin-product', variables.productId] });
@@ -385,8 +404,8 @@ export function useProductCategories() {
 
       if (error) throw error;
 
-      // Extract unique categories
-      const categories = [...new Set(data.map((p) => p.category).filter(Boolean))];
+      // Extract unique categories (ES2015-compatible iteration)
+      const categories = Array.from(new Set(data.map((p) => p.category).filter(Boolean)));
       return categories as string[];
     },
     staleTime: 1000 * 60 * 5, // 5 minutes

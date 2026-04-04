@@ -2,6 +2,11 @@
 
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { getCloudinaryImageUrl } from '@/lib/cloudinary';
+
+const artisanSrc = process.env.NEXT_PUBLIC_CLD_ARTISAN_STORY
+  ? getCloudinaryImageUrl(process.env.NEXT_PUBLIC_CLD_ARTISAN_STORY, { quality: 'auto', format: 'auto' })
+  : '/images/artisan-story.webp';
 
 export default function ArtisanStory() {
   return (
@@ -18,7 +23,7 @@ export default function ArtisanStory() {
           >
             <div className="aspect-[4/5] overflow-hidden rounded-lg">
               <Image
-                src="/images/artisan-story.webp"
+                src={artisanSrc}
                 alt="Indian artisan crocheting with colorful yarn"
                 fill
                 className="object-cover"

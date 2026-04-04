@@ -1,70 +1,54 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ShoppingCart, User, LogOut, Loader2, Menu, X } from 'lucide-react';
+import { ShoppingBag, User, LogOut, ChevronDown, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
 
-interface NavbarProps {
-  variant?: 'transparent' | 'solid' | 'glass';
-}
-
-export default function Navbar({ variant = 'solid' }: NavbarProps) {
+export default function Navbar() {
   const pathname = usePathname();
+  const { user, signOut, loading } = useAuth();
+  const { cart } = useCart();
   const [showDropdown, setShowDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // Check for auth (will be replaced with auth context)
-  const user = null;
-  const authLoading = false;
-  const cartItemCount = 0;
+  const cartCount = cart?.items?.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
 
-  // Handle scroll effect
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 80);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
+    setShowDropdown(false);
   }, [pathname]);
-
-  const handleSignOut = async () => {
-    // Will be implemented with auth context
-    console.log('Sign out');
-  };
-
-  // Determine navbar style based on variant and scroll state
-  const getNavbarStyle = () => {
-    if (variant === 'transparent') {
-      if (scrolled) {
-        return 'glass-navbar';
-      }
-      return 'bg-transparent';
-    }
-    if (variant === 'glass') {
-      return 'glass-navbar';
-    }
-    return 'glass-card-cream';
-  };
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 ${getNavbarStyle()}`}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ease-out ${
+        scrolled ? 'bg-white/90 backdrop-blur-sm shadow-sm' : 'bg-white'
+      }`}
       role="navigation"
       aria-label="Main navigation"
     >
+      {/* Skip to main content */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-background focus:text-foreground focus:rounded-lg focus:shadow-lg font-body text-sm"
+      >
+        Skip to main content
+      </a>
+
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
+        <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
           <div className="relative w-8 h-8">
             <Image
               src="/images/kaari-logo.webp"
@@ -74,92 +58,84 @@ export default function Navbar({ variant = 'solid' }: NavbarProps) {
               sizes="32px"
             />
           </div>
-          <span className="font-display text-xl text-foreground group-hover:text-primary transition-colors">
+          <span className="font-display text-xl text-stone-800 group-hover:text-primary transition-colors">
             कारी
           </span>
         </Link>
 
-        {/* Mobile Menu Button */}
-        <button
-          className="md:hidden p-2 text-foreground hover:bg-kaari-cream/10 rounded-lg transition-colors"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-expanded={mobileMenuOpen}
-          aria-controls="mobile-menu"
-          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-6">
+        {/* Desktop — 3 buttons */}
+        <div className="hidden md:flex items-center gap-7">
           <Link
-            href="/"
-            className={`font-body text-xs tracking-[0.15em] uppercase transition-colors thread-underline ${
-              pathname === '/' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            href="/about"
+            className={`font-body text-xs tracking-[0.15em] uppercase transition-colors duration-200 ${
+              pathname === '/about'
+                ? 'text-primary'
+                : 'text-stone-500 hover:text-stone-900'
             }`}
+            aria-current={pathname === '/about' ? 'page' : undefined}
           >
-            Home
-          </Link>
-          <Link
-            href="/products"
-            className={`font-body text-xs tracking-[0.15em] uppercase transition-colors thread-underline ${
-              pathname === '/products' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Products
+            About Us
           </Link>
 
-          {authLoading ? (
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-            </div>
+          {/* Sign In / Account */}
+          {loading ? (
+            <div className="w-16 h-4 bg-stone-200 animate-pulse rounded" />
           ) : user ? (
             <div className="relative">
               <button
-                onClick={() => setShowDropdown(!showDropdown)}
+                onClick={() => setShowDropdown((v) => !v)}
+                className="flex items-center gap-1.5 font-body text-xs tracking-[0.15em] uppercase text-stone-500 hover:text-stone-900 transition-colors duration-200"
                 aria-expanded={showDropdown}
                 aria-haspopup="menu"
-                className="flex items-center gap-2 font-body text-xs tracking-[0.15em] uppercase text-foreground hover:text-accent transition-colors"
               >
-                <User className="w-4 h-4" />
-                <span>Account</span>
+                <User className="w-3.5 h-3.5" aria-hidden />
+                <span className="max-w-[100px] truncate">
+                  {user.user_metadata?.full_name ?? user.email?.split('@')[0]}
+                </span>
+                <ChevronDown className="w-3 h-3" aria-hidden />
               </button>
 
               <AnimatePresence>
                 {showDropdown && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute right-0 mt-2 w-48 glass-card-cream rounded-lg shadow-lg overflow-hidden"
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-100 overflow-hidden"
                     role="menu"
                   >
-                    <div className="p-3 border-b border-kaari-warm-brown/20">
-                      <p className="font-body text-xs text-muted-foreground">Signed in as</p>
-                      <p className="font-body text-sm text-foreground truncate">{user.email}</p>
+                    <div className="px-4 py-3 border-b border-stone-100">
+                      <p className="text-xs text-stone-400 font-body">Signed in as</p>
+                      <p className="text-sm text-stone-800 font-body truncate">{user.email}</p>
                     </div>
                     <Link
                       href="/cart"
-                      className="block px-3 py-2 font-body text-sm text-foreground hover:bg-kaari-cream/50 transition-colors"
-                      onClick={() => setShowDropdown(false)}
+                      className="block px-4 py-2.5 font-body text-sm text-stone-700 hover:bg-stone-50 transition-colors"
                       role="menuitem"
                     >
                       My Cart
                     </Link>
                     <Link
+                      href="/account"
+                      className="block px-4 py-2.5 font-body text-sm text-stone-700 hover:bg-stone-50 transition-colors"
+                      role="menuitem"
+                    >
+                      My Orders
+                    </Link>
+                    <Link
                       href="/admin"
-                      className="block px-3 py-2 font-body text-sm text-foreground hover:bg-kaari-cream/50 transition-colors"
-                      onClick={() => setShowDropdown(false)}
+                      className="block px-4 py-2.5 font-body text-sm text-stone-700 hover:bg-stone-50 transition-colors"
                       role="menuitem"
                     >
                       Admin
                     </Link>
                     <button
-                      onClick={handleSignOut}
-                      className="flex items-center gap-2 w-full px-3 py-2 font-body text-sm text-foreground hover:bg-kaari-cream/50 transition-colors"
+                      onClick={() => { signOut(); setShowDropdown(false); }}
+                      className="flex items-center gap-2 w-full px-4 py-2.5 font-body text-sm text-stone-700 hover:bg-stone-50 transition-colors border-t border-stone-100"
                       role="menuitem"
                     >
-                      <LogOut className="w-4 h-4" />
+                      <LogOut className="w-4 h-4" aria-hidden />
                       Sign Out
                     </button>
                   </motion.div>
@@ -169,92 +145,106 @@ export default function Navbar({ variant = 'solid' }: NavbarProps) {
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-2 font-body text-xs tracking-[0.15em] uppercase text-muted-foreground hover:text-foreground transition-colors"
+              className="font-body text-xs tracking-[0.15em] uppercase text-stone-500 hover:text-stone-900 transition-colors duration-200"
             >
-              <User className="w-4 h-4" />
-              <span>Sign In</span>
+              Sign In
             </Link>
           )}
 
+          {/* Cart */}
           <Link
             href="/cart"
-            className="relative flex items-center gap-2 font-body text-xs tracking-[0.15em] uppercase text-muted-foreground hover:text-foreground transition-colors"
+            className="relative flex items-center"
+            aria-label={cartCount > 0 ? `Cart — ${cartCount} items` : 'Cart — empty'}
           >
-            <ShoppingCart className="w-4 h-4" />
-            <span>Cart</span>
-            {cartItemCount > 0 && (
+            <ShoppingBag className="w-5 h-5 text-stone-600 hover:text-stone-900 transition-colors duration-200" aria-hidden />
+            {cartCount > 0 && (
               <motion.span
-                initial={{ scale: 0 }}
+                key={cartCount}
+                initial={{ scale: 0.6 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-accent text-primary-foreground text-xs font-bold rounded-full flex items-center justify-center"
+                className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+                aria-hidden
               >
-                {cartItemCount}
+                {cartCount > 99 ? '99+' : cartCount}
               </motion.span>
             )}
           </Link>
+          {/* Live region for cart — screen readers */}
+          <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {cartCount > 0 ? `${cartCount} item${cartCount !== 1 ? 's' : ''} in cart` : ''}
+          </span>
+        </div>
+
+        {/* Mobile — Cart + Hamburger */}
+        <div className="flex md:hidden items-center gap-3">
+          <Link
+            href="/cart"
+            className="relative"
+            aria-label={cartCount > 0 ? `Cart — ${cartCount} items` : 'Cart — empty'}
+          >
+            <ShoppingBag className="w-5 h-5 text-stone-600" aria-hidden />
+            {cartCount > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+          </Link>
+          <button
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            className="p-1.5 text-stone-600 hover:text-stone-900 transition-colors"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            id="mobile-menu"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden glass-card-cream border-t border-kaari-warm-brown/10"
-          >
-            <div className="px-6 py-4 space-y-4">
-              <Link
-                href="/"
-                className={`block font-body text-sm ${
-                  pathname === '/' ? 'text-primary' : 'text-foreground hover:text-accent'
-                }`}
-              >
-                Home
-              </Link>
-              <Link
-                href="/products"
-                className={`block font-body text-sm ${
-                  pathname === '/products' ? 'text-primary' : 'text-foreground hover:text-accent'
-                }`}
-              >
-                Products
-              </Link>
-              {user ? (
-                <>
-                  <Link
-                    href="/cart"
-                    className="block font-body text-sm text-foreground hover:text-accent"
-                  >
-                    My Cart ({cartItemCount})
-                  </Link>
-                  <Link
-                    href="/admin"
-                    className="block font-body text-sm text-foreground hover:text-accent"
-                  >
-                    Admin
-                  </Link>
-                  <button
-                    onClick={handleSignOut}
-                    className="block font-body text-sm text-foreground hover:text-accent"
-                  >
-                    Sign Out
-                  </button>
-                </>
-              ) : (
+      {/* Mobile fullscreen overlay */}
+      <div id="mobile-menu">
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden bg-white border-t border-stone-100 shadow-md"
+              role="navigation"
+              aria-label="Mobile navigation"
+            >
+              <div className="px-6 py-5 space-y-5">
                 <Link
-                  href="/login"
-                  className="block font-body text-sm text-foreground hover:text-accent"
+                  href="/about"
+                  className="block font-body text-sm tracking-[0.12em] uppercase text-stone-700 hover:text-primary transition-colors"
+                  aria-current={pathname === '/about' ? 'page' : undefined}
                 >
-                  Sign In
+                  About Us
                 </Link>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {user ? (
+                  <>
+                    <Link href="/account" className="block font-body text-sm text-stone-700 hover:text-primary transition-colors">
+                      My Orders
+                    </Link>
+                    <button
+                      onClick={signOut}
+                      className="block font-body text-sm text-stone-700 hover:text-primary transition-colors text-left"
+                    >
+                      Sign Out
+                    </button>
+                  </>
+                ) : (
+                  <Link href="/login" className="block font-body text-sm tracking-[0.12em] uppercase text-stone-700 hover:text-primary transition-colors">
+                    Sign In
+                  </Link>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </nav>
   );
 }

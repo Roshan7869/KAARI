@@ -47,32 +47,48 @@ export default function Login() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <p
+                id="login-error"
+                className="font-body text-sm text-red-600"
+                role="alert"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {error}
+              </p>
+            )}
+
             <div>
-              <label className="font-body text-sm font-medium">Email</label>
+              <label htmlFor="email" className="font-body text-sm font-medium">Email</label>
               <Input
+                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
                 className="mt-1"
+                aria-label="Email address"
+                aria-required="true"
+                aria-describedby={error ? "login-error" : undefined}
               />
             </div>
             <div>
-              <label className="font-body text-sm font-medium">Password</label>
+              <label htmlFor="password" className="font-body text-sm font-medium">Password</label>
               <Input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
                 className="mt-1"
+                aria-label="Password"
+                aria-required="true"
+                aria-describedby={error ? "login-error" : undefined}
               />
             </div>
-
-            {error && (
-              <p className="font-body text-sm text-red-600">{error}</p>
-            )}
 
             <Button type="submit" className="w-full" size="lg" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}

@@ -40,6 +40,11 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: '/dummy-payment',
+        destination: '/checkout',
+        permanent: true,
+      },
+      {
         source: '/dummy-payment-success',
         destination: '/order-confirmation',
         permanent: false,
@@ -54,10 +59,34 @@ const nextConfig = {
 
   // Security headers & cache control
   async headers() {
+    const ContentSecurityPolicy = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://js.cashfree.com https://vercel.live",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com",
+      "frame-src https://js.cashfree.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
+    ].join('; ')
+
     return [
       {
         source: '/(.*)',
         headers: [
+          // HSTS — force HTTPS for 1 year
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+          },
+          // CSP — strict, blocks XSS injection vectors
+          {
+            key: 'Content-Security-Policy',
+            value: ContentSecurityPolicy,
+          },
           // Prevent clickjacking
           {
             key: 'X-Frame-Options',
@@ -96,6 +125,26 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'no-cache, no-store, must-revalidate, private',
+          },
+        ],
+      },
+      // Product pages — ISR cache headers
+      {
+        source: '/products/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 's-maxage=60, stale-while-revalidate=300',
+          },
+        ],
+      },
+      // Static assets — immutable long-term cache
+      {
+        source: '/:path*\\.(jpg|jpeg|png|webp|avif|svg|ico|woff|woff2)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },

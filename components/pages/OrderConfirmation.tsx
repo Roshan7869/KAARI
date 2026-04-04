@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { OrderSummarySkeleton } from '@/components/ui/skeleton-loader';
 
 interface Order {
   id: string;
@@ -92,11 +93,8 @@ export default function OrderConfirmation() {
 
   if (isLoading || !orderId) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="font-body text-muted-foreground">Loading order...</p>
-        </div>
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        <OrderSummarySkeleton />
       </div>
     );
   }

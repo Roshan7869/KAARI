@@ -333,6 +333,96 @@ export function LoadingState({ message = 'Loading...' }: LoadingStateProps) {
 }
 
 // ========================================
+// Protected Route Skeleton
+// ========================================
+
+export function ProtectedRouteSkeleton() {
+  return (
+    <div className="min-h-screen p-6 pt-24 space-y-6" aria-busy="true" aria-label="Loading...">
+      <div className="max-w-4xl mx-auto space-y-4">
+        <div className="h-8 bg-muted animate-pulse rounded w-1/3" />
+        <div className="h-4 bg-muted animate-pulse rounded w-1/2" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+          <div className="lg:col-span-2 space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 p-4 border rounded-xl bg-card">
+                <div className="w-16 h-16 bg-muted animate-pulse rounded-lg flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+                  <div className="h-3 bg-muted animate-pulse rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="h-48 bg-muted animate-pulse rounded-xl" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========================================
+// Product Detail Skeleton
+// ========================================
+
+export function ProductDetailSkeleton() {
+  return (
+    <div className="min-h-screen py-8 md:py-12">
+      <div className="max-w-6xl mx-auto px-4 md:px-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Image placeholder */}
+          <div className="space-y-4">
+            <div className="aspect-square w-full bg-muted animate-pulse rounded-2xl" />
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="aspect-square bg-muted animate-pulse rounded-xl" />
+              ))}
+            </div>
+          </div>
+
+          {/* Product info placeholder */}
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="h-3 bg-muted animate-pulse rounded w-24" />
+              <div className="h-8 bg-muted animate-pulse rounded w-4/5" />
+              <div className="h-6 bg-muted animate-pulse rounded w-28" />
+            </div>
+
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-3 bg-muted animate-pulse rounded w-full" />
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <div className="h-10 bg-muted animate-pulse rounded" />
+              <div className="h-10 bg-muted animate-pulse rounded" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========================================
+// Section Skeleton (for simple content sections)
+// ========================================
+
+interface SectionSkeletonProps {
+  height?: string;
+  className?: string;
+}
+
+export function SectionSkeleton({ height = 'h-64', className }: SectionSkeletonProps) {
+  return (
+    <div className={cn('bg-background', className)} aria-hidden="true">
+      <div className={cn('max-w-7xl mx-auto px-6 bg-muted rounded-2xl animate-pulse', height)} />
+    </div>
+  );
+}
+
+// ========================================
 // Content Shimmer Effect (for dynamic content)
 // ========================================
 
@@ -345,23 +435,4 @@ export function ContentShimmer({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
-}
-
-// Add shimmer keyframe to globals.css or use inline style
-const shimmerStyle = `
-  @keyframes shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(100%);
-    }
-  }
-`;
-
-// Inject style if needed
-if (typeof document !== 'undefined') {
-  const styleSheet = document.createElement('style');
-  styleSheet.textContent = shimmerStyle;
-  document.head.appendChild(styleSheet);
 }

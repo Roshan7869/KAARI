@@ -150,7 +150,11 @@ export const config: EnvConfig = {
   },
 
   get appUrl(): string {
-    return getEnvVar('NEXT_PUBLIC_APP_URL', 'http://localhost:3000') || 'http://localhost:3000';
+    return (
+      getEnvVar('NEXT_PUBLIC_APP_URL') ||
+      getEnvVar('KAARI_BASE_URL') ||
+      'http://localhost:3000'
+    );
   },
 };
 

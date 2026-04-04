@@ -42,7 +42,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               {this.props.componentName || 'This section'} is temporarily unavailable
             </h3>
             <p className="font-body text-sm text-muted-foreground mb-4">
-              Don't worry, the rest of the site is working normally.
+              Don&apos;t worry, the rest of the site is working normally.
             </p>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}

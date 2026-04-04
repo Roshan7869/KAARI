@@ -1,4 +1,22 @@
-import AdminDashboard from "@/pages/admin/AdminDashboard";
+import { Metadata } from "next";
+import dynamic from "next/dynamic";
+import { AdminDashboardSkeleton } from "@/components/ui/skeleton-loader";
+
+export const metadata: Metadata = {
+  title: "Admin Dashboard | Kaari",
+  description: "Kaari Marketplace Admin Dashboard",
+  openGraph: {
+    type: "website",
+    url: "https://kaari.in/admin",
+    title: "Admin Dashboard | Kaari",
+    description: "Manage products, orders, and customers",
+  },
+};
+
+const AdminDashboard = dynamic(
+  () => import("@/components/pages/admin/AdminDashboard"),
+  { loading: () => <AdminDashboardSkeleton />, ssr: false }
+);
 
 export default function AdminDashboardPage() {
   return <AdminDashboard />;

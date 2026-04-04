@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database';
 import { trackEvent } from '@/lib/analytics';
@@ -74,8 +74,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClient();
-
   const calculatePricing = (items: CartItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
     const shipping = subtotal > 0 ? 99 : 0;
@@ -115,7 +113,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
     if (createCartError) throw createCartError;
     return createdCart;
-  }, [supabase]);
+  }, []);
 
   const resolveVariantForStock = useCallback(async (productId: string, variantId?: string): Promise<VariantStockRow | null> => {
     if (variantId) {
@@ -130,7 +128,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       return data;
     }
 
-    const { data, error } = await supabase
+    // First try to get an existing variant
+    const { data: existingVariant, error: variantError } = await supabase
       .from('product_variants')
       .select('id, product_id, stock_qty, is_default')
       .eq('product_id', productId)
@@ -138,9 +137,37 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       .limit(1)
       .maybeSingle();
 
-    if (error) throw error;
-    return data;
-  }, [supabase]);
+    if (variantError) throw variantError;
+    if (existingVariant) return existingVariant;
+
+    // If no variant exists, create a default one
+    // This handles products that don't have variants defined
+    const { data: newVariant, error: insertError } = await supabase
+      .from('product_variants')
+      .insert({
+        product_id: productId,
+        stock_qty: 999, // Default high stock for products without specific variants
+        is_default: true,
+      })
+      .select('id, product_id, stock_qty, is_default')
+      .single();
+
+    if (insertError) {
+      // If insertion fails (e.g., concurrent creation), try fetching again
+      const { data: fallbackVariant, error: fallbackError } = await supabase
+        .from('product_variants')
+        .select('id, product_id, stock_qty, is_default')
+        .eq('product_id', productId)
+        .order('is_default', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackError) throw fallbackError;
+      return fallbackVariant;
+    }
+
+    return newVariant;
+  }, []);
 
   const refreshCart = useCallback(async () => {
     try {
@@ -208,7 +235,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, [getOrCreateActiveCart, supabase]);
+  }, [getOrCreateActiveCart]);
 
   const addToCart = async (item: Omit<CartItem, 'cartItemId' | 'lineTotal'>) => {
     try {
@@ -336,6 +363,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
       const variant = await resolveVariantForStock(item.productId, item.variantId);
       if (!variant) {
+        // Fallback: if variant creation somehow failed, throw error
         throw new Error('Stock variant is missing for this cart item.');
       }
       if (quantity > variant.stock_qty) {
@@ -406,7 +434,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, [refreshCart, supabase]);
+  }, [refreshCart]);
 
   return (
     <CartContext.Provider

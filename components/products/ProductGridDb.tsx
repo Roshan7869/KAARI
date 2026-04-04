@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import ProductCard from './ProductCard';
 import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
 import { supabase } from '@/lib/supabase/client';
+import { resolveProductImageUrl } from '@/lib/product-media';
 
 const CATEGORIES = ['All', 'Dolls', 'Flowers', 'Accessories', 'Home'];
 
@@ -18,7 +19,7 @@ interface Product {
   is_active: boolean;
   product_media: Array<{
     file_path: string;
-    alt_text: string;
+    alt_text: string | null;
   }>;
 }
 
@@ -57,7 +58,7 @@ export default function ProductGridDb() {
   });
 
   return (
-    <section className="py-24 md:py-32 bg-gradient-warm">
+    <section className="py-24 md:py-32 bg-gradient-warm" aria-label="Product collection">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -88,6 +89,8 @@ export default function ProductGridDb() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
+              aria-pressed={activeCategory === cat ? 'true' : 'false'}
+              aria-label={`Filter by ${cat}`}
               className={`px-5 py-2.5 font-body text-xs tracking-[0.15em] uppercase border transition-all duration-300 rounded-sm ${
                 activeCategory === cat
                   ? 'bg-primary text-primary-foreground border-primary'
@@ -100,35 +103,44 @@ export default function ProductGridDb() {
         </motion.div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+            aria-busy="true"
+            aria-label="Loading products..."
+          >
             {Array.from({ length: 6 }).map((_, i) => (
               <ProductCardSkeleton key={i} />
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-16">
+          <div className="text-center py-16" role="status">
             <p className="font-heritage text-xl text-muted-foreground">
               No products found in this category
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          <ul
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+            role="list"
+            aria-label={`${products.length} products in ${activeCategory} category`}
+          >
             {products.map((product: Product, i) => (
-              <ProductCard
-                key={product.id}
-                product={{
-                  id: product.id,
-                  title: product.title,
-                  slug: product.slug,
-                  price: product.base_price,
-                  image: product.product_media?.[0]?.file_path || '/placeholder.svg',
-                  category: activeCategory,
-                  allowCustomization: product.allow_customization,
-                }}
-                index={i}
-              />
+              <li key={product.id} role="listitem">
+                <ProductCard
+                  product={{
+                    id: product.id,
+                    title: product.title,
+                    slug: product.slug,
+                    price: product.base_price,
+                    image: resolveProductImageUrl(product.product_media?.[0]?.file_path),
+                    category: activeCategory,
+                    allowCustomization: product.allow_customization,
+                  }}
+                  index={i}
+                />
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </section>

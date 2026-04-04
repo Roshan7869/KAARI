@@ -77,7 +77,7 @@ export async function logAdminAudit(
 
     // Check if user is admin
     const { data: roleData, error: roleError } = await supabase
-      .rpc('has_role', { _role: 'admin', _user_id: user.id })
+      .rpc('has_role', { _user_id: user.id, _role: 'admin' })
       .single()
 
     if (roleError || !roleData) {
@@ -128,7 +128,7 @@ export async function logProductCreate(
     resourceType: 'product',
     resourceId: productId,
     changes: {
-      before: null,
+      before: undefined,
       after: productData,
     },
     metadata: { productName: productData.name },
@@ -165,7 +165,7 @@ export async function logProductDelete(
     resourceId: productId,
     changes: {
       before: productData,
-      after: null,
+      after: undefined,
     },
     metadata: { productName: productData.name },
   })
@@ -286,7 +286,7 @@ export async function getAuditLogs(params: {
     }
 
     const { data: roleData, error: roleError } = await supabase
-      .rpc('has_role', { _role: 'admin', _user_id: user.id })
+      .rpc('has_role', { _user_id: user.id, _role: 'admin' })
       .single()
 
     if (roleError || !roleData) {
@@ -354,7 +354,7 @@ export async function getAuditLogStats(
     }
 
     const { data: roleData } = await supabase
-      .rpc('has_role', { _role: 'admin', _user_id: user.id })
+      .rpc('has_role', { _user_id: user.id, _role: 'admin' })
       .single()
 
     if (!roleData) {
