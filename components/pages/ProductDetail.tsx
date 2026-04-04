@@ -256,12 +256,9 @@ export default function ProductDetail() {
             <Card className="bg-muted/50">
               <CardContent className="p-4">
                 <h3 className="font-display text-lg mb-2">Customize Your Order</h3>
-                <p className="font-body text-sm text-muted-foreground mb-3">
-                  This product can be customized. Add your preferences at checkout.
+                <p className="font-body text-sm text-muted-foreground">
+                  Add to cart and share your preferences (size, colour, message) at checkout.
                 </p>
-                <Link href={`/products/${product.slug}/customize`}>
-                  <Button variant="outline">Customize</Button>
-                </Link>
               </CardContent>
             </Card>
           )}

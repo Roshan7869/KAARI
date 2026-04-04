@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Star } from 'lucide-react';
 import Link from 'next/link';
@@ -26,6 +27,8 @@ function isGridProduct(product: Product | GridProduct): product is GridProduct {
 }
 
 export default function ProductCard({ product, index = 0 }: ProductCardProps) {
+  const [imgError, setImgError] = useState(false);
+
   if (isGridProduct(product)) {
     return (
       <motion.div
@@ -42,11 +45,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
         >
           <div className="aspect-[3/4] overflow-hidden relative">
             <Image
-              src={product.image}
+              src={imgError ? '/placeholder.svg' : product.image}
               alt={product.title}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-700"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+              onError={() => setImgError(true)}
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-500" />
 
@@ -98,11 +102,12 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
       >
         <div className="aspect-[3/4] overflow-hidden relative">
           <Image
-            src={staticProduct.images[0]}
+            src={imgError ? '/placeholder.svg' : staticProduct.images[0]}
             alt={staticProduct.name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-700"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            onError={() => setImgError(true)}
           />
           <div className="absolute inset-0 bg-kaari-dark/0 group-hover:bg-kaari-dark/20 transition-colors duration-500" />
 
