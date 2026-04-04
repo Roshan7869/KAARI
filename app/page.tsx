@@ -3,21 +3,7 @@ import HeroSection from "@/components/HeroSection";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ProductGridSkeleton, SectionSkeleton } from "@/components/ui/skeleton-loader";
 
-// TopProductsSection — fetches featured products via Supabase + Cloudinary
-const TopProductsSection = dynamic(() => import("@/components/TopProductsSection"), {
-  loading: () => (
-    <section className="py-20 md:py-28 bg-stone-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-14">
-          <div className="w-32 h-4 bg-stone-200 animate-pulse rounded mx-auto mb-4" />
-          <div className="w-64 h-10 bg-stone-200 animate-pulse rounded mx-auto" />
-        </div>
-        <ProductGridSkeleton count={6} columns={3} />
-      </div>
-    </section>
-  ),
-  ssr: false,
-});
+// Removed: TopProductsSection — ProductGrid below shows all products
 
 // Full products grid with filters, search, sort
 const ProductGrid = dynamic(() => import("@/components/products/ProductGrid"), {
@@ -44,19 +30,14 @@ export default function Home() {
         <HeroSection />
       </ErrorBoundary>
 
-      {/* ── ZONE 2: Top Products Collection ── */}
-      <ErrorBoundary componentName="Top Products">
-        <TopProductsSection />
-      </ErrorBoundary>
-
-      {/* ── ZONE 3: All Products — complete catalogue ── */}
+      {/* ── ZONE 2: All Products — complete catalogue ── */}
       <div id="all-products">
         <ErrorBoundary componentName="Product Grid">
           <ProductGrid />
         </ErrorBoundary>
       </div>
 
-      {/* ── ZONE 4: Footer ── */}
+      {/* ── ZONE 3: Footer ── */}
       <ErrorBoundary componentName="Footer">
         <KaariFooter />
       </ErrorBoundary>
