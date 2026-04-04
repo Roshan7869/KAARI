@@ -10,10 +10,13 @@ function hasFileExtension(path: string) {
 export function resolveProductImageUrl(filePath?: string | null): string {
   if (!filePath) return '/placeholder.svg';
 
+  // Strip CRLF, null bytes, and leading/trailing whitespace
   filePath = sanitizeFilePath(filePath);
+  if (!filePath) return '/placeholder.svg';
 
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return filePath;
+    // Also sanitize full URLs stored in DB (strip any embedded CRLF)
+    return filePath.replace(/[\r\n\t\0]+/g, '').trim();
   }
 
   if (!hasFileExtension(filePath) || filePath.startsWith('products/')) {
@@ -25,7 +28,8 @@ export function resolveProductImageUrl(filePath?: string | null): string {
     });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Trim env var — protects against trailing CRLF in .env values
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/[\r\n]+$/, '');
   if (!supabaseUrl) return '/placeholder.svg';
 
   const normalizedPath = filePath.startsWith(`${STORAGE_BUCKET}/`)
