@@ -4,14 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
 import { applyRateLimit } from '@/lib/server-rate-limit';
-import type { Database } from '@/types/database';
-
-type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error: Error };
 
 /**
  * POST /api/checkout
- * Create checkout session and order from the active cart.
- * This server-side path avoids the currently broken database RPC.
+ * Creates an order atomically via `create_order_from_checkout` RPC.
+ * The RPC:
+ *  1. Row-locks all product variants (deadlock-safe)
+ *  2. Validates stock inside the transaction
+ *  3. Inserts order + order_items + reduces stock atomically
+ *  4. Marks cart converted with unique constraint (prevents double-checkout)
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Rate limit: 20 checkout requests / 5 min per IP
@@ -21,319 +22,220 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const supabase = await createClient();
     const admin = createAdminClient();
-    const body = await request.json();
 
-    const result = CheckoutSchema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: result.error.errors,
-        },
-        { status: 400 }
-      );
-    }
-
-    const { cart_id, payment_method, shipping_name, shipping_line1, shipping_line2, shipping_city, shipping_state, shipping_postal_code, shipping_country, shipping_method, shipping_amount, tax_amount } = result.data;
-
-    interface CheckoutInsert {
-      cart_id: string;
-      user_id: string;
-      status: string;
-      payment_method?: string | null;
-      shipping_name: string | null;
-      shipping_line1: string | null;
-      shipping_line2: string | null;
-      city: string | null;
-      state: string | null;
-      postal_code: string | null;
-      country: string;
-      shipping_method?: string | null;
-      shipping_amount?: number;
-      tax_amount?: number;
-      subtotal: number;
-      total_amount: number;
-    }
-
-    interface CartItemCustomization {
-      customization_message: string | null;
-      preferred_size: string | null;
-      preferred_color: string | null;
-      preferred_material: string | null;
-      delivery_deadline: string | null;
-      budget_min: number | null;
-      budget_max: number | null;
-    }
-
+    // ── 1. Auth ──────────────────────────────────────────────────────
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get user's cart with items
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cart, error: cartError } = await (supabase as any)
-      .from('carts')
-      .select(`
-        id,
-        user_id,
-        status,
-        currency,
-        cart_items (
-          id,
-          product_id,
-          variant_id,
-          quantity,
-          unit_price,
-          line_total,
-          item_type,
-          products:product_id (id, title, slug, base_price, is_active, allow_customization),
-          variants:variant_id (id, sku, size, color, material, price, stock_qty),
-          cart_item_customizations (
-            customization_message,
-            preferred_size,
-            preferred_color,
-            preferred_material,
-            delivery_deadline,
-            budget_min,
-            budget_max
-          )
-        )
-      `)
-      .eq('id', cart_id)
-      .single() as SupabaseResponse<{ id: string; status: string; currency: string; cart_items: Array<unknown> }>;
+    // ── 2. Validate request body ────────────────────────────────────
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
+    }
 
-    if (cartError || !cart) {
+    const result = CheckoutSchema.safeParse(body);
+    if (!result.success) {
       return NextResponse.json(
-        { success: false, error: 'Cart not found' },
-        { status: 404 }
+        { success: false, error: 'Validation failed', details: result.error.errors },
+        { status: 400 }
       );
+    }
+
+    const {
+      cart_id,
+      payment_method,
+      shipping_name,
+      shipping_line1,
+      shipping_line2,
+      shipping_city,
+      shipping_state,
+      shipping_postal_code,
+      shipping_country,
+      shipping_method,
+      shipping_amount,
+      tax_amount,
+      shipping_provider,
+      shipping_provider_label,
+    } = result.data;
+
+    // ── 3. Create checkout_session record ────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cart } = await (supabase as any)
+      .from('carts')
+      .select('id, user_id, status, currency')
+      .eq('id', cart_id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!cart) {
+      return NextResponse.json({ success: false, error: 'Cart not found' }, { status: 404 });
     }
 
     if (cart.status !== 'active') {
-      return NextResponse.json(
-        { success: false, error: 'Cart is not active' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: 'Cart is not active or already checked out' }, { status: 400 });
     }
 
-    // Verify cart items exist and get product info
-    const cartItems = (cart.cart_items || []) as Array<{
-      id: string;
-      product_id: string;
-      item_type: 'standard' | 'customized';
-      products: { allow_customization: boolean; base_price: number; title: string; is_active: boolean };
-      unit_price: number;
-      line_total: number;
-      variant_id: string | null;
-      variants: { id: string; stock_qty: number; price: number | null } | null;
-      quantity: number;
-      cart_item_customizations?: CartItemCustomization[] | null;
-    }>;
-    if (cartItems.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Cart is empty' },
-        { status: 400 }
-      );
+    // Compute subtotal from cart items (used for checkout_session and totals response)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cartItems } = await (supabase as any)
+      .from('cart_items')
+      .select('unit_price, quantity, line_total')
+      .eq('cart_id', cart_id);
+
+    const subtotal: number = (cartItems || []).reduce(
+      (sum: number, item: { line_total?: number; unit_price: number; quantity: number }) =>
+        sum + (item.line_total ?? item.unit_price * item.quantity),
+      0
+    );
+
+    if (subtotal <= 0) {
+      return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
     }
 
-    // Validate stock for all items
-    const validatedItems: Array<{
-      id: string;
-      product_id: string;
-      item_type: 'standard' | 'customized';
-      products: { allow_customization: boolean; base_price: number; title: string; is_active: boolean };
-      unit_price: number;
-      variant_id: string | null;
-      variants: { id: string; stock_qty: number; price: number | null } | null;
-      quantity: number;
-      line_total: number;
-      cart_item_customizations?: CartItemCustomization[] | null;
-    }> = [];
-    let totalAmount = 0;
-
-    for (const item of cartItems) {
-      if (!item.products?.is_active) {
-        return NextResponse.json(
-          { success: false, error: `${item.products?.title || 'A cart item'} is no longer available` },
-          { status: 400 }
-        );
-      }
-
-      let stock_qty = item.products.allow_customization ? 999 : 0;
-      let unit_price = item.unit_price;
-
-      if (item.variant_id && item.variants) {
-        stock_qty = item.variants.stock_qty;
-        unit_price = item.variants.price ?? item.products.base_price;
-      }
-
-      if (item.quantity > stock_qty) {
-        return NextResponse.json(
-          { success: false, error: `Insufficient stock for ${item.products.title}` },
-          { status: 400 }
-        );
-      }
-
-      validatedItems.push({
-        ...item,
-        unit_price,
-        line_total: unit_price * item.quantity,
-      });
-
-      totalAmount += unit_price * item.quantity;
-    }
-
-    // Calculate totals
-    const shipping = shipping_amount || 0;
-    const tax = tax_amount || 0;
-    const discount = 0;
-    const grandTotal = totalAmount + shipping + tax - discount;
-
-    // Create checkout session
-    const checkoutData: CheckoutInsert = {
-      cart_id: cart.id,
-      user_id: user.id,
-      status: payment_method === 'cod' ? 'completed' : 'payment_pending',
-      payment_method: payment_method || 'cod',
-      shipping_name: shipping_name ?? null,
-      shipping_line1: shipping_line1 ?? null,
-      shipping_line2: shipping_line2 ?? null,
-      city: shipping_city ?? null,
-      state: shipping_state ?? null,
-      postal_code: shipping_postal_code ?? null,
-      country: shipping_country,
-      shipping_method: shipping_method || 'standard',
-      shipping_amount: shipping,
-      tax_amount: tax,
-      subtotal: totalAmount,
-      total_amount: grandTotal,
-    };
+    const shipping = shipping_amount ?? 0;
+    const tax = tax_amount ?? 0;
+    const grandTotal = subtotal + shipping + tax;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const checkoutResult = await (supabase as any)
+    const { data: checkoutSession, error: checkoutError } = await (supabase as any)
       .from('checkout_sessions')
-      .insert(checkoutData)
-      .select()
-      .single() as { data: Database['public']['Tables']['checkout_sessions']['Row'] | null; error: Error | null };
-
-    if (checkoutResult.error) {
-      throw checkoutResult.error;
-    }
-    const checkoutSession = checkoutResult.data as Database['public']['Tables']['checkout_sessions']['Row'];
-
-    logger.info('Checkout session created', { checkoutId: checkoutSession.id });
-
-    const orderStatus = payment_method === 'cod' ? 'placed' : 'payment_pending';
-    const paymentStatus = payment_method === 'cod' ? 'pending' : 'initiated';
-    const paymentProvider = payment_method === 'cod' ? 'cod' : 'cashfree';
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: order, error: orderError } = await (admin as any)
-      .from('orders')
       .insert({
+        cart_id,
         user_id: user.id,
-        checkout_session_id: checkoutSession.id,
-        status: orderStatus,
-        payment_status: paymentStatus,
-        fulfillment_type: validatedItems.some((item) => item.item_type === 'customized') ? 'customized' : 'standard',
-        subtotal: totalAmount,
+        status: payment_method === 'cod' ? 'completed' : 'payment_pending',
+        payment_method: payment_method ?? 'cod',
+        shipping_name: shipping_name ?? null,
+        shipping_line1: shipping_line1 ?? null,
+        shipping_line2: shipping_line2 ?? null,
+        city: shipping_city ?? null,
+        state: shipping_state ?? null,
+        postal_code: shipping_postal_code ?? null,
+        country: shipping_country,
+        shipping_method: shipping_method ?? 'standard',
         shipping_amount: shipping,
         tax_amount: tax,
+        subtotal,
         total_amount: grandTotal,
       })
-      .select('id, order_number')
-      .single() as { data: { id: string; order_number: string } | null; error: Error | null };
+      .select('id')
+      .single();
 
-    if (orderError || !order) {
-      throw orderError || new Error('Failed to create order');
+    if (checkoutError) {
+      logger.error('Failed to create checkout session', { error: checkoutError.message });
+      return NextResponse.json(
+        { success: false, error: 'Failed to create checkout session' },
+        { status: 500 }
+      );
     }
 
-    for (const item of validatedItems) {
-      const customization = item.cart_item_customizations?.[0];
+    // ── 4. Atomic order creation via RPC ─────────────────────────────
+    const shippingAddress = {
+      name: shipping_name,
+      line1: shipping_line1,
+      line2: shipping_line2 ?? null,
+      city: shipping_city,
+      state: shipping_state,
+      postal_code: shipping_postal_code,
+      country: shipping_country,
+    };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: orderItemError } = await (admin as any)
-        .from('order_items')
-        .insert({
-          order_id: order.id,
-          product_id: item.product_id,
-          variant_id: item.variant_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          line_total: item.line_total,
-          customization_snapshot: customization || null,
-        }) as { error: Error | null };
-
-      if (orderItemError) {
-        throw orderItemError;
-      }
-
-      if (item.variant_id && item.variants) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: stockError } = await (admin as any)
-          .from('product_variants')
-          .update({
-            stock_qty: Math.max(0, item.variants.stock_qty - item.quantity),
-          })
-          .eq('id', item.variant_id) as { error: Error | null };
-
-        if (stockError) {
-          throw stockError;
-        }
-      }
-    }
+    const resolvedProvider = shipping_provider ?? 'INDIA_POST';
+    const resolvedProviderLabel = shipping_provider_label ?? resolvedProvider;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: paymentError } = await (admin as any)
-      .from('payments')
-      .insert({
-        order_id: order.id,
-        provider: paymentProvider,
-        amount: grandTotal,
-        currency: cart.currency || 'INR',
-        status: 'created',
-      }) as { error: Error | null };
+    const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+      'create_order_from_checkout',
+      {
+        p_cart_id: cart_id,
+        p_user_id: user.id,
+        p_payment_method: payment_method ?? 'cod',
+        p_shipping_address: shippingAddress,
+        p_tax_amount: tax,
+        p_shipping_amount: shipping,
+        p_shipping_provider: resolvedProvider,
+        p_shipping_provider_label: resolvedProviderLabel,
+        p_checkout_session_id: checkoutSession.id,
+      }
+    );
 
-    if (paymentError) {
-      throw paymentError;
+    if (rpcError) {
+      logger.error('RPC create_order_from_checkout failed', { error: rpcError.message });
+      return NextResponse.json(
+        { success: false, error: 'Failed to create order. Please try again.' },
+        { status: 500 }
+      );
     }
 
-    // Mark the current cart as converted so repeat submits don't duplicate orders.
-    const { error: cartUpdateError } = await admin
-      .from('carts')
-      .update({ status: 'converted' })
-      .eq('id', cart.id);
+    // RPC returns a table row — first element is our result
+    const rpcRow = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
 
-    if (cartUpdateError) {
-      throw cartUpdateError;
+    if (!rpcRow?.success) {
+      const errorMsg: string = rpcRow?.error_message || 'Order creation failed';
+      logger.warn('Order creation RPC returned failure', { errorMsg });
+
+      // Map known RPC errors to user-friendly messages
+      if (errorMsg.includes('already been used') || errorMsg.includes('duplicate checkout')) {
+        return NextResponse.json(
+          { success: false, error: 'This order has already been placed. Check your orders page.' },
+          { status: 409 }
+        );
+      }
+      if (errorMsg.includes('Insufficient stock')) {
+        return NextResponse.json({ success: false, error: errorMsg }, { status: 400 });
+      }
+      if (errorMsg.includes('no longer available')) {
+        return NextResponse.json({ success: false, error: errorMsg }, { status: 400 });
+      }
+
+      return NextResponse.json({ success: false, error: errorMsg }, { status: 400 });
     }
+
+    const orderId: string = rpcRow.order_id;
+    const orderNumber: string = rpcRow.order_number;
+
+    // ── 5. Create payments record (COD only; online handled by Cashfree route) ──
+    if (payment_method === 'cod') {
+      const { error: paymentError } = await admin
+        .from('payments')
+        .insert({
+          order_id: orderId,
+          provider: 'cod',
+          amount: grandTotal,
+          currency: cart.currency || 'INR',
+          status: 'created',
+        });
+
+      if (paymentError) {
+        // Non-fatal: log but don't fail the order
+        logger.error('Failed to create COD payment record', { error: paymentError.message, orderId });
+      }
+    }
+
+    logger.info('Order created successfully', { orderId, orderNumber, paymentMethod: payment_method });
 
     return NextResponse.json({
       success: true,
       data: {
-        orderId: order.id,
-        orderNumber: order.order_number,
-        checkout: checkoutSession,
-        items: validatedItems,
+        orderId,
+        orderNumber,
         totals: {
-          subtotal: totalAmount,
+          subtotal,
           shipping,
           tax,
-          discount,
           grandTotal,
         },
       },
     });
+
   } catch (error) {
     const err = error as Error;
-    logger.error('Failed to create checkout', { message: err.message });
+    logger.error('Checkout failed unexpectedly', { message: err.message });
     return NextResponse.json(
-      {
-        success: false,
-        error: err.message || 'Failed to create checkout',
-      },
+      { success: false, error: err.message || 'Failed to create checkout' },
       { status: 500 }
     );
   }

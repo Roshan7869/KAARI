@@ -74,6 +74,8 @@ export default function Checkout() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [saveAddress, setSaveAddress] = useState(false);
   const [addressesLoading, setAddressesLoading] = useState(false);
+  const [pincodeLookupLoading, setPincodeLookupLoading] = useState(false);
+  const [pincodeLookupDone, setPincodeLookupDone] = useState(false);
 
   useEffect(() => {
     const loadAddresses = async () => {
@@ -120,14 +122,19 @@ export default function Checkout() {
   const handlePincodeLookup = async (e: React.FocusEvent<HTMLInputElement>) => {
     const pin = e.target.value.trim();
     if (pin.length !== 6 || !/^\d{6}$/.test(pin)) return;
+    setPincodeLookupLoading(true);
+    setPincodeLookupDone(false);
     try {
       const res = await fetch(`/api/pincode/${pin}`);
       if (res.ok) {
         const { city, state } = await res.json();
         setFormData((prev) => ({ ...prev, city, state }));
+        setPincodeLookupDone(true);
       }
     } catch {
       // Fail silently — user can still type manually
+    } finally {
+      setPincodeLookupLoading(false);
     }
   };
 
@@ -482,18 +489,33 @@ export default function Checkout() {
               </div>
               <div>
                 <label htmlFor="postal_code" className="font-body text-sm font-medium">Postal Code</label>
-                <Input
-                  id="postal_code"
-                  name="postal_code"
-                  value={formData.postal_code}
-                  onChange={handleInputChange}
-                  onBlur={handlePincodeLookup}
-                  required
-                  className="mt-1"
-                  aria-label="Postal code or ZIP (required)"
-                  aria-required="true"
-                  aria-describedby={formError ? "checkout-error" : undefined}
-                />
+                <div className="relative mt-1">
+                  <Input
+                    id="postal_code"
+                    name="postal_code"
+                    value={formData.postal_code}
+                    onChange={(e) => {
+                      setPincodeLookupDone(false);
+                      handleInputChange(e);
+                    }}
+                    onBlur={handlePincodeLookup}
+                    required
+                    className="mt-0 pr-8"
+                    aria-label="Postal code or ZIP (required)"
+                    aria-required="true"
+                    aria-describedby={formError ? "checkout-error" : undefined}
+                  />
+                  {pincodeLookupLoading && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground animate-pulse">
+                      …
+                    </span>
+                  )}
+                  {pincodeLookupDone && !pincodeLookupLoading && (
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-600 text-xs" aria-label="City and state auto-filled">
+                      ✓
+                    </span>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -613,22 +635,47 @@ export default function Checkout() {
                   <span>₹{(item.unitPrice * item.quantity).toLocaleString('en-IN')}</span>
                 </div>
               ))}
-              <div className="border-t pt-4">
-                <div className="flex justify-between font-body mb-2">
+              <div className="border-t pt-4 space-y-2">
+                <div className="flex justify-between font-body">
                   <span>Subtotal</span>
                   <span>₹{total.toLocaleString('en-IN')}</span>
                 </div>
-                <div className="flex justify-between font-body text-muted-foreground mb-2">
+                <div className="flex justify-between font-body text-muted-foreground">
                   <span>Shipping</span>
-                  <span>Free</span>
+                  <span>
+                    {cart?.pricing.shipping && cart.pricing.shipping > 0
+                      ? `₹${cart.pricing.shipping.toLocaleString('en-IN')}`
+                      : 'Free'}
+                  </span>
                 </div>
-                <div className="flex justify-between font-display text-xl">
+                {cart?.pricing.tax && cart.pricing.tax > 0 ? (
+                  <div className="flex justify-between font-body text-muted-foreground">
+                    <span>Tax</span>
+                    <span>₹{cart.pricing.tax.toLocaleString('en-IN')}</span>
+                  </div>
+                ) : null}
+                <div className="flex justify-between font-display text-xl border-t pt-2">
                   <span>Total</span>
-                  <span>₹{total.toLocaleString('en-IN')}</span>
+                  <span>
+                    ₹{(
+                      total +
+                      (cart?.pricing.shipping ?? 0) +
+                      (cart?.pricing.tax ?? 0)
+                    ).toLocaleString('en-IN')}
+                  </span>
                 </div>
               </div>
-              <Button type="submit" className="w-full" size="lg" disabled={loading || (shippingProvider === 'OTHER' && !shippingProviderLabel.trim())}>
-                {loading ? 'Placing Order...' : 'Place Order'}
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={loading || (shippingProvider === 'OTHER' && !shippingProviderLabel.trim())}
+              >
+                {loading ? 'Placing Order...' : `Place Order — ₹${(
+                  total +
+                  (cart?.pricing.shipping ?? 0) +
+                  (cart?.pricing.tax ?? 0)
+                ).toLocaleString('en-IN')}`}
               </Button>
             </CardContent>
           </Card>

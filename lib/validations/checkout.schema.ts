@@ -15,6 +15,8 @@ export const CheckoutSchema = z.object({
   shipping_method: z.enum(['standard', 'express', 'priority']).default('standard'),
   shipping_amount: z.coerce.number().min(0).optional(),
   tax_amount: z.coerce.number().min(0).optional(),
+  shipping_provider: z.string().max(50).optional(),
+  shipping_provider_label: z.string().max(100).optional(),
   coupon_code: z.string().min(3).max(50).optional(),
   notes: z.string().max(1000).optional(),
 });

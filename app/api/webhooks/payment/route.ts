@@ -54,7 +54,8 @@ const PaymentWebhookSchema = z.object({
 /**
  * POST /api/webhooks/payment
  * Handle payment webhook from Cashfree (PG v2 and v3)
- * Validates HMAC-SHA256 signature before processing
+ * Validates HMAC-SHA256 signature before processing.
+ * All events are deduplicated via the webhook_events table.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -112,23 +113,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const supabase = createAdminClient();
 
-    // ── IDEMPOTENCY CHECK ─────────────────────────────────────────────────────
-    // Deduplicate by cf_payment_id — Cashfree retries webhooks for 72 hours.
-    // Use cashfree_sessions as the idempotency store (no schema migration needed).
-    if (cfPaymentId && (event === 'PAYMENT_SUCCESS' || event === 'PAYMENT_SUCCESS_WEBHOOK' || event === 'ORDER_PAID_WEBHOOK')) {
-      const { data: existing } = await supabase
+    // ── 6. Global idempotency check via webhook_events table ─────────────
+    // All events (not just SUCCESS) are deduplicated here.
+    // First, look up the cashfree_session for this payment.
+    let cashfreeSessionId: string | null = null;
+
+    if (cfPaymentId || orderId) {
+      const { data: session } = await supabase
         .from('cashfree_sessions')
         .select('id, status')
-        .eq('cf_payment_id', cfPaymentId)
+        .eq(orderId ? 'cf_order_id' : 'cf_payment_id', orderId || cfPaymentId)
         .maybeSingle();
 
-      if (existing?.status === 'completed') {
-        logger.info('Webhook duplicate skipped', { cf_payment_id: cfPaymentId, event });
+      cashfreeSessionId = session?.id ?? null;
+    }
+
+    // Check webhook_events for deduplication (only if we have session + payment ID)
+    if (cashfreeSessionId && cfPaymentId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: existingEvent } = await (supabase as any)
+        .from('webhook_events')
+        .select('id')
+        .eq('cf_payment_id', cfPaymentId)
+        .eq('event_type', event)
+        .eq('cashfree_session_id', cashfreeSessionId)
+        .maybeSingle();
+
+      if (existingEvent) {
+        logger.info('Webhook duplicate skipped (webhook_events)', { cf_payment_id: cfPaymentId, event });
         return NextResponse.json({ received: true, duplicate: true });
       }
     }
 
-    // ── 6. Handle different webhook events ──────────────────────────────
+    // ── 7. Handle different webhook events ──────────────────────────────
+    let eventResult: Record<string, unknown> = {};
+
     switch (event) {
 
       // ── ORDER_CREATED: Cashfree created the order, awaiting payment ──
@@ -140,6 +159,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .eq('order_number', orderId)
             .eq('status', 'pending'); // idempotent — no-op if already set
         }
+        eventResult = { newStatus: 'pending', message: 'Order created' };
         logger.info('Order created event', { order_id: orderId });
         break;
       }
@@ -158,10 +178,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           .eq(orderId ? 'cf_order_id' : 'cf_payment_id', orderId || cfPaymentId);
 
         if (error) {
-          logger.error('Failed to update cashfree_sessions', { error: error.message });
+          logger.error('Failed to update cashfree_sessions on success', { error: error.message });
         }
 
-        // Update order status to paid (idempotency: only move from pending)
+        // Update order status to paid (only move forward, never backward)
         if (orderId) {
           const { data: order } = await supabase
             .from('orders')
@@ -169,11 +189,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .eq('order_number', orderId)
             .maybeSingle();
 
-          if (order && order.status === 'pending') {
+          if (order && ['pending', 'payment_pending', 'placed'].includes(order.status)) {
             await supabase
               .from('orders')
               .update({ status: 'paid', payment_status: 'paid' })
               .eq('id', order.id);
+            eventResult = { newStatus: 'paid', oldStatus: order.status };
           }
         }
 
@@ -193,11 +214,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           .eq(orderId ? 'cf_order_id' : 'cf_payment_id', orderId || cfPaymentId);
 
         if (orderId) {
-          await supabase
+          const { data: order } = await supabase
             .from('orders')
-            .update({ status: 'payment_failed', payment_status: 'failed' })
+            .select('id, status')
             .eq('order_number', orderId)
-            .in('status', ['pending']);
+            .maybeSingle();
+
+          // Only update if still in a pre-payment state
+          if (order && ['pending', 'payment_pending', 'placed'].includes(order.status)) {
+            await supabase
+              .from('orders')
+              .update({ status: 'payment_failed', payment_status: 'failed' })
+              .eq('id', order.id);
+            eventResult = { newStatus: 'payment_failed', oldStatus: order.status };
+          }
         }
 
         logger.warn('Payment failed', { cf_payment_id: cfPaymentId, reason: paymentMessage });
@@ -206,6 +236,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       // ── PAYMENT_USER_DROPPED: User abandoned payment flow ─────────────
       case 'PAYMENT_USER_DROPPED_WEBHOOK': {
+        eventResult = { message: 'User dropped payment flow' };
         logger.info('User dropped payment flow', { order_id: orderId });
         break;
       }
@@ -229,11 +260,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .eq('order_number', orderId);
         }
 
+        eventResult = { newStatus: 'refunded' };
         logger.info('Payment refunded', { cf_payment_id: cfPaymentId, order_id: orderId });
         break;
       }
 
       case 'ORDER_COMPLETED': {
+        eventResult = { message: 'Order completed' };
         logger.info('Order completed', { order_id: orderId });
         break;
       }
@@ -242,7 +275,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         logger.info('Unhandled webhook event', { event });
     }
 
+    // ── 8. Log event to webhook_events (idempotency store) ────────────────
+    if (cashfreeSessionId && cfPaymentId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: logError } = await (supabase as any)
+        .from('webhook_events')
+        .insert({
+          cf_payment_id: cfPaymentId,
+          event_type: event,
+          cashfree_session_id: cashfreeSessionId,
+          result: { ...eventResult, timestamp: new Date().toISOString() },
+          received_at: new Date().toISOString(),
+        });
+
+      if (logError && !logError.message.includes('duplicate')) {
+        // Unique constraint violation = already logged (duplicate delivery) — safe to ignore
+        logger.error('Failed to log webhook event', { error: logError.message, event });
+      }
+    }
+
     return NextResponse.json({ success: true });
+
   } catch (error) {
     const err = error as Error;
     logger.error('Webhook processing failed', { message: err.message, stack: err.stack });

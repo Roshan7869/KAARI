@@ -59,7 +59,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ? order.total_amount
       : Number(order.total_amount)
 
-    if (Math.abs(orderAmount - amount) > 0.01) {
+    // Compare in paise (×100, rounded) to avoid floating-point precision issues.
+    // e.g. 1.1 + 2.2 = 3.3000000000000003 in JS — integer comparison is exact.
+    const orderPaise = Math.round(orderAmount * 100);
+    const requestedPaise = Math.round(amount * 100);
+    if (orderPaise !== requestedPaise) {
       logger.warn('Cashfree amount mismatch', { orderId, orderAmount, requestedAmount: amount })
       return NextResponse.json({ success: false, error: 'Invalid payment amount' }, { status: 400 })
     }
