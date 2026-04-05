@@ -19,7 +19,8 @@ export function resolveProductImageUrl(filePath?: string | null): string {
     return filePath.replace(/[\r\n\t\0]+/g, '').trim();
   }
 
-  if (!hasFileExtension(filePath) || filePath.startsWith('products/')) {
+  // Cloudinary public IDs have no file extension; Supabase Storage paths do
+  if (!hasFileExtension(filePath)) {
     return getCloudinaryImageUrl(filePath, {
       width: 1200,
       height: 1200,

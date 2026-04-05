@@ -1,0 +1,61 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "nodeVersion": "18.x",
+  "env": [
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_URL",
+      "value": "@supabase_url"
+    },
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "value": "@supabase_anon_key"
+    },
+    {
+      "key": "NEXT_PUBLIC_SUPABASE_PROJECT_ID",
+      "value": "@supabase_project_id"
+    },
+    {
+      "key": "NEXT_PUBLIC_APP_URL",
+      "value": "@app_url"
+    },
+    {
+      "key": "NEXT_PUBLIC_ENABLE_ANALYTICS",
+      "value": "false"
+    },
+    {
+      "key": "SUPABASE_SERVICE_KEY",
+      "value": "@supabase_service_key",
+      "target": ["production"]
+    },
+    {
+      "key": "WEBHOOK_SECRET",
+      "value": "@webhook_secret",
+      "target": ["production"]
+    }
+  ],
+  "buildOutputDirectory": ".next",
+  "publicSource": "./public",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, stale-while-revalidate=86400"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/checkout-success",
+      "destination": "/order-confirmation",
+      "permanent": false
+    }
+  ]
+}

@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { User, Session } from '@supabase/supabase-js';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { firebaseAuth, googleProvider } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -177,13 +179,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signInWithGoogle = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+
+      // Step 1: Firebase Google popup — gets the Google credential
+      const result = await signInWithPopup(firebaseAuth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const idToken = credential?.idToken;
+
+      if (!idToken) throw new Error('Failed to get Google ID token from Firebase');
+
+      // Step 2: Sign in to Supabase with the Google ID token
+      const { data: signInData, error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/callback`,
-        },
+        token: idToken,
       });
+
       if (error) throw error;
+
+      // Step 3: Ensure profile row exists (Google users skip the signUp flow)
+      if (signInData.user) {
+        const u = signInData.user;
+        await supabase.from('profiles').upsert(
+          {
+            id: u.id,
+            email: u.email ?? '',
+            full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? '',
+          },
+          { onConflict: 'id', ignoreDuplicates: true }
+        );
+      }
     } catch (error) {
       console.error('Google sign in error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to sign in with Google');

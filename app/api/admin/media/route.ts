@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -7,11 +8,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
  * Query params: folder (prefix), next_cursor (pagination)
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const supabase = createAdminClient();
+  // Auth: use server client (reads cookies from request) — NOT admin client
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: roleData } = await supabase
+  // Role check: use admin client for privileged DB access
+  const adminSupabase = createAdminClient();
+  const { data: roleData } = await adminSupabase
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
@@ -25,7 +29,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const nextCursor = searchParams.get('next_cursor') || undefined;
 
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
-  const apiKey = (process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY)?.trim();
+  const apiKey = (process.env.CLOUDINARY_API_KEY || process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY)?.trim();
   const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
 
   if (!cloudName || !apiKey || !apiSecret) {

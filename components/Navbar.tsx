@@ -11,7 +11,7 @@ import { useCart } from '@/contexts/CartContext';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, signOut, loading } = useAuth();
+  const { user, signOut, loading, isAdmin } = useAuth();
   const { cart } = useCart();
   const [showDropdown, setShowDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,10 +30,21 @@ export default function Navbar() {
     setShowDropdown(false);
   }, [pathname]);
 
+  // On the homepage, start fully transparent so the billboard image shows through;
+  // fade to white once the user scrolls past the first 80px.
+  const isHome = pathname === '/';
+  const transparent = isHome && !scrolled;
+
+  // Pre-compute ARIA attribute values to avoid expression validation errors
+  const userDropdownExpanded = showDropdown ? 'true' : 'false';
+  const mobileMenuExpanded = mobileMenuOpen ? 'true' : 'false';
+
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-200 ease-out ${
-        scrolled ? 'bg-white/90 backdrop-blur-sm shadow-sm' : 'bg-white'
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-out ${
+        transparent
+          ? 'bg-transparent'
+          : 'bg-white/90 backdrop-blur-sm shadow-sm'
       }`}
       role="navigation"
       aria-label="Main navigation"
@@ -47,7 +58,7 @@ export default function Navbar() {
       </a>
 
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        {/* Logo */}
+        {/* Logo — top-left, adapts color when transparent */}
         <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0">
           <div className="relative w-8 h-8">
             <Image
@@ -58,19 +69,41 @@ export default function Navbar() {
               sizes="32px"
             />
           </div>
-          <span className="font-display text-xl text-stone-800 group-hover:text-primary transition-colors">
+          <span
+            className={`font-display text-xl transition-colors duration-300 ${
+              transparent
+                ? 'text-white drop-shadow-md'
+                : 'text-stone-800 group-hover:text-primary'
+            }`}
+          >
             कारी
           </span>
         </Link>
 
-        {/* Desktop — 3 buttons */}
+        {/* Desktop — Navigation links */}
         <div className="hidden md:flex items-center gap-7">
+          <Link
+            href="/"
+            className={`font-body text-xs tracking-[0.15em] uppercase transition-colors duration-200 ${
+              transparent
+                ? 'text-white/90 hover:text-white'
+                : pathname === '/'
+                  ? 'text-primary'
+                  : 'text-stone-500 hover:text-stone-900'
+            }`}
+            aria-current={pathname === '/' ? 'page' : undefined}
+          >
+            Home
+          </Link>
+
           <Link
             href="/about"
             className={`font-body text-xs tracking-[0.15em] uppercase transition-colors duration-200 ${
-              pathname === '/about'
-                ? 'text-primary'
-                : 'text-stone-500 hover:text-stone-900'
+              transparent
+                ? 'text-white/90 hover:text-white'
+                : pathname === '/about'
+                  ? 'text-primary'
+                  : 'text-stone-500 hover:text-stone-900'
             }`}
             aria-current={pathname === '/about' ? 'page' : undefined}
           >
@@ -85,7 +118,7 @@ export default function Navbar() {
               <button
                 onClick={() => setShowDropdown((v) => !v)}
                 className="flex items-center gap-1.5 font-body text-xs tracking-[0.15em] uppercase text-stone-500 hover:text-stone-900 transition-colors duration-200"
-                aria-expanded={showDropdown}
+                aria-expanded={userDropdownExpanded}
                 aria-haspopup="menu"
               >
                 <User className="w-3.5 h-3.5" aria-hidden />
@@ -103,7 +136,7 @@ export default function Navbar() {
                     exit={{ opacity: 0, y: 8 }}
                     transition={{ duration: 0.15 }}
                     className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-100 overflow-hidden"
-                    role="menu"
+                    role="menubar"
                   >
                     <div className="px-4 py-3 border-b border-stone-100">
                       <p className="text-xs text-stone-400 font-body">Signed in as</p>
@@ -123,13 +156,15 @@ export default function Navbar() {
                     >
                       My Orders
                     </Link>
-                    <Link
-                      href="/admin"
-                      className="block px-4 py-2.5 font-body text-sm text-stone-700 hover:bg-stone-50 transition-colors"
-                      role="menuitem"
-                    >
-                      Admin
-                    </Link>
+                    {isAdmin && (
+                      <Link
+                        href="/admin"
+                        className="block px-4 py-2.5 font-body text-sm text-primary font-medium hover:bg-stone-50 transition-colors"
+                        role="menuitem"
+                      >
+                        Admin Panel
+                      </Link>
+                    )}
                     <button
                       onClick={() => { signOut(); setShowDropdown(false); }}
                       className="flex items-center gap-2 w-full px-4 py-2.5 font-body text-sm text-stone-700 hover:bg-stone-50 transition-colors border-t border-stone-100"
@@ -145,7 +180,9 @@ export default function Navbar() {
           ) : (
             <Link
               href="/login"
-              className="font-body text-xs tracking-[0.15em] uppercase text-stone-500 hover:text-stone-900 transition-colors duration-200"
+              className={`font-body text-xs tracking-[0.15em] uppercase transition-colors duration-200 ${
+                transparent ? 'text-white/90 hover:text-white' : 'text-stone-500 hover:text-stone-900'
+              }`}
             >
               Sign In
             </Link>
@@ -157,7 +194,12 @@ export default function Navbar() {
             className="relative flex items-center"
             aria-label={cartCount > 0 ? `Cart — ${cartCount} items` : 'Cart — empty'}
           >
-            <ShoppingBag className="w-5 h-5 text-stone-600 hover:text-stone-900 transition-colors duration-200" aria-hidden />
+            <ShoppingBag
+              className={`w-5 h-5 transition-colors duration-300 ${
+                transparent ? 'text-white/90 hover:text-white' : 'text-stone-600 hover:text-stone-900'
+              }`}
+              aria-hidden
+            />
             {cartCount > 0 && (
               <motion.span
                 key={cartCount}
@@ -192,7 +234,7 @@ export default function Navbar() {
           </Link>
           <button
             onClick={() => setMobileMenuOpen((v) => !v)}
-            aria-expanded={mobileMenuOpen}
+            aria-expanded={mobileMenuExpanded}
             aria-controls="mobile-menu"
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             className="p-1.5 text-stone-600 hover:text-stone-900 transition-colors"
@@ -217,6 +259,13 @@ export default function Navbar() {
             >
               <div className="px-6 py-5 space-y-5">
                 <Link
+                  href="/"
+                  className="block font-body text-sm tracking-[0.12em] uppercase text-stone-700 hover:text-primary transition-colors"
+                  aria-current={pathname === '/' ? 'page' : undefined}
+                >
+                  Home
+                </Link>
+                <Link
                   href="/about"
                   className="block font-body text-sm tracking-[0.12em] uppercase text-stone-700 hover:text-primary transition-colors"
                   aria-current={pathname === '/about' ? 'page' : undefined}
@@ -228,6 +277,11 @@ export default function Navbar() {
                     <Link href="/account" className="block font-body text-sm text-stone-700 hover:text-primary transition-colors">
                       My Orders
                     </Link>
+                    {isAdmin && (
+                      <Link href="/admin" className="block font-body text-sm text-primary font-medium hover:text-primary/80 transition-colors">
+                        Admin Panel
+                      </Link>
+                    )}
                     <button
                       onClick={signOut}
                       className="block font-body text-sm text-stone-700 hover:text-primary transition-colors text-left"

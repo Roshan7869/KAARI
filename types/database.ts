@@ -71,6 +71,44 @@ export type Database = {
           },
         ]
       }
+      billboard_products: {
+        Row: {
+          id: string
+          product_id: string
+          display_order: number
+          tag: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          display_order?: number
+          tag?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          display_order?: number
+          tag?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billboard_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cart_item_customizations: {
         Row: {
           budget_max: number | null
@@ -721,6 +759,114 @@ export type Database = {
           {
             foreignKeyName: "product_reviews_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_visibility: {
+        Row: {
+          id: string
+          review_id: string
+          product_id: string
+          is_visible: boolean
+          display_priority: number
+          placement_type: string
+          admin_notes: string | null
+          visibility_set_by: string | null
+          visibility_updated_at: string
+          last_modified_by: string | null
+          last_modified_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          review_id: string
+          product_id: string
+          is_visible?: boolean
+          display_priority?: number
+          placement_type?: string
+          admin_notes?: string | null
+          visibility_set_by?: string | null
+          visibility_updated_at?: string
+          last_modified_by?: string | null
+          last_modified_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          review_id?: string
+          product_id?: string
+          is_visible?: boolean
+          display_priority?: number
+          placement_type?: string
+          admin_notes?: string | null
+          visibility_set_by?: string | null
+          visibility_updated_at?: string
+          last_modified_by?: string | null
+          last_modified_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_visibility_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: true
+            referencedRelation: "product_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_visibility_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_visibility_audit: {
+        Row: {
+          id: string
+          review_id: string
+          admin_id: string
+          action: string
+          old_value: Record<string, unknown> | null
+          new_value: Record<string, unknown> | null
+          reason: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          review_id: string
+          admin_id: string
+          action: string
+          old_value?: Record<string, unknown> | null
+          new_value?: Record<string, unknown> | null
+          reason?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          review_id?: string
+          admin_id?: string
+          action?: string
+          old_value?: Record<string, unknown> | null
+          new_value?: Record<string, unknown> | null
+          reason?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_visibility_audit_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "product_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_visibility_audit_admin_id_fkey"
+            columns: ["admin_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

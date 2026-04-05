@@ -1,0 +1,19 @@
+{
+    "name": "kaari-audit",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Kaari Marketplace — Full System Audit Suite",
+    "scripts": {
+        "audit": "tsx kaari.audit.ts",
+        "db-check": "tsx kaari.db-check.ts",
+        "all": "npm run db-check && npm run audit"
+    },
+    "dependencies": {
+        "@playwright/test": "^1.44.0",
+        "@supabase/supabase-js": "^2.43.0",
+        "tsx": "^4.11.0"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

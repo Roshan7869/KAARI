@@ -1,0 +1,144 @@
+- generic [active] [ref=e1]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - img "Hero background texture" [ref=e5]
+      - generic [ref=e8]:
+        - img "Kaari Handmade Logo" [ref=e11]
+        - heading "कारी" [level=1] [ref=e12]
+        - paragraph [ref=e13]: Handmade Crochet Collection
+        - paragraph [ref=e14]: प्यार से बुनी गई खास डिज़ाइन्स — Unique designs woven with love
+        - generic [ref=e15]:
+          - link "Explore Collection" [ref=e16] [cursor=pointer]:
+            - /url: /products
+          - link "View Instagram" [ref=e17] [cursor=pointer]:
+            - /url: https://www.instagram.com/kaari.handmade
+      - generic [ref=e20]: Scroll
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - paragraph [ref=e28]: Shop Handmade
+        - heading "Our Crochet Collection" [level=1] [ref=e29]
+        - paragraph [ref=e30]: Each piece is lovingly handcrafted by skilled Indian artisans using premium yarn
+      - generic [ref=e31]:
+        - button "All" [ref=e32] [cursor=pointer]
+        - button "Crochet Handbags" [ref=e33] [cursor=pointer]
+        - button "Crochet Gajra" [ref=e34] [cursor=pointer]
+        - button "Crochet Dolls" [ref=e35] [cursor=pointer]
+        - button "Crochet Keychains" [ref=e36] [cursor=pointer]
+        - button "Crochet Accessories" [ref=e37] [cursor=pointer]
+      - generic [ref=e38]:
+        - searchbox "Search products" [ref=e39]
+        - combobox "Sort products" [ref=e40]:
+          - 'option "Sort: Featured" [selected]'
+          - 'option "Price: Low to High"'
+          - 'option "Price: High to Low"'
+          - 'option "Name: A to Z"'
+      - generic [ref=e41]:
+        - link "Boho Sunburst Handbag View Details Crochet Handbags Boho Sunburst Handbag ₹1,499" [ref=e43] [cursor=pointer]:
+          - /url: /products/boho-sunburst-handbag
+          - generic [ref=e44]:
+            - img "Boho Sunburst Handbag" [ref=e45]
+            - generic [ref=e48]: View Details
+          - generic [ref=e49]:
+            - paragraph [ref=e50]: Crochet Handbags
+            - heading "Boho Sunburst Handbag" [level=3] [ref=e51]
+            - paragraph [ref=e52]: ₹1,499
+        - link "Floral Crochet Tote View Details Crochet Handbags Floral Crochet Tote ₹1,899" [ref=e54] [cursor=pointer]:
+          - /url: /products/floral-tote-bag
+          - generic [ref=e55]:
+            - img "Floral Crochet Tote" [ref=e56]
+            - generic [ref=e59]: View Details
+          - generic [ref=e60]:
+            - paragraph [ref=e61]: Crochet Handbags
+            - heading "Floral Crochet Tote" [level=3] [ref=e62]
+            - paragraph [ref=e63]: ₹1,899
+        - link "Orange Bloom Gajra View Details Crochet Gajra Orange Bloom Gajra ₹399" [ref=e65] [cursor=pointer]:
+          - /url: /products/orange-bloom-gajra
+          - generic [ref=e66]:
+            - img "Orange Bloom Gajra" [ref=e67]
+            - generic [ref=e70]: View Details
+          - generic [ref=e71]:
+            - paragraph [ref=e72]: Crochet Gajra
+            - heading "Orange Bloom Gajra" [level=3] [ref=e73]
+            - paragraph [ref=e74]: ₹399
+        - link "Bridal Red Gajra View Details Crochet Gajra Bridal Red Gajra ₹599" [ref=e76] [cursor=pointer]:
+          - /url: /products/bridal-red-gajra
+          - generic [ref=e77]:
+            - img "Bridal Red Gajra" [ref=e78]
+            - generic [ref=e81]: View Details
+          - generic [ref=e82]:
+            - paragraph [ref=e83]: Crochet Gajra
+            - heading "Bridal Red Gajra" [level=3] [ref=e84]
+            - paragraph [ref=e85]: ₹599
+        - link "Pastel Bunny Doll View Details Crochet Dolls Pastel Bunny Doll ₹799" [ref=e87] [cursor=pointer]:
+          - /url: /products/pastel-bunny-doll
+          - generic [ref=e88]:
+            - img "Pastel Bunny Doll" [ref=e89]
+            - generic [ref=e92]: View Details
+          - generic [ref=e93]:
+            - paragraph [ref=e94]: Crochet Dolls
+            - heading "Pastel Bunny Doll" [level=3] [ref=e95]
+            - paragraph [ref=e96]: ₹799
+        - link "Classic Teddy Bear View Details Crochet Dolls Classic Teddy Bear ₹999" [ref=e98] [cursor=pointer]:
+          - /url: /products/teddy-bear-doll
+          - generic [ref=e99]:
+            - img "Classic Teddy Bear" [ref=e100]
+            - generic [ref=e103]: View Details
+          - generic [ref=e104]:
+            - paragraph [ref=e105]: Crochet Dolls
+            - heading "Classic Teddy Bear" [level=3] [ref=e106]
+            - paragraph [ref=e107]: ₹999
+        - link "Unicorn Yarn Keychain View Details Crochet Keychains Unicorn Yarn Keychain ₹249" [ref=e109] [cursor=pointer]:
+          - /url: /products/unicorn-keychain
+          - generic [ref=e110]:
+            - img "Unicorn Yarn Keychain" [ref=e111]
+            - generic [ref=e114]: View Details
+          - generic [ref=e115]:
+            - paragraph [ref=e116]: Crochet Keychains
+            - heading "Unicorn Yarn Keychain" [level=3] [ref=e117]
+            - paragraph [ref=e118]: ₹249
+        - link "Rainbow Flower Keychain View Details Crochet Keychains Rainbow Flower Keychain ₹199" [ref=e120] [cursor=pointer]:
+          - /url: /products/rainbow-flower-keychain
+          - generic [ref=e121]:
+            - img "Rainbow Flower Keychain" [ref=e122]
+            - generic [ref=e125]: View Details
+          - generic [ref=e126]:
+            - paragraph [ref=e127]: Crochet Keychains
+            - heading "Rainbow Flower Keychain" [level=3] [ref=e128]
+            - paragraph [ref=e129]: ₹199
+        - link "Boho Crochet Scrunchie View Details Crochet Accessories Boho Crochet Scrunchie ₹149" [ref=e131] [cursor=pointer]:
+          - /url: /products/boho-scrunchie
+          - generic [ref=e132]:
+            - img "Boho Crochet Scrunchie" [ref=e133]
+            - generic [ref=e136]: View Details
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: Crochet Accessories
+            - heading "Boho Crochet Scrunchie" [level=3] [ref=e139]
+            - paragraph [ref=e140]: ₹149
+    - generic [ref=e141]:
+      - img "Dark wool texture" [ref=e143]
+      - generic [ref=e145]:
+        - generic [ref=e146]:
+          - generic [ref=e147]:
+            - img "Kaari Logo" [ref=e149]
+            - heading "कारी" [level=3] [ref=e150]
+            - paragraph [ref=e151]: Kaari Handmade
+            - paragraph [ref=e152]: Unique designs woven with love
+          - generic [ref=e153]:
+            - heading "Contact" [level=4] [ref=e154]
+            - generic [ref=e155]:
+              - paragraph [ref=e156]:
+                - link "@kaari.handmade" [ref=e157] [cursor=pointer]:
+                  - /url: https://www.instagram.com/kaari.handmade
+              - paragraph [ref=e158]:
+                - link "9131548788" [ref=e159] [cursor=pointer]:
+                  - /url: tel:9131548788
+          - generic [ref=e160]:
+            - heading "Services" [level=4] [ref=e161]
+            - generic [ref=e162]:
+              - paragraph [ref=e163]: ✦ Online Orders Accepted
+              - paragraph [ref=e164]: ✦ Customisation Available
+        - paragraph [ref=e166]: © 2026 Kaari Handmade. All rights reserved. Crafted with ♡
+  - alert [ref=e167]

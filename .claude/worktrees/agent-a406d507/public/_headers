@@ -1,0 +1,57 @@
+/*
+  Content Security Policy and Security Headers
+  For Netlify deployment - place in public/ directory
+
+  This file is automatically served by Netlify with these headers.
+  For other platforms, configure equivalent headers in your hosting provider.
+*/
+
+/*
+  Security Headers Configuration
+
+  When deploying to production, ensure these headers are configured:
+
+  Content-Security-Policy:
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    img-src 'self' data: https: blob:;
+    font-src 'self' https://fonts.gstatic.com;
+    connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cashfree.com;
+    frame-src 'self' https://*.cashfree.com;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'none';
+    upgrade-insecure-requests;
+
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+  For Cashfree integration, ensure connect-src and frame-src include:
+  - https://sandbox.cashfree.com (test)
+  - https://api.cashfree.com (production)
+*/
+
+/* Netlify _headers file format:
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/api/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Cache-Control: no-store, no-cache, must-revalidate
+
+End of Netlify format */

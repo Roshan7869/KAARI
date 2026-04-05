@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { redirect, usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -15,43 +15,48 @@ import {
   Menu,
   X,
   Image as ImageIcon,
+  Star,
+  Tv2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AdminDashboardSkeleton } from "@/components/ui/skeleton-loader";
+import type { ReactNode } from "react";
 
 interface NavItem {
   label: string;
   path: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }
 
 const navItems: NavItem[] = [
   { label: "Dashboard", path: "/admin", icon: <LayoutDashboard className="w-5 h-5" /> },
+  { label: "Billboard", path: "/admin/billboard", icon: <Tv2 className="w-5 h-5" /> },
   { label: "Products", path: "/admin/products", icon: <Package className="w-5 h-5" /> },
   { label: "Media Library", path: "/admin/media", icon: <ImageIcon className="w-5 h-5" /> },
   { label: "Orders", path: "/admin/orders", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Customers", path: "/admin/customers", icon: <Users className="w-5 h-5" /> },
+  { label: "Reviews", path: "/admin/reviews", icon: <Star className="w-5 h-5" /> },
   { label: "Settings", path: "/admin/settings", icon: <Settings className="w-5 h-5" /> },
 ];
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { user, signOut } = useAuth();
+export default function AdminLayout({ children }: { children: ReactNode }) {
+  const { user, signOut, loading: authLoading } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
+    // Wait for AuthContext to finish initialising before evaluating user
+    if (authLoading) return;
+
     const checkAdmin = async () => {
       try {
         if (!user) {
-          redirect("/login");
+          router.push("/login");
           return;
         }
 
@@ -63,28 +68,29 @@ export default function AdminLayout({
           .maybeSingle();
 
         if (!roles) {
-          redirect("/");
+          router.push("/");
           return;
         }
 
         setIsAdmin(true);
       } catch (err) {
         console.error("Admin check error:", err);
-        redirect("/");
+        router.push("/");
       } finally {
-        setLoading(false);
+        setChecking(false);
       }
     };
 
     checkAdmin();
-  }, [user]);
+  }, [user, authLoading, router]);
 
   const handleSignOut = async () => {
     await signOut();
-    redirect("/login");
+    router.push("/login");
   };
 
-  if (loading) {
+  // Show skeleton while auth is loading OR while checking admin role
+  if (authLoading || checking) {
     return (
       <div className="min-h-screen bg-background p-6">
         <AdminDashboardSkeleton />
@@ -142,14 +148,14 @@ export default function AdminLayout({
           </Button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2" aria-label="Admin menu">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto" aria-label="Admin menu">
           {navItems.map((item) => (
             <Link
               key={item.path}
               href={item.path}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-sm transition-colors",
-                pathname === item.path
+                pathname === item.path || pathname.startsWith(item.path + "/")
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}

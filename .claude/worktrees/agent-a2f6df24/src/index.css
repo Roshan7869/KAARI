@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 33% 93%;
+    --foreground: 0 20% 12%;
+
+    --card: 33 30% 90%;
+    --card-foreground: 0 20% 12%;
+
+    --popover: 30 33% 93%;
+    --popover-foreground: 0 20% 12%;
+
+    --primary: 0 68% 33%;
+    --primary-foreground: 33 40% 92%;
+
+    --secondary: 33 40% 92%;
+    --secondary-foreground: 0 20% 12%;
+
+    --muted: 33 20% 85%;
+    --muted-foreground: 0 10% 40%;
+
+    --accent: 38 45% 60%;
+    --accent-foreground: 0 20% 12%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 33 20% 80%;
+    --input: 33 20% 80%;
+    --ring: 0 68% 33%;
+
+    --radius: 0.25rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Custom Kaari tokens */
+    --kaari-deep-red: 0 68% 33%;
+    --kaari-cream: 33 40% 92%;
+    --kaari-gold: 38 45% 60%;
+    --kaari-warm-brown: 20 30% 25%;
+    --kaari-dark: 0 20% 8%;
+    --kaari-light-cream: 35 50% 96%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .stitch-separator {
+    @apply w-full flex items-center justify-center gap-2 py-8;
+  }
+
+  .stitch-separator::before,
+  .stitch-separator::after {
+    content: '';
+    @apply flex-1 h-px bg-border;
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 4px,
+      hsl(var(--border)) 4px,
+      hsl(var(--border)) 8px
+    );
+  }
+
+  .stitch-dot {
+    @apply w-2 h-2 rounded-full bg-accent;
+  }
+
+  .yarn-button {
+    @apply relative overflow-hidden transition-all duration-300;
+  }
+
+  .yarn-button::after {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(var(--accent) / 0.3) 0%, transparent 60%);
+  }
+
+  .yarn-button:hover::after {
+    @apply opacity-100;
+  }
+
+  .thread-underline {
+    @apply relative inline-block;
+  }
+
+  .thread-underline::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-full h-0.5 origin-left scale-x-0 transition-transform duration-500;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
+  }
+
+  .thread-underline:hover::after {
+    @apply scale-x-100;
+  }
+
+  .fabric-card {
+    @apply rounded-sm border border-border overflow-hidden;
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--kaari-light-cream)) 100%);
+  }
+
+  /* Glassmorphism cards */
+  .glass-card {
+    @apply rounded-lg border border-white/20 overflow-hidden;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  .glass-card-dark {
+    @apply rounded-lg border border-white/10 overflow-hidden;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Enhanced card with glassmorphism hover */
+  .glass-hover {
+    @apply transition-all duration-500;
+  }
+
+  .glass-hover:hover {
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    transform: translateY(-4px);
+  }
+}
+
+@layer utilities {
+  .text-gradient-kaari {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+  }
+
+  .bg-gradient-warm {
+    background: linear-gradient(180deg, hsl(var(--kaari-cream)) 0%, hsl(var(--background)) 100%);
+  }
+
+  .bg-gradient-dark {
+    background: linear-gradient(180deg, hsl(var(--kaari-dark)) 0%, hsl(var(--kaari-warm-brown)) 100%);
+  }
+}

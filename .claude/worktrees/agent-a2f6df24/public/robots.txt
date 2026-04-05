@@ -1,0 +1,50 @@
+# Robots.txt for Kaari Marketplace
+# SECURITY: Disallow sensitive paths
+
+# Allow public content
+User-agent: Googlebot
+Allow: /
+Disallow: /admin/
+Disallow: /checkout/
+Disallow: /order-confirmation/
+Disallow: /api/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /checkout/
+Disallow: /order-confirmation/
+Disallow: /api/
+
+User-agent: Twitterbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+User-agent: facebookexternalhit
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+
+# Block all other bots from sensitive areas
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /checkout/
+Disallow: /cart/
+Disallow: /order-confirmation/
+Disallow: /api/
+Disallow: /dummy-payment
+Disallow: /*.json$
+Disallow: /*.xml$
+
+# SECURITY: Disallow any paths that might contain user data
+Disallow: /profile
+Disallow: /orders
+Disallow: /settings
+
+# Sitemap location
+Sitemap: https://kaarihandmade.com/sitemap.xml
+
+# Crawl delay for server resources
+Crawl-delay: 1

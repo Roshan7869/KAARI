@@ -1,18 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertCircle, Loader2, Chrome } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
+  const { signIn, signInWithGoogle, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -21,19 +24,27 @@ export default function Login() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
+      await signIn(email, password);
       router.push('/');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to login');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setError(null);
+
+    try {
+      await signInWithGoogle();
+      router.push('/');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
+      setGoogleLoading(false);
     }
   };
 
@@ -48,15 +59,16 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
-              <p
+              <div
                 id="login-error"
-                className="font-body text-sm text-red-600"
+                className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md"
                 role="alert"
                 aria-live="polite"
                 aria-atomic="true"
               >
-                {error}
-              </p>
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
             )}
 
             <div>
@@ -71,7 +83,7 @@ export default function Login() {
                 className="mt-1"
                 aria-label="Email address"
                 aria-required="true"
-                aria-describedby={error ? "login-error" : undefined}
+                aria-describedby={error ? 'login-error' : undefined}
               />
             </div>
             <div>
@@ -86,12 +98,50 @@ export default function Login() {
                 className="mt-1"
                 aria-label="Password"
                 aria-required="true"
-                aria-describedby={error ? "login-error" : undefined}
+                aria-describedby={error ? 'login-error' : undefined}
               />
             </div>
 
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign In'}
+            <Button type="submit" className="w-full" size="lg" disabled={loading || authLoading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              size="lg"
+              onClick={handleGoogleSignIn}
+              disabled={googleLoading || authLoading}
+              aria-label="Sign in with Google account"
+            >
+              {googleLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <Chrome className="mr-2 h-4 w-4" />
+                  Sign in with Google
+                </>
+              )}
             </Button>
 
             <p className="font-body text-sm text-center text-muted-foreground">

@@ -1,46 +1,43 @@
-import dynamic from "next/dynamic";
-import HeroSection from "@/components/HeroSection";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import { ProductGridSkeleton, SectionSkeleton } from "@/components/ui/skeleton-loader";
+import { Suspense } from 'react';
+import { HeroBillboard } from '@/components/home/HeroBillboard';
+import { ProductShowcase } from '@/components/home/ProductShowcase';
+import { getBillboardProducts, getShowcaseProducts } from '@/lib/queries/top-products';
+import { BillboardSkeleton, ProductGridSkeleton } from '@/components/skeletons/BillboardSkeleton';
+import KaariFooter from '@/components/KaariFooter';
 
-// Removed: TopProductsSection — ProductGrid below shows all products
+export const revalidate = 60; // ISR — rebuild at most once per minute
 
-// Full products grid with filters, search, sort
-const ProductGrid = dynamic(() => import("@/components/products/ProductGrid"), {
-  loading: () => (
-    <section className="py-20 bg-gradient-warm">
-      <div className="max-w-7xl mx-auto px-6">
-        <ProductGridSkeleton count={9} columns={3} />
-      </div>
-    </section>
-  ),
-  ssr: false,
-});
+async function BillboardSection() {
+  const products = await getBillboardProducts();
+  return <HeroBillboard products={products} />;
+}
 
-const KaariFooter = dynamic(() => import("@/components/KaariFooter"), {
-  ssr: false,
-  loading: () => <SectionSkeleton height="h-40" />,
-});
+async function ShowcaseSection() {
+  const products = await getShowcaseProducts(8);
+  return <ProductShowcase products={products} />;
+}
 
 export default function Home() {
   return (
     <main className="overflow-x-hidden" id="main-content" tabIndex={-1}>
-      {/* ── ZONE 1: Brand hero — full-viewport, above the fold ── */}
-      <ErrorBoundary componentName="Hero Section">
-        <HeroSection />
-      </ErrorBoundary>
+      {/* ── SECTION 1: Admin-curated hero billboard ── */}
+      <Suspense fallback={<BillboardSkeleton />}>
+        <BillboardSection />
+      </Suspense>
 
-      {/* ── ZONE 2: All Products — complete catalogue ── */}
-      <div id="all-products">
-        <ErrorBoundary componentName="Product Grid">
-          <ProductGrid />
-        </ErrorBoundary>
-      </div>
+      {/* ── SECTION 2: Product showcase grid ── */}
+      <Suspense
+        fallback={
+          <section className="py-16 md:py-24 px-4 md:px-8 max-w-7xl mx-auto">
+            <ProductGridSkeleton count={8} />
+          </section>
+        }
+      >
+        <ShowcaseSection />
+      </Suspense>
 
-      {/* ── ZONE 3: Footer ── */}
-      <ErrorBoundary componentName="Footer">
-        <KaariFooter />
-      </ErrorBoundary>
+      {/* ── SECTION 3: Footer ── */}
+      <KaariFooter />
     </main>
   );
 }

@@ -1,0 +1,24 @@
+
+> kaari-marketplace@1.0.0 lint
+> npx next lint
+
+
+./lib/auditLog.ts
+401:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/cashfree-sdk.ts
+389:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/cashfree.ts
+484:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/imageConversion.ts
+302:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/rateLimit.ts
+250:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+./lib/redirect.ts
+116:1  Warning: Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules

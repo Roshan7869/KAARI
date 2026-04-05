@@ -29,11 +29,45 @@ interface UploadResult {
   created_at?: string;
 }
 
+// File upload constraints
+const UPLOAD_CONSTRAINTS = {
+  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+  ALLOWED_TYPES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+  ALLOWED_EXTENSIONS: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
+} as const;
+
 class CloudinaryService {
   private config: CloudinaryConfig;
 
   constructor(config: CloudinaryConfig) {
     this.config = config;
+  }
+
+  /**
+   * Validate file before upload
+   */
+  private validateFile(file: File): void {
+    if (file.size > UPLOAD_CONSTRAINTS.MAX_FILE_SIZE) {
+      throw new Error(
+        `File size exceeds ${UPLOAD_CONSTRAINTS.MAX_FILE_SIZE / 1024 / 1024}MB limit. Max: 10MB`
+      );
+    }
+
+    if (!UPLOAD_CONSTRAINTS.ALLOWED_TYPES.includes(file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif')) {
+      throw new Error(
+        `Invalid file type. Allowed: JPEG, PNG, WebP, GIF. Got: ${file.type}`
+      );
+    }
+
+    const filename = file.name.toLowerCase();
+    const hasValidExt = UPLOAD_CONSTRAINTS.ALLOWED_EXTENSIONS.some((ext) =>
+      filename.endsWith(ext)
+    );
+    if (!hasValidExt) {
+      throw new Error(
+        `Invalid file extension. Allowed: ${UPLOAD_CONSTRAINTS.ALLOWED_EXTENSIONS.join(', ')}`
+      );
+    }
   }
 
   /**
@@ -43,6 +77,9 @@ class CloudinaryService {
     file: File,
     options: UploadOptions = {}
   ): Promise<UploadResult> {
+    // Validate file before upload
+    this.validateFile(file);
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('api_key', this.config.apiKey);
