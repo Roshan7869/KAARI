@@ -1,7 +1,6 @@
 import { logger } from '@/lib/logger';
 import { createClient } from './client';
 import type { Tables } from '@/types/database';
-import type { User } from '@supabase/supabase-js';
 
 export type Notification = Tables<'notifications'>;
 
@@ -144,7 +143,7 @@ export async function markAllAsRead(supabase = createClient()) {
  * Subscribe to real-time notification updates
  */
 export function subscribeToNotifications(
-  user: User | null,
+  user: { id: string } | null,
   callback: (notification: Notification | null) => void
 ) {
   if (!user) {

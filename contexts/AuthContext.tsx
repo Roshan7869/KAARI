@@ -1,15 +1,32 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase/client';
+/**
+ * AuthContext — Clerk-backed auth wrapper.
+ * Maintains the same useAuth() API as the previous Supabase implementation
+ * so all consuming components work without changes.
+ */
+import { createContext, useContext, ReactNode } from 'react';
+import { useUser, useClerk } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { User, Session } from '@supabase/supabase-js';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { firebaseAuth, googleProvider } from '@/lib/firebase';
+
+/**
+ * AuthUser is a simplified user shape that maps Clerk's user
+ * to what our components expect (previously a Supabase User).
+ */
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  user_metadata: {
+    full_name?: string;
+    name?: string;
+    avatar_url?: string;
+  };
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: AuthUser | null;
+  session: null;
   loading: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -30,198 +47,56 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user: clerkUser, isLoaded } = useUser();
+  const { signOut: clerkSignOut } = useClerk();
+  const router = useRouter();
 
-  const checkAdminRole = async (userId: string) => {
-    try {
-      const { data, error } = await supabase.rpc('has_role', {
-        _role: 'admin',
-        _user_id: userId,
-      });
-
-      if (error) {
-        console.error('Failed to check admin role:', error);
-        setIsAdmin(false);
-      } else {
-        setIsAdmin(data === true);
-      }
-    } catch (err) {
-      console.error('Error checking admin role:', err);
-      setIsAdmin(false);
-    }
-  };
-
-  useEffect(() => {
-    // Check current session on mount
-    const initializeAuth = async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        if (currentSession?.user?.id) {
-          await checkAdminRole(currentSession.user.id);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      setLoading(false);
-
-      if (event === 'SIGNED_IN') {
-        toast.success('Welcome back!');
-        if (currentSession?.user?.id) {
-          await checkAdminRole(currentSession.user.id);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        toast.success('Signed out successfully');
-        setIsAdmin(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);  // Empty dependency array - only run on mount
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      toast.success('Signed in successfully');
-    } catch (error) {
-      console.error('Sign in error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to sign in');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signUp = async (email: string, password: string, fullName: string) => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
+  const user: AuthUser | null = clerkUser
+    ? {
+        id: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress ?? null,
+        user_metadata: {
+          full_name: clerkUser.fullName ?? undefined,
+          name: clerkUser.firstName ?? undefined,
+          avatar_url: clerkUser.imageUrl,
         },
-      });
-      if (error) throw error;
-
-      // Create profile record
-      if (data.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          email: email,
-          full_name: fullName,
-        });
-        if (profileError) {
-          console.error('Profile creation failed:', profileError);
-          // Don't throw - user was created but profile is missing
-          // Consider a background job to sync profiles
-        }
       }
+    : null;
 
-      toast.success('Account created! Please check your email to verify.');
-    } catch (error) {
-      console.error('Sign up error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create account');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+  const isAdmin =
+    (clerkUser?.publicMetadata?.role as string | undefined) === 'admin';
+
+  const signIn = async (_email: string, _password: string) => {
+    // Handled by Clerk's hosted UI — redirect to login page
+    router.push('/login');
+  };
+
+  const signUp = async (_email: string, _password: string, _fullName: string) => {
+    router.push('/signup');
   };
 
   const signOut = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-      setSession(null);
-    } catch (error) {
-      console.error('Sign out error:', error);
-      toast.error('Failed to sign out');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    await clerkSignOut();
+    toast.success('Signed out successfully');
+    router.push('/');
   };
 
-  const resetPassword = async (email: string) => {
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) throw error;
-      toast.success('Password reset email sent!');
-    } catch (error) {
-      console.error('Reset password error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to send reset email');
-      throw error;
-    }
+  const resetPassword = async (_email: string) => {
+    toast.info('Use the "Forgot password" link on the sign-in page');
+    router.push('/login');
   };
 
   const signInWithGoogle = async () => {
-    try {
-      setLoading(true);
-
-      // Step 1: Firebase Google popup — gets the Google credential
-      const result = await signInWithPopup(firebaseAuth, googleProvider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const idToken = credential?.idToken;
-
-      if (!idToken) throw new Error('Failed to get Google ID token from Firebase');
-
-      // Step 2: Sign in to Supabase with the Google ID token
-      const { data: signInData, error } = await supabase.auth.signInWithIdToken({
-        provider: 'google',
-        token: idToken,
-      });
-
-      if (error) throw error;
-
-      // Step 3: Ensure profile row exists (Google users skip the signUp flow)
-      if (signInData.user) {
-        const u = signInData.user;
-        await supabase.from('profiles').upsert(
-          {
-            id: u.id,
-            email: u.email ?? '',
-            full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? '',
-          },
-          { onConflict: 'id', ignoreDuplicates: true }
-        );
-      }
-    } catch (error) {
-      console.error('Google sign in error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to sign in with Google');
-      throw error;
-    } finally {
-      setLoading(false);
-    }
+    // Handled by Clerk's sign-in UI (Social Connections)
+    router.push('/login');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
-        loading,
+        session: null,
+        loading: !isLoaded,
         isAdmin,
         signIn,
         signUp,

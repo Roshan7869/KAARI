@@ -1,9 +1,6 @@
 import { Metadata } from "next";
-import Signup from "@/components/pages/Signup";
+import { SignUp } from "@clerk/nextjs";
 import { APP_URL } from "@/lib/metadata";
-
-// Force dynamic rendering - this page uses client-side auth
-export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: "Sign Up | Kaari - Handmade Crochet Marketplace",
@@ -17,5 +14,13 @@ export const metadata: Metadata = {
 };
 
 export default function SignupPage() {
-  return <Signup />;
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-stone-50 py-12 px-4">
+      <SignUp
+        routing="hash"
+        signInUrl="/login"
+        fallbackRedirectUrl="/"
+      />
+    </main>
+  );
 }

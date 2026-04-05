@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { Playfair_Display, Cormorant_Garamond, Inter } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "./providers";
 import { WhatsAppButton } from "@/components/ui/WhatsAppButton";
 
@@ -122,8 +123,10 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${inter.className} antialiased`}>
-        <Providers>{children}</Providers>
-        <WhatsAppButton />
+        <ClerkProvider>
+          <Providers>{children}</Providers>
+          <WhatsAppButton />
+        </ClerkProvider>
       </body>
     </html>
   );

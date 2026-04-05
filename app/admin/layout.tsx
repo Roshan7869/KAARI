@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -42,55 +41,29 @@ const navItems: NavItem[] = [
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const { user, signOut, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checking, setChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    // Wait for AuthContext to finish initialising before evaluating user
     if (authLoading) return;
-
-    const checkAdmin = async () => {
-      try {
-        if (!user) {
-          router.push("/login");
-          return;
-        }
-
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("role", "admin")
-          .maybeSingle();
-
-        if (!roles) {
-          router.push("/");
-          return;
-        }
-
-        setIsAdmin(true);
-      } catch (err) {
-        console.error("Admin check error:", err);
-        router.push("/");
-      } finally {
-        setChecking(false);
-      }
-    };
-
-    checkAdmin();
-  }, [user, authLoading, router]);
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (!isAdmin) {
+      router.push("/");
+    }
+  }, [user, authLoading, isAdmin, router]);
 
   const handleSignOut = async () => {
     await signOut();
     router.push("/login");
   };
 
-  // Show skeleton while auth is loading OR while checking admin role
-  if (authLoading || checking) {
+  // Show skeleton while Clerk is loading
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background p-6">
         <AdminDashboardSkeleton />
