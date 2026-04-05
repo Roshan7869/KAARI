@@ -1,7 +1,7 @@
 // app/admin/reviews/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { Tables } from '@/types/database';
 import { AdminReviewFilters } from '@/components/admin/AdminReviewFilters';
@@ -36,16 +36,6 @@ export default function AdminReviewsPage() {
     searchQuery: ''
   });
 
-  // Load reviews on mount
-  useEffect(() => {
-    loadReviews();
-  }, []);
-
-  // Apply filters when filter state changes
-  useEffect(() => {
-    applyFilters();
-  }, [filters, reviews]);
-
   const loadReviews = async () => {
     try {
       setLoading(true);
@@ -69,7 +59,7 @@ export default function AdminReviewsPage() {
     }
   };
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...reviews];
 
     // Filter by product
@@ -130,7 +120,17 @@ export default function AdminReviewsPage() {
     }
 
     setFilteredReviews(filtered);
-  };
+  }, [filters, reviews]);
+
+  // Load reviews on mount
+  useEffect(() => {
+    loadReviews();
+  }, []);
+
+  // Apply filters when filter state changes
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const handleToggleVisibility = async (reviewId: string, currentVisibility: boolean) => {
     try {

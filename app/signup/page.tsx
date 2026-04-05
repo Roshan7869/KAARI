@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Signup from "@/components/pages/Signup";
+import { APP_URL } from "@/lib/metadata";
 
 // Force dynamic rendering - this page uses client-side auth
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   description: "Create a Kaari account to start shopping for handmade crochet products",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/signup",
+    url: `${APP_URL}/signup`,
     title: "Sign Up | Kaari",
     description: "Create your account",
   },

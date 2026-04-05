@@ -15,6 +15,7 @@
     "e2e:ui": "playwright test --ui",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "analyze": "ANALYZE=true npx next build",
     "audit": "npm audit --audit-level=moderate",
     "audit:fix": "npm audit fix",
     "clean": "rm -rf .next dist node_modules",
@@ -80,6 +81,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.2",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",

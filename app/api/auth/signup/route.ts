@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { SignupSchema } from '@/lib/validations/auth.schema';
 import { logger } from '@/lib/logger';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 
 // Type definition for Supabase error with code property
 interface SupabaseError extends Error {
@@ -19,6 +20,10 @@ function insertWithBypass(supabase: any, table: string, data: unknown) {
  * Register new user with email and password
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit: 10 attempts / 15 min per IP
+  const rateLimitResponse = await applyRateLimit(request, 'auth', false);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const body = await request.json();
     const result = SignupSchema.safeParse(body);

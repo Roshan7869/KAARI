@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { EmailResetSchema, PasswordResetSchema } from '@/lib/validations/auth.schema';
 import { logger } from '@/lib/logger';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 
 /**
  * POST /api/auth/password-reset/request
  * Request password reset email
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit: 10 attempts / 15 min per IP
+  const rateLimitResponse = await applyRateLimit(request, 'auth', false);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = await createClient();
     const body = await request.json();

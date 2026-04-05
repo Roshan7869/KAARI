@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { LoginSchema } from '@/lib/validations/auth.schema';
 import { logger } from '@/lib/logger';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import type { Database } from '@/types/database';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -23,6 +24,10 @@ function selectWithBypass(supabase: any, table: string, columns: string) {
  * Authenticate user with email and password
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit: 10 attempts / 15 min per IP (brute-force protection)
+  const rateLimitResponse = await applyRateLimit(request, 'auth', false);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const body = await request.json();
     const result = LoginSchema.safeParse(body);
@@ -65,7 +70,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, full_name, email_notifications_enabled, sms_notifications_enabled, marketing_emails_enabled')
-      .eq(authData.user.id, authData.user.id)
+      .eq('id', authData.user.id)
       .single() as unknown as { data: Profile | null; error: Error | null };
 
     // Create user profile if it doesn't exist

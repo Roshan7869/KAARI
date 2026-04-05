@@ -1,4 +1,10 @@
 /** @type {import('next').NextConfig} */
+
+// Only load bundle analyzer when ANALYZE=true (avoids requiring uninstalled pkg)
+const withBundleAnalyzer = process.env.ANALYZE === 'true'
+  ? require('@next/bundle-analyzer')({ enabled: true })
+  : (/** @type {any} */ config) => config;
+
 const nextConfig = {
   // TypeScript strict mode
   typescript: {
@@ -58,21 +64,9 @@ const nextConfig = {
   },
 
   // Security headers & cache control
+  // NOTE: Content-Security-Policy is set dynamically per-request in middleware.ts
+  // with a unique nonce, replacing the static 'unsafe-inline' approach.
   async headers() {
-    const ContentSecurityPolicy = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://js.cashfree.com https://vercel.live",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com",
-      "frame-src https://js.cashfree.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "upgrade-insecure-requests",
-    ].join('; ')
-
     return [
       {
         source: '/(.*)',
@@ -81,11 +75,6 @@ const nextConfig = {
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=31536000; includeSubDomains; preload',
-          },
-          // CSP — strict, blocks XSS injection vectors
-          {
-            key: 'Content-Security-Policy',
-            value: ContentSecurityPolicy,
           },
           // Prevent clickjacking
           {
@@ -179,4 +168,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);

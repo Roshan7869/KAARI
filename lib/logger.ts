@@ -1,13 +1,9 @@
 /**
- * Production-Safe Logger Utility
+ * Production-Safe Structured Logger
  *
- * Only logs to console in development mode.
- * In production, errors are silently handled (can be extended to send to error tracking service).
- *
- * Usage:
- *   import { logger } from '@/lib/logger';
- *   logger.debug('This only shows in dev');
- *   logger.error('This shows in dev, is silent in prod');
+ * - debug/info: Development only
+ * - warn: Always logged
+ * - error: Always logged — JSON format in production for Vercel log drain
  */
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -21,22 +17,10 @@ interface Logger {
 
 const isDev = process.env.NODE_ENV === 'development';
 
-/**
- * Format log arguments for cleaner output
- */
 function formatArgs(level: LogLevel, ...args: unknown[]): unknown[] {
-  // In production, we might want to strip sensitive data
-  // For now, just pass through
   return args;
 }
 
-/**
- * Production-safe logger
- *
- * - debug/info: Only logs in development mode
- * - warn: Always logs warnings (important for deprecations)
- * - error: Logs in dev, can be extended to send to error tracking in prod
- */
 export const logger: Logger = {
   debug(...args: unknown[]): void {
     if (isDev) {
@@ -51,31 +35,33 @@ export const logger: Logger = {
   },
 
   warn(...args: unknown[]): void {
-    // Always show warnings - they're important
-    console.warn('[WARN]', ...formatArgs('warn', ...args));
+    if (isDev) {
+      console.warn('[WARN]', ...formatArgs('warn', ...args));
+    } else {
+      // Production: structured JSON for Vercel log drain
+      console.warn(JSON.stringify({ level: 'warn', timestamp: new Date().toISOString(), args }));
+    }
   },
 
   error(...args: unknown[]): void {
     if (isDev) {
       console.error('[ERROR]', ...formatArgs('error', ...args));
+    } else {
+      // Production: always log errors — required for debugging payment/webhook issues
+      console.error(JSON.stringify({ level: 'error', timestamp: new Date().toISOString(), args }));
     }
-    // In production, you could send to Sentry, LogRocket, etc.
-    // For now, we silence errors in production to prevent info leakage
-    // Critical errors should be handled with user-facing error boundaries
   },
 };
 
 /**
- * Log security-related events
- * These are always logged, even in production (to stderr)
+ * Log security-related events — always logged server-side
  */
 export function logSecurityEvent(event: string, details?: Record<string, unknown>): void {
-  // Security events should always be logged server-side
-  // For client-side, we only log in dev
   if (isDev) {
     console.warn('[SECURITY]', event, details || '');
+  } else {
+    console.warn(JSON.stringify({ level: 'security', event, details, timestamp: new Date().toISOString() }));
   }
-  // In production, send to security monitoring service
 }
 
 /**
@@ -84,8 +70,9 @@ export function logSecurityEvent(event: string, details?: Record<string, unknown
 export function logAuditEvent(action: string, target: string, userId?: string): void {
   if (isDev) {
     console.log('[AUDIT]', { action, target, userId, timestamp: new Date().toISOString() });
+  } else {
+    console.log(JSON.stringify({ level: 'audit', action, target, userId, timestamp: new Date().toISOString() }));
   }
-  // In production, send to audit logging service
 }
 
 export default logger;

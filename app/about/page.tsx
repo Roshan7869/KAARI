@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import ArtisanStory from "@/components/ArtisanStory";
 import CrochetDivider from "@/components/CrochetDivider";
 import { SectionSkeleton } from "@/components/ui/skeleton-loader";
+import { APP_URL } from "@/lib/metadata";
 
 const CraftProcess = dynamic(() => import("@/components/CraftProcess"), {
   loading: () => <SectionSkeleton height="h-64" className="py-16" />,
@@ -30,7 +31,7 @@ export const metadata: Metadata = {
     "The story of Kaari — handmade crochet from the heart of India. Meet our artisans, learn our craft process, and get in touch.",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/about",
+    url: `${APP_URL}/about`,
     title: "About Us | Kaari Handmade",
     description: "Meet the artisans behind every stitch.",
   },

@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '@/lib/supabase/client';
+import { logger } from '@/lib/logger';
 
 // Cashfree API Configuration
 export interface CashfreeConfig {
@@ -123,25 +124,22 @@ export interface DbCashfreeSession {
   raw_response?: Record<string, unknown>;
 }
 
-// Get Cashfree configuration from database
-async function getCashfreeConfig(): Promise<CashfreeConfig | null> {
-  const { data, error } = await supabase
-    .from('payment_gateways')
-    .select('*')
-    .eq('provider', 'cashfree')
-    .eq('is_active', true)
-    .single();
+// Get Cashfree configuration from environment variables (server-side only)
+function getCashfreeConfig(): CashfreeConfig | null {
+  const appId       = process.env.CASHFREE_APP_ID;
+  const secretKey   = process.env.CASHFREE_SECRET_KEY;
+  const webhookSecret = process.env.CASHFREE_WEBHOOK_SECRET;
 
-  if (error || !data) {
-    console.warn('Cashfree gateway not configured, using dummy mode');
+  if (!appId || !secretKey || !webhookSecret) {
+    logger.warn('Cashfree gateway not configured (missing env vars), using dummy mode');
     return null;
   }
 
   return {
-    appId: data.api_key || '',
-    secretKey: data.api_secret || '',
-    isTestMode: data.is_test_mode,
-    webhookSecret: data.webhook_secret || '',
+    appId,
+    secretKey,
+    isTestMode: process.env.CASHFREE_TEST_MODE === 'true',
+    webhookSecret,
   };
 }
 
@@ -166,11 +164,11 @@ export async function createCashfreeOrder(params: {
   returnUrl: string;
   notifyUrl: string;
 }): Promise<CashfreePaymentSession> {
-  const config = await getCashfreeConfig();
+  const config = getCashfreeConfig();
 
   // If no Cashfree config, return dummy session
   if (!config || !config.appId || !config.secretKey) {
-    console.log('Using dummy payment session (Cashfree not configured)');
+    logger.info('Using dummy payment session (Cashfree not configured)');
     return createDummySession(params);
   }
 
@@ -245,7 +243,7 @@ export async function createCashfreeOrder(params: {
       payment_link: `${window.location.origin}/pay/${data.payment_session_id}`,
     };
   } catch (error) {
-    console.error('Cashfree order creation failed:', error);
+    logger.error('Cashfree order creation failed:', error);
     throw error;
   }
 }
@@ -256,7 +254,7 @@ export async function createCashfreeOrder(params: {
 export async function getCashfreePaymentSession(
   sessionId: string
 ): Promise<CashfreePaymentSession | null> {
-  const config = await getCashfreeConfig();
+  const config = getCashfreeConfig();
   if (!config) {
     return null;
   }
@@ -280,7 +278,7 @@ export async function getCashfreePaymentSession(
 
     return await response.json();
   } catch (error) {
-    console.error('Failed to get Cashfree session:', error);
+    logger.error('Failed to get Cashfree session:', error);
     return null;
   }
 }
@@ -291,7 +289,7 @@ export async function getCashfreePaymentSession(
 export async function getCashfreePaymentDetails(
   cfOrderId: string
 ): Promise<CashfreePayment | null> {
-  const config = await getCashfreeConfig();
+  const config = getCashfreeConfig();
   if (!config) {
     return null;
   }
@@ -320,7 +318,7 @@ export async function getCashfreePaymentDetails(
     }
     return null;
   } catch (error) {
-    console.error('Failed to get Cashfree payment details:', error);
+    logger.error('Failed to get Cashfree payment details:', error);
     return null;
   }
 }
@@ -339,7 +337,7 @@ export function verifyCashfreeWebhookSignature(
   secret: string
 ): boolean {
   if (!secret || !signature) {
-    console.warn('WEBHOOK: Missing secret or signature');
+    logger.warn('WEBHOOK: Missing secret or signature');
     return false;
   }
 
@@ -362,7 +360,7 @@ export function verifyCashfreeWebhookSignature(
 
     return cryptoModule.timingSafeEqual(sigBuffer, expectedBuffer);
   } catch (error) {
-    console.error('Webhook signature verification failed:', error);
+    logger.error('Webhook signature verification failed:', error);
     return false;
   }
 }
@@ -462,7 +460,7 @@ export async function getCashfreeCheckoutUrlAsync(
   }
 
   // Fetch config to determine test mode
-  const config = await getCashfreeConfig();
+  const config = getCashfreeConfig();
   const isTestMode = config?.isTestMode ?? true; // Default to test mode if no config
 
   return getCashfreeCheckoutUrl(paymentSessionId, returnUrl, isTestMode);
@@ -473,14 +471,12 @@ export async function getCashfreeCheckoutUrlAsync(
  *
  * Cashfree API secrets should NEVER be exposed to the client-side.
  * All API calls that require the secret key should go through:
- * 1. Supabase Edge Functions (server-side)
- * 2. The payment_gateways table (fetched via getCashfreeConfig)
+ * 1. Next.js API routes (server-side, Node.js environment)
+ * 2. Environment variables: CASHFREE_APP_ID, CASHFREE_SECRET_KEY (server-only)
  *
- * NEVER use VITE_CASHFREE_SECRET_KEY in client-side code.
- * The payment gateways are configured in the database, not environment variables.
- *
- * For development/testing, the system falls back to dummy payments when
- * no gateway is configured in the database.
+ * NEVER expose CASHFREE_SECRET_KEY on the client (no NEXT_PUBLIC_ prefix).
+ * getCashfreeConfig() reads from process.env and returns null client-side,
+ * gracefully degrading to dummy mode in that context.
  */
 
 export default {

@@ -1,7 +1,7 @@
 // hooks/useProductReviews.ts
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
 export interface ReviewData {
@@ -23,27 +23,16 @@ export function useProductReviews(productId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    if (!productId) {
-      setReviews([]);
-      setLoading(false);
-      return;
-    }
-
-    fetchReviews();
-  }, [productId]);
-
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Use the helper function from the migration
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: fetchError } = await (supabase as any)
         .rpc('get_product_reviews_user', {
           p_product_id: productId,
-          p_include_pending: false, // Users don't see pending
+          p_include_pending: false,
         });
 
       if (fetchError) throw fetchError;
@@ -55,7 +44,17 @@ export function useProductReviews(productId: string) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId]);
+
+  useEffect(() => {
+    if (!productId) {
+      setReviews([]);
+      setLoading(false);
+      return;
+    }
+
+    fetchReviews();
+  }, [productId, fetchReviews]);
 
   return { reviews, loading, error, refetch: fetchReviews };
 }

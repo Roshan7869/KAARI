@@ -3,6 +3,7 @@ import { getServerCashfreeConfig } from '@/lib/cashfree-server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { z } from 'zod';
 
 // Cashfree PG v2/v3 nested payload schema
@@ -57,6 +58,10 @@ const PaymentWebhookSchema = z.object({
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    // Rate limit: 200 requests / 1 min per IP (DDoS protection; Cashfree retries are expected)
+    const rateLimitResponse = await applyRateLimit(request, 'webhook', false);
+    if (rateLimitResponse) return rateLimitResponse;
+
     // ── 1. Read raw body (required for HMAC verification) ────────────────
     const rawBody = await request.text();
 
@@ -106,6 +111,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     logger.info('Webhook verified and parsed', { event, order_id: orderId });
 
     const supabase = createAdminClient();
+
+    // ── IDEMPOTENCY CHECK ─────────────────────────────────────────────────────
+    // Deduplicate by cf_payment_id — Cashfree retries webhooks for 72 hours.
+    // Use cashfree_sessions as the idempotency store (no schema migration needed).
+    if (cfPaymentId && (event === 'PAYMENT_SUCCESS' || event === 'PAYMENT_SUCCESS_WEBHOOK' || event === 'ORDER_PAID_WEBHOOK')) {
+      const { data: existing } = await supabase
+        .from('cashfree_sessions')
+        .select('id, status')
+        .eq('cf_payment_id', cfPaymentId)
+        .maybeSingle();
+
+      if (existing?.status === 'completed') {
+        logger.info('Webhook duplicate skipped', { cf_payment_id: cfPaymentId, event });
+        return NextResponse.json({ received: true, duplicate: true });
+      }
+    }
 
     // ── 6. Handle different webhook events ──────────────────────────────
     switch (event) {

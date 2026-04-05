@@ -117,6 +117,20 @@ export default function Checkout() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handlePincodeLookup = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const pin = e.target.value.trim();
+    if (pin.length !== 6 || !/^\d{6}$/.test(pin)) return;
+    try {
+      const res = await fetch(`/api/pincode/${pin}`);
+      if (res.ok) {
+        const { city, state } = await res.json();
+        setFormData((prev) => ({ ...prev, city, state }));
+      }
+    } catch {
+      // Fail silently — user can still type manually
+    }
+  };
+
   const handleAddressSelect = (addressId: string) => {
     setSelectedAddressId(addressId);
     const address = savedAddresses.find((item) => item.id === addressId);
@@ -473,6 +487,7 @@ export default function Checkout() {
                   name="postal_code"
                   value={formData.postal_code}
                   onChange={handleInputChange}
+                  onBlur={handlePincodeLookup}
                   required
                   className="mt-1"
                   aria-label="Postal code or ZIP (required)"

@@ -1,12 +1,13 @@
 import { Metadata } from "next";
 import Login from "@/components/pages/Login";
+import { APP_URL } from "@/lib/metadata";
 
 export const metadata: Metadata = {
   title: "Login | Kaari - Handmade Crochet Marketplace",
   description: "Log in to your Kaari account to view orders and manage your profile",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/login",
+    url: `${APP_URL}/login`,
     title: "Login | Kaari",
     description: "Log in to your account",
   },

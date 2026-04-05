@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import type { Database } from '@/types/database';
 
 type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error: Error };
@@ -13,6 +14,10 @@ type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error
  * This server-side path avoids the currently broken database RPC.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit: 20 checkout requests / 5 min per IP
+  const rateLimitResponse = await applyRateLimit(request, 'checkout', false);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = await createClient();
     const admin = createAdminClient();

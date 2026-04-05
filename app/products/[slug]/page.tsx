@@ -1,9 +1,12 @@
 import { Metadata } from "next";
 import ProductDetail from "@/components/pages/ProductDetail";
 import { createClient } from "@/lib/supabase/server";
+import { ProductJsonLd } from "@/components/products/ProductJsonLd";
 
 // ISR: revalidate product detail pages every 60 seconds
 export const revalidate = 60;
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in';
 
 export async function generateStaticParams() {
   try {
@@ -41,14 +44,14 @@ export async function generateMetadata({
     description: `Handmade crochet ${productTitle}. Unique, artisan-crafted piece made with love.`,
     openGraph: {
       type: "article",
-      url: `https://kaari.in/products/${slug}`,
+      url: `${APP_URL}/products/${slug}`,
       title: `${productTitle} | Kaari`,
       description: `Handmade crochet ${productTitle}. Unique, artisan-crafted piece.`,
       images: [
         {
-          url: `https://kaari.in/products/${slug}/image.jpg`,
-          width: 800,
-          height: 800,
+          url: `${APP_URL}/og-image.jpg`,
+          width: 1200,
+          height: 630,
           alt: `${productTitle} - Handmade Crochet`,
         },
       ],
@@ -60,10 +63,32 @@ export async function generateMetadata({
   };
 }
 
-export default function ProductDetailPage({
+export default async function ProductDetailPage({
   params,
 }: {
   params: { slug: string };
 }) {
-  return <ProductDetail />;
+  // Minimal fetch for JSON-LD (ProductDetail fetches full data client-side)
+  const supabase = await createClient();
+  const { data: product } = await supabase
+    .from('products')
+    .select('name, description, base_price, slug, is_active')
+    .eq('slug', params.slug)
+    .single() as unknown as { data: { name: string; description: string | null; base_price: number; slug: string; is_active: boolean | null } | null };
+
+  return (
+    <>
+      {product && (
+        <ProductJsonLd
+          name={product.name}
+          description={product.description ?? ''}
+          price={product.base_price}
+          image={`${APP_URL}/og-image.jpg`}
+          slug={product.slug}
+          isActive={product.is_active ?? true}
+        />
+      )}
+      <ProductDetail />
+    </>
+  );
 }

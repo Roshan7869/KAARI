@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import KaariFooter from "@/components/KaariFooter";
+import { APP_URL } from "@/lib/metadata";
 
 export const metadata: Metadata = {
   title: "Contact Us | Kaari - Handmade Crochet Marketplace",
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
     "Get in touch with Kaari for handmade crochet products, custom orders, and wholesale inquiries.",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/contact",
+    url: `${APP_URL}/contact`,
     title: "Contact Us | Kaari",
     description: "We'd love to hear from you!",
   },

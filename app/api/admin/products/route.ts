@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger';
@@ -170,9 +171,9 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     // Verify product exists before update
     const { data: existingProduct, error: productError } = await supabase
       .from('products')
-      .select('id')
+      .select('id, slug')
       .eq('id', id)
-      .single();
+      .single() as unknown as { data: { id: string; slug: string | null } | null; error: Error | null };
 
     if (productError || !existingProduct) {
       return NextResponse.json(
@@ -207,6 +208,13 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     logger.info('Admin product updated', { productId: id });
+
+    // Invalidate ISR cache so updated product is visible immediately
+    revalidatePath('/products');
+    revalidatePath('/');
+    if (existingProduct?.slug) {
+      revalidatePath(`/products/${existingProduct.slug}`);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
