@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
@@ -20,12 +20,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const supabase = await createClient();
     const admin = createAdminClient();
 
     // ── 1. Auth ──────────────────────────────────────────────────────
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -64,11 +63,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // ── 3. Create checkout_session record ────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cart } = await (supabase as any)
+    const { data: cart } = await (admin as any)
       .from('carts')
       .select('id, user_id, status, currency')
       .eq('id', cart_id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (!cart) {
@@ -81,7 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Compute subtotal from cart items (used for checkout_session and totals response)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cartItems } = await (supabase as any)
+    const { data: cartItems } = await (admin as any)
       .from('cart_items')
       .select('unit_price, quantity, line_total')
       .eq('cart_id', cart_id);
@@ -101,11 +100,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const grandTotal = subtotal + shipping + tax;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: checkoutSession, error: checkoutError } = await (supabase as any)
+    const { data: checkoutSession, error: checkoutError } = await (admin as any)
       .from('checkout_sessions')
       .insert({
         cart_id,
-        user_id: user.id,
+        user_id: userId,
         status: payment_method === 'cod' ? 'completed' : 'payment_pending',
         payment_method: payment_method ?? 'cod',
         shipping_name: shipping_name ?? null,
@@ -147,11 +146,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const resolvedProviderLabel = shipping_provider_label ?? resolvedProvider;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+    const { data: rpcResult, error: rpcError } = await (admin as any).rpc(
       'create_order_from_checkout',
       {
         p_cart_id: cart_id,
-        p_user_id: user.id,
+        p_user_id: userId,
         p_payment_method: payment_method ?? 'cod',
         p_shipping_address: shippingAddress,
         p_tax_amount: tax,

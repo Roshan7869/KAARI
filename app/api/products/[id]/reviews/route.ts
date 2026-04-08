@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/auth/verify-jwt';
+import { auth } from '@clerk/nextjs/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { ProductParamsSchema } from '@/lib/validations/product.schema';
 
@@ -13,7 +13,7 @@ type SupabaseResponse<T> = { data: T | null; error: SupabaseError | null };
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { searchParams, pathname } = new URL(request.url);
     const id = pathname.split('/').pop();
 
@@ -125,9 +125,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { searchParams, pathname } = new URL(request.url);
     const id = pathname.split('/').pop();
 
@@ -183,19 +186,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Get user ID from session
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Check if user already reviewed this product
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingReview } = await (supabase as any)
       .from('product_reviews')
       .select('id')
       .eq('product_id', result.data.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .is('deleted_at', null)
       .maybeSingle() as { data: { id: string } | null; error: Error | null };
 
@@ -220,7 +217,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .from('product_reviews')
       .insert({
         product_id: result.data.id,
-        user_id: user.id,
+        user_id: userId,
         rating,
         title: title || null,
         content: content || null,

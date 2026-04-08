@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary';
 import { z } from 'zod';
@@ -17,21 +18,10 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   const supabase = createAdminClient();
 
   // ── Auth: admin only ──────────────────────────────────────────────────
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: roleData } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .eq('role', 'admin')
-    .maybeSingle();
-
-  if (!roleData) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const { userId, sessionClaims } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
+  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   // ── Parse request body ────────────────────────────────────────────────
   let body: unknown;

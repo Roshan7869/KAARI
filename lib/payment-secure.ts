@@ -125,33 +125,14 @@ export async function verifySecurePaymentSession(
   requireOwnership: boolean = true
 ): Promise<PaymentSessionValidation> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = requireOwnership ? user?.id ?? null : null;
-
-    const { data, error } = await supabase.rpc('verify_payment_session', {
-      p_session_id: sessionId,
-      p_user_id: userId
+    const response = await fetch('/api/payment-session/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, requireOwnership }),
     });
 
-    if (error) {
-      logger.error('Session verification error:', error);
-      return { valid: false, error: 'Failed to verify payment session' };
-    }
-
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      return { valid: false, error: 'Session not found' };
-    }
-
-    const result = data[0] as unknown as VerifyPaymentSessionResponse;
-
-    return {
-      valid: result.valid,
-      sessionId: result.session_id,
-      orderId: result.order_id,
-      amount: result.amount ? (typeof result.amount === 'number' ? result.amount : parseFloat(String(result.amount))) : undefined,
-      status: result.status,
-      error: result.error ?? undefined
-    };
+    const data = await response.json() as PaymentSessionValidation;
+    return data;
   } catch (err) {
     logger.error('Session verification error:', err);
     return { valid: false, error: 'An unexpected error occurred' };
@@ -168,28 +149,14 @@ export async function completeSecurePaymentSession(
   status: 'completed' | 'failed'
 ): Promise<{ success: boolean; orderId?: string; error?: string }> {
   try {
-    const { data, error } = await supabase.rpc('complete_payment_session', {
-      p_session_id: sessionId,
-      p_transaction_id: transactionId,
-      p_status: status
+    const response = await fetch('/api/payment-session/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, transactionId, status }),
     });
 
-    if (error) {
-      logger.error('Session completion error:', error);
-      return { success: false, error: 'Failed to complete payment session' };
-    }
-
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      return { success: false, error: 'Invalid response' };
-    }
-
-    const result = data[0] as unknown as CompletePaymentSessionResponse;
-
-    return {
-      success: result.success,
-      orderId: result.order_id,
-      error: result.message
-    };
+    const data = await response.json() as { success: boolean; orderId?: string; error?: string };
+    return data;
   } catch (err) {
     logger.error('Session completion error:', err);
     return { success: false, error: 'An unexpected error occurred' };
@@ -198,47 +165,20 @@ export async function completeSecurePaymentSession(
 
 /**
  * Get payment session details from database
- * SECURITY: Only returns session if it belongs to the current user
+ * SECURITY: Only returns session if it belongs to the current user (verified server-side)
  */
 export async function getSecurePaymentSession(
   sessionId: string
 ): Promise<{ success: boolean; session?: SecurePaymentSession & { status: string; paymentMethod: string }; error?: string }> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const response = await fetch(`/api/payment-session?session_id=${encodeURIComponent(sessionId)}`);
+    const data = await response.json() as { success: boolean; session?: SecurePaymentSession & { status: string; paymentMethod: string }; error?: string };
 
-    if (!user) {
-      return { success: false, error: 'Authentication required' };
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || 'Payment session not found' };
     }
 
-    const { data, error } = await supabase
-      .from('payment_sessions')
-      .select('*')
-      .eq('session_id', sessionId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (error || !data) {
-      return { success: false, error: 'Payment session not found' };
-    }
-
-    // Check expiration - use the correct field name
-    const expiresAt = new Date(data.expires_at);
-    if (expiresAt < new Date()) {
-      return { success: false, error: 'Payment session has expired' };
-    }
-
-    return {
-      success: true,
-      session: {
-        sessionId: data.session_id,
-        orderId: data.order_id,
-        amount: typeof data.amount === 'number' ? data.amount : parseFloat(String(data.amount)),
-        currency: data.currency,
-        status: data.status,
-        paymentMethod: data.payment_method,
-        expiresAt: data.expires_at
-      }
-    };
+    return data;
   } catch (err) {
     logger.error('Get session error:', err);
     return { success: false, error: 'An unexpected error occurred' };

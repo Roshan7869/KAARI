@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { z } from 'zod';
 
@@ -13,26 +14,15 @@ const schema = z.object({
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const supabase = createAdminClient();
 
   // ── Auth: admin only ──────────────────────────────────────────────────
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: roleData } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .eq('role', 'admin')
-    .maybeSingle();
-
-  if (!roleData) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const { userId, sessionClaims } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
+  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   // ── Validate body ─────────────────────────────────────────────────────
   let body: unknown;
@@ -51,11 +41,12 @@ export async function PATCH(
   }
 
   // ── Update tracking fields ────────────────────────────────────────────
+  const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from('orders')
     .update(parsed.data)
-    .eq('id', params.id);
+    .eq('id', id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

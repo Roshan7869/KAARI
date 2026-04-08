@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sanitizeTextInput } from '@/lib/sanitization';
 import { CreateReviewSchema } from '@/lib/validations/review.schema';
 import type { Database } from '@/types/database';
@@ -41,7 +42,7 @@ function isValidSort(value: string): value is SortOption {
  */
 export async function GET(request: NextRequest): Promise<NextResponse<ApiResponse<ReviewWithUser[]>>> {
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { searchParams } = new URL(request.url);
 
     // Validate product_id
@@ -166,16 +167,15 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiRespons
  */
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<Review>>> {
   try {
-    const supabase = await createClient();
-
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
+
+    const supabase = createAdminClient();
 
     // Parse and validate request body with Zod
     const body = await request.json();
@@ -238,7 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         .from('orders')
         .select('id, status')
         .eq('id', orderId!)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single() as { data: { id: string; status: string } | null; error: Error | null };
 
       if (orderError || !orderCheck) {
@@ -269,7 +269,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       const { data: existingReview, error: _existingError } = await (supabase as any)
         .from('product_reviews')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('product_id', body.product_id)
         .eq('order_id', orderId!)
         .is('deleted_at', null)
@@ -287,7 +287,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       const { data: existingReview, error: _existingError } = await (supabase as any)
         .from('product_reviews')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('product_id', body.product_id)
         .is('order_id', null)
         .is('deleted_at', null)
@@ -307,7 +307,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       .from('product_reviews')
       .insert({
         product_id: body.product_id,
-        user_id: user.id,
+        user_id: userId,
         order_id: orderId,
         rating: body.rating,
         title: sanitizedTitle,

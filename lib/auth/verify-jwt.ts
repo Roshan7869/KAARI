@@ -1,64 +1,37 @@
-import { createServerClient } from '@supabase/ssr'
-import type { Database } from '@/types/database'
+import { auth } from '@clerk/nextjs/server'
 
 /**
- * Get the current user from the JWT token
- * This validates the JWT server-side without making a DB call
- * @returns The user object or null if not authenticated
+ * Get the current user from Clerk session.
+ * Returns a minimal user object compatible with existing callers.
  */
 export async function getUser() {
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return [];
-        },
-        setAll() {
-          // No-op for server-side
-        },
-      },
-    }
-  )
-
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error) {
-    console.error('Error getting user:', error)
-    return null
-  }
-
-  return user
+  const { userId } = await auth()
+  if (!userId) return null
+  return { id: userId, user_metadata: {} as Record<string, unknown>, app_metadata: {} as Record<string, unknown> }
 }
 
 /**
- * Require authentication - throw error if not authenticated
+ * Require authentication — throws if not signed in.
  */
 export async function requireAuth() {
-  const user = await getUser()
-  if (!user) {
+  const { userId } = await auth()
+  if (!userId) {
     throw new Error('Unauthorized: User not authenticated')
   }
-  return user
+  return { id: userId }
 }
 
 /**
- * Check if user has admin role
+ * Require admin role (Clerk publicMetadata.role === 'admin').
  */
 export async function requireAdmin() {
-  const user = await requireAuth()
-
-  // Check for admin role in user metadata
-  const userRole = user.user_metadata?.role
-  const appRole = user.app_metadata?.role
-
-  if (userRole !== 'admin' && appRole !== 'admin') {
+  const { userId, sessionClaims } = await auth()
+  if (!userId) {
+    throw new Error('Unauthorized: User not authenticated')
+  }
+  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role
+  if (role !== 'admin') {
     throw new Error('Forbidden: Admin access required')
   }
-
-  return user
+  return { id: userId }
 }

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-
+import { auth } from '@clerk/nextjs/server'
 import { getCashfreeBaseUrl, getServerCashfreeConfig } from '@/lib/cashfree-server'
 import { logger } from '@/lib/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
 
 const CreateOrderSchema = z.object({
   orderId: z.string().min(1),
@@ -18,13 +17,8 @@ const CreateOrderSchema = z.object({
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const { userId } = await auth()
+    if (!userId) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
     }
 
@@ -50,8 +44,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 })
     }
 
-    if (order.user_id !== user.id) {
-      logger.warn('Unauthorized order payment attempt', { orderId, userId: user.id })
+    if (order.user_id !== userId) {
+      logger.warn('Unauthorized order payment attempt', { orderId, userId })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
     }
 
@@ -84,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { error: paymentSessionError } = await admin.from('payment_sessions').insert({
       session_id: paymentSessionId,
       order_id: orderId,
-      user_id: user.id,
+      user_id: userId,
       amount,
       currency: 'INR',
       payment_method: 'upi',

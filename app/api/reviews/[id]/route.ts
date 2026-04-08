@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sanitizeTextInput } from '@/lib/sanitization';
 import type { Database } from '@/types/database';
 
@@ -23,18 +24,6 @@ interface UpdateReviewBody {
   status?: ReviewStatus;
 }
 
-async function checkIsAdmin(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<boolean> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: roleData } = await (supabase as any)
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('role', 'admin')
-    .single() as SupabaseResponse<{ role: string }>;
-
-  return !!roleData;
-}
-
 /**
  * PATCH /api/reviews/[id]
  * Update own review (or admin can update any)
@@ -45,16 +34,15 @@ export async function PATCH(
 ): Promise<NextResponse<ApiResponse<Review>>> {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const { userId, sessionClaims } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
+    const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
+    const adminSupabase = createAdminClient();
 
     // Validate review ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -67,7 +55,7 @@ export async function PATCH(
 
     // Get the existing review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingReview, error: fetchError } = await (supabase as any)
+    const { data: existingReview, error: fetchError } = await (adminSupabase as any)
       .from('product_reviews')
       .select('*')
       .eq('id', id)
@@ -82,8 +70,7 @@ export async function PATCH(
     }
 
     // Check ownership or admin status
-    const isAdmin = await checkIsAdmin(supabase, user.id);
-    if (existingReview.user_id !== user.id && !isAdmin) {
+    if (existingReview.user_id !== userId && !isAdmin) {
       return NextResponse.json(
         { success: false, error: 'You can only update your own reviews' },
         { status: 403 }
@@ -172,7 +159,7 @@ export async function PATCH(
 
     // Update the review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: updatedReview, error: updateError } = await (supabase as any)
+    const { data: updatedReview, error: updateError } = await (adminSupabase as any)
       .from('product_reviews')
       .update(updateData as ReviewUpdate)
       .eq('id', id)
@@ -212,16 +199,15 @@ export async function DELETE(
 ): Promise<NextResponse<ApiResponse<null>>> {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const { userId, sessionClaims } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
+    const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
+    const adminSupabase = createAdminClient();
 
     // Validate review ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -234,7 +220,7 @@ export async function DELETE(
 
     // Get the existing review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingReview, error: fetchError } = await (supabase as any)
+    const { data: existingReview, error: fetchError } = await (adminSupabase as any)
       .from('product_reviews')
       .select('*')
       .eq('id', id)
@@ -249,8 +235,7 @@ export async function DELETE(
     }
 
     // Check ownership or admin status
-    const isAdmin = await checkIsAdmin(supabase, user.id);
-    if (existingReview.user_id !== user.id && !isAdmin) {
+    if (existingReview.user_id !== userId && !isAdmin) {
       return NextResponse.json(
         { success: false, error: 'You can only delete your own reviews' },
         { status: 403 }
@@ -259,7 +244,7 @@ export async function DELETE(
 
     // Soft delete by setting deleted_at
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: deleteError } = await (supabase as any)
+    const { error: deleteError } = await (adminSupabase as any)
       .from('product_reviews')
       .update({ deleted_at: new Date().toISOString() } as ReviewUpdate)
       .eq('id', id) as { error: Error | null };
@@ -293,7 +278,7 @@ export async function GET(
 ): Promise<NextResponse<ApiResponse<Review>>> {
   try {
     const { id } = await params;
-    const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     // Validate review ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -304,12 +289,13 @@ export async function GET(
       );
     }
 
-    // Get current user (optional)
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get current user (optional — for ownership/admin visibility check)
+    const { userId, sessionClaims } = await auth();
+    const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
 
     // Get the review with user info
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: review, error: fetchError } = await (supabase as any)
+    const { data: review, error: fetchError } = await (adminSupabase as any)
       .from('product_reviews')
       .select(`
         *,
@@ -330,8 +316,7 @@ export async function GET(
     }
 
     // Check if user can view this review (must be approved, owned by user, or user is admin)
-    const isAdmin = user ? await checkIsAdmin(supabase, user.id) : false;
-    if (review.status !== 'approved' && review.user_id !== user?.id && !isAdmin) {
+    if (review.status !== 'approved' && review.user_id !== userId && !isAdmin) {
       return NextResponse.json(
         { success: false, error: 'Review not found' },
         { status: 404 }

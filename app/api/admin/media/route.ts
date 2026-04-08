@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
@@ -8,21 +8,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
  * Query params: folder (prefix), next_cursor (pagination)
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  // Auth: use server client (reads cookies from request) — NOT admin client
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId, sessionClaims } = await auth();
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
+  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  // Role check: use admin client for privileged DB access
+  // Use admin client for DB access
   const adminSupabase = createAdminClient();
-  const { data: roleData } = await adminSupabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .eq('role', 'admin')
-    .maybeSingle();
-
-  if (!roleData) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const folder = searchParams.get('folder') || '';

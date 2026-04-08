@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 
 // Type definition for Supabase error with code property
@@ -25,12 +26,9 @@ function updateWithBypass(supabase: any, table: string, data: unknown) {
  */
 export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json(
         {
           success: false,
@@ -40,26 +38,29 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const clerkUser = await currentUser();
+    const supabase = createAdminClient();
+
     // Get user profile from database
     // Bypass strict type checking - Supabase's generic type inference is too strict
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile, error: profileError } = await selectWithBypass(supabase, 'profiles', 'full_name, phone, email_notifications_enabled, sms_notifications_enabled, marketing_emails_enabled')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single() as unknown as { data: { full_name: string | null; phone: string | null; email_notifications_enabled: boolean | null; sms_notifications_enabled: boolean | null; marketing_emails_enabled: boolean | null } | null; error: SupabaseError | null };
 
     if (profileError && profileError.code !== 'PGRST116') {
       throw profileError;
     }
 
-    logger.debug('Got user profile', { userId: user.id });
+    logger.debug('Got user profile', { userId });
 
     return NextResponse.json({
       success: true,
       data: {
         user: {
-          id: user.id,
-          email: user.email,
-          full_name: profile?.full_name ?? user.user_metadata?.full_name,
+          id: userId,
+          email: clerkUser?.emailAddresses?.[0]?.emailAddress,
+          full_name: profile?.full_name ?? clerkUser?.fullName,
           phone: profile?.phone,
           email_notifications_enabled: profile?.email_notifications_enabled ?? true,
           sms_notifications_enabled: profile?.sms_notifications_enabled ?? true,
@@ -86,12 +87,9 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
  */
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = await createClient();
+    const { userId } = await auth();
 
-    // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json(
         {
           success: false,
@@ -101,6 +99,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const supabase = createAdminClient();
     const body = await request.json();
     const { full_name, phone, email_notifications_enabled, sms_notifications_enabled, marketing_emails_enabled } = body;
 
@@ -114,7 +113,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       marketing_emails_enabled,
       updated_at: new Date().toISOString(),
     } as unknown as Record<string, unknown>)
-      .eq('id', user.id)
+      .eq('id', userId)
       .select()
       .single() as unknown as { data: { full_name: string | null; phone: string | null; email_notifications_enabled: boolean | null; sms_notifications_enabled: boolean | null; marketing_emails_enabled: boolean | null } | null; error: SupabaseError | null };
 
@@ -122,7 +121,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       throw profileError;
     }
 
-    logger.info('Updated user profile', { userId: user.id });
+    logger.info('Updated user profile', { userId });
 
     return NextResponse.json({
       success: true,

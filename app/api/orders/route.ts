@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/auth/verify-jwt';
+import { auth } from '@clerk/nextjs/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { OrderStatusUpdateSchema, OrderCancelSchema } from '@/lib/validations/checkout.schema';
 import type { Database } from '@/types/database';
 
-type Supabase = Awaited<ReturnType<typeof createClient>>;
+type AdminClient = ReturnType<typeof createAdminClient>;
 
 // Type helper for Supabase query responses
 type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error: Error };
@@ -17,9 +17,12 @@ type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const supabase = await createClient();
+    const admin = createAdminClient();
     const { pathname } = new URL(request.url);
 
     // Check if this is a request for a specific order
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (orderId && orderId !== 'orders') {
       // Get single order by ID
-      return getOrderByID(supabase, orderId);
+      return getOrderByID(admin, userId, orderId);
     }
 
     // Get orders list with pagination
@@ -37,18 +40,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
     const offset = (page - 1) * limit;
 
-    // Get user ID from session
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Get orders with count
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ordersResult = await (supabase as any)
+    const ordersResult = await (admin as any)
       .from('orders')
       .select('*', { count: 'exact' })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1) as { data: Database['public']['Tables']['orders']['Row'][] | null; error: Error | null; count?: number };
 
@@ -63,7 +60,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let orderItems: Array<Record<string, unknown>> = [];
     if (orderIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const itemsResult = await (supabase as any)
+      const itemsResult = await (admin as any)
         .from('order_items')
         .select(`
           id,
@@ -114,14 +111,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function getOrderByID(supabase: Supabase, id: string): Promise<NextResponse> {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-
+async function getOrderByID(admin: AdminClient, userId: string, id: string): Promise<NextResponse> {
   // Get order
-  const orderResult = await supabase
+  const orderResult = await admin
     .from('orders')
     .select(`
       *,
@@ -144,7 +136,7 @@ async function getOrderByID(supabase: Supabase, id: string): Promise<NextRespons
   if (orderResult.error) {
     throw orderResult.error;
   }
-  const order = orderResult.data as Database['public']['Tables']['orders']['Row'] & {
+  const order = orderResult.data as unknown as Database['public']['Tables']['orders']['Row'] & {
     user?: { id: string; full_name: string };
     items?: Array<Record<string, unknown>>;
     payment?: Record<string, unknown>;
@@ -159,7 +151,7 @@ async function getOrderByID(supabase: Supabase, id: string): Promise<NextRespons
   }
 
   // Check ownership
-  if (order.user_id !== user.id && order.user?.id !== user.id) {
+  if (order.user_id !== userId && order.user?.id !== userId) {
     return NextResponse.json(
       { success: false, error: 'Order not found' },
       { status: 404 }
@@ -167,7 +159,7 @@ async function getOrderByID(supabase: Supabase, id: string): Promise<NextRespons
   }
 
   // Get order status events
-  const statusEventsResult = await supabase
+  const statusEventsResult = await admin
     .from('order_status_events')
     .select('*')
     .eq('order_id', id)
@@ -196,9 +188,12 @@ async function getOrderByID(supabase: Supabase, id: string): Promise<NextRespons
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
-    const supabase = await createClient();
+    const admin = createAdminClient();
     const { pathname } = new URL(request.url);
     const pathParts = pathname.split('/').filter(Boolean);
 
@@ -222,11 +217,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'cancel') {
-      return cancelOrder(supabase, id, request);
+      return cancelOrder(admin, userId, id, request);
     }
 
     if (action === 'status') {
-      return updateOrderStatus(supabase, id, request);
+      return updateOrderStatus(admin, userId, id, request);
     }
 
     return NextResponse.json(
@@ -246,50 +241,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function cancelOrder(supabase: Supabase, id: string, request: NextRequest): Promise<NextResponse> {
+async function cancelOrder(admin: AdminClient, userId: string, id: string, request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
   const result = OrderCancelSchema.safeParse(body);
   if (!result.success) {
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Validation failed',
-        details: result.error.errors,
-      },
+      { success: false, error: 'Validation failed', details: result.error.errors },
       { status: 400 }
     );
   }
 
   const { cancellation_reason } = result.data;
 
-  // Get user ID from session
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-
   // Get order
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orderResult = await (supabase as any)
+  const orderResult = await (admin as any)
     .from('orders')
     .select('id, user_id, status')
     .eq('id', id)
     .single() as { data: { id: string; user_id: string; status: string } | null; error: Error | null };
 
   if (orderResult.error || !orderResult.data) {
-    return NextResponse.json(
-      { success: false, error: 'Order not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
   }
   const order = orderResult.data as { id: string; user_id: string; status: string };
 
   // Check ownership
-  if (order.user_id !== user.id) {
-    return NextResponse.json(
-      { success: false, error: 'Order not found' },
-      { status: 404 }
-    );
+  if (order.user_id !== userId) {
+    return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
   }
 
   // Check if order can be cancelled
@@ -303,7 +282,7 @@ async function cancelOrder(supabase: Supabase, id: string, request: NextRequest)
 
   // Update order status
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateResult = await (supabase as any)
+  const updateResult = await (admin as any)
     .from('orders')
     .update({
       status: 'cancelled',
@@ -318,13 +297,13 @@ async function cancelOrder(supabase: Supabase, id: string, request: NextRequest)
 
   // Log cancellation event
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const logResult = await (supabase as any)
+  const logResult = await (admin as any)
     .from('order_status_events')
     .insert({
       order_id: id,
       new_status: 'cancelled',
       note: cancellation_reason || 'User cancelled order',
-      actor_user_id: user.id,
+      actor_user_id: userId,
     }) as { error: Error | null };
 
   if (logResult.error) {
@@ -339,68 +318,43 @@ async function cancelOrder(supabase: Supabase, id: string, request: NextRequest)
   });
 }
 
-async function updateOrderStatus(supabase: Supabase, id: string, request: NextRequest): Promise<NextResponse> {
+async function updateOrderStatus(admin: AdminClient, userId: string, id: string, request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
   const result = OrderStatusUpdateSchema.safeParse(body);
   if (!result.success) {
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Validation failed',
-        details: result.error.errors,
-      },
+      { success: false, error: 'Validation failed', details: result.error.errors },
       { status: 400 }
     );
   }
 
   const { status: newStatus, notes } = result.data;
 
-  // Get current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Check if user is admin
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adminRoleResult = await (supabase as any)
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .eq('role', 'admin')
-    .single() as { data: { role: string } | null; error: Error | null };
-
-  if (adminRoleResult.error || !adminRoleResult.data) {
-    return NextResponse.json(
-      { success: false, error: 'Admin access required' },
-      { status: 403 }
-    );
+  // Check if user is admin (Clerk role check via sessionClaims)
+  const { sessionClaims } = await auth();
+  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
+  if (role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
   }
 
   // Get order
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orderResult = await (supabase as any)
+  const orderResult = await (admin as any)
     .from('orders')
     .select('id, status')
     .eq('id', id)
     .single() as { data: { id: string; status: string } | null; error: Error | null };
 
   if (orderResult.error || !orderResult.data) {
-    return NextResponse.json(
-      { success: false, error: 'Order not found' },
-      { status: 404 }
-    );
+    return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
   }
   const order = orderResult.data as { id: string; status: string };
 
   // Update order status
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateResult = await (supabase as any)
+  const updateResult = await (admin as any)
     .from('orders')
-    .update({
-      status: newStatus,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', id) as { error: Error | null };
 
   if (updateResult.error) {
@@ -409,20 +363,20 @@ async function updateOrderStatus(supabase: Supabase, id: string, request: NextRe
 
   // Log status event
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const logResult = await (supabase as any)
+  const logResult = await (admin as any)
     .from('order_status_events')
     .insert({
       order_id: id,
       new_status: newStatus,
       note: notes || null,
-      actor_user_id: user.id,
+      actor_user_id: userId,
     }) as { error: Error | null };
 
   if (logResult.error) {
     throw logResult.error;
   }
 
-  logger.info('Order status updated', { orderId: id, status: newStatus, updatedBy: user.id });
+  logger.info('Order status updated', { orderId: id, status: newStatus, updatedBy: userId });
 
   return NextResponse.json({
     success: true,

@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/nextjs';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database';
@@ -173,6 +174,7 @@ export function useOrderStatusHistory(orderId: string | undefined) {
  * Hook to update order status
  */
 export function useUpdateOrderStatus() {
+  const { user: clerkUser } = useUser();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -187,37 +189,20 @@ export function useUpdateOrderStatus() {
       previousStatus: string;
       notes?: string;
     }) => {
-      // Get current user for audit logging
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
+      if (!clerkUser) {
         throw new Error('Not authenticated');
       }
 
-      // Update order status
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
+      // Update order status via API route (uses admin client server-side)
+      const response = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, notes }),
+      });
 
-      if (updateError) throw updateError;
-
-      // Create status event
-      const { error: eventError } = await supabase
-        .from('order_status_events')
-        .insert({
-          order_id: orderId,
-          new_status: newStatus,
-          actor_user_id: user.id,
-          note: notes || null,
-        });
-
-      if (eventError) {
-        logger.error('Error creating status event:', eventError);
-        // Don't throw here, status was already updated
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update order status');
       }
 
       return { orderId, newStatus };
