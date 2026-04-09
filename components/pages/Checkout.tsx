@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase/client';
 import { z } from 'zod';
 import { sanitizeTextInput, validatePhone } from '@/lib/sanitization';
 import { generateCsrfToken, validateCsrfToken } from '@/lib/csrf';
+import { TrustBadges } from '@/components/TrustBadges';
 
 // ── Courier Options ─────────────────────────────────────────────────────
 export type CourierKey = 'INDIA_POST' | 'TIRUPATI_BALAJI' | 'DTDC' | 'DELHIVERY' | 'BLUEDART' | 'OTHER';
@@ -31,7 +32,7 @@ const checkoutSchema = z.object({
   address_line2: z.string().max(100).transform((value) => sanitizeTextInput(value, 100)).optional(),
   city: z.string().min(2, 'City is required').max(100).transform((value) => sanitizeTextInput(value, 100)),
   state: z.string().min(2, 'State is required').max(100).transform((value) => sanitizeTextInput(value, 100)),
-  postal_code: z.string().min(6, 'Postal code is required').max(10).regex(/^\d+$/, 'Invalid postal code'),
+  postal_code: z.string().length(6, 'PIN code must be exactly 6 digits').regex(/^[1-9][0-9]{5}$/, 'Invalid Indian PIN code format'),
 });
 
 interface SavedAddress {
@@ -65,6 +66,7 @@ export default function Checkout() {
     postal_code: '',
   });
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>('online');
   const [shippingProvider, setShippingProvider] = useState<CourierKey>('INDIA_POST');
   const [shippingProviderLabel, setShippingProviderLabel] = useState('');
@@ -76,6 +78,7 @@ export default function Checkout() {
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [pincodeLookupLoading, setPincodeLookupLoading] = useState(false);
   const [pincodeLookupDone, setPincodeLookupDone] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(1); // 1: Cart Review, 2: Shipping, 3: Payment, 4: Confirmation
 
   useEffect(() => {
     const loadAddresses = async () => {
@@ -156,6 +159,13 @@ export default function Checkout() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('Preventing double submission');
+      return;
+    }
+
     if (!user || items.length === 0) return;
     const form = e.currentTarget as HTMLFormElement;
     const submittedCsrfToken = new FormData(form).get('csrf_token') as string | null;
@@ -165,7 +175,9 @@ export default function Checkout() {
     }
 
     setLoading(true);
+    setIsSubmitting(true);
     setFormError(null);
+    setCheckoutStep(3); // Moving to payment step
     try {
       const validatedForm = checkoutSchema.parse(formData);
 
@@ -282,9 +294,23 @@ export default function Checkout() {
       if (paymentMethod === 'cod') {
         router.push(`/order-confirmation/${orderId}`);
       } else {
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-          window.location.origin;
+        // Use NEXT_PUBLIC_APP_URL if available and valid, otherwise fallback to window.location.origin
+        let appUrl = window.location.origin;
+        const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+        // In production, validate that we're not using localhost
+        if (envAppUrl && envAppUrl.length > 0) {
+          if (process.env.NODE_ENV === 'production') {
+            // In production, ensure we're not using localhost
+            if (!envAppUrl.includes('localhost') && !envAppUrl.includes('127.0.0.1')) {
+              appUrl = envAppUrl;
+            }
+            // If envAppUrl is localhost in production, stick with window.location.origin
+          } else {
+            // In development, allow localhost URLs
+            appUrl = envAppUrl;
+          }
+        }
 
         const paymentResponse = await fetch('/api/payments/cashfree/create-order', {
           method: 'POST',
@@ -324,6 +350,7 @@ export default function Checkout() {
       }
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -356,6 +383,36 @@ export default function Checkout() {
           {formError}
         </p>
       ) : null}
+
+      {/* Progress Indicator */}
+      <div className="mb-8">
+        <div className="w-full bg-gray-200 h-2 mb-4 rounded-full overflow-hidden">
+          <div
+            className="bg-green-600 h-2 transition-all duration-500 ease-in-out rounded-full"
+            style={{ width: `${(checkoutStep / 4) * 100}%` }}
+          />
+        </div>
+        <div className="flex justify-between">
+          {['Cart Review', 'Shipping', 'Payment', 'Confirmation'].map((step, index) => (
+            <div key={step} className="flex flex-col items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                index + 1 <= checkoutStep
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-200 text-gray-500'
+              }`}>
+                {index + 1}
+              </div>
+              <span className={`text-xs mt-2 ${
+                index + 1 <= checkoutStep
+                  ? 'text-green-600 font-medium'
+                  : 'text-gray-500'
+              }`}>
+                {step}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <input type="hidden" name="csrf_token" value={csrfToken} />
@@ -495,13 +552,18 @@ export default function Checkout() {
                     name="postal_code"
                     value={formData.postal_code}
                     onChange={(e) => {
+                      // Strip non-digits and limit to 6 characters
+                      const numericValue = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+                      setFormData({ ...formData, postal_code: numericValue });
                       setPincodeLookupDone(false);
-                      handleInputChange(e);
                     }}
                     onBlur={handlePincodeLookup}
+                    inputMode="numeric"
+                    pattern="[1-9][0-9]{5}"
+                    maxLength={6}
                     required
                     className="mt-0 pr-8"
-                    aria-label="Postal code or ZIP (required)"
+                    aria-label="Postal code or ZIP (required) - 6 digits only"
                     aria-required="true"
                     aria-describedby={formError ? "checkout-error" : undefined}
                   />
@@ -669,7 +731,7 @@ export default function Checkout() {
                 type="submit"
                 className="w-full"
                 size="lg"
-                disabled={loading || (shippingProvider === 'OTHER' && !shippingProviderLabel.trim())}
+                disabled={loading || isSubmitting || (shippingProvider === 'OTHER' && !shippingProviderLabel.trim())}
               >
                 {loading ? 'Placing Order...' : `Place Order — ₹${(
                   total +
@@ -681,6 +743,7 @@ export default function Checkout() {
           </Card>
         </div>
       </form>
+      <TrustBadges />
     </div>
   );
 }

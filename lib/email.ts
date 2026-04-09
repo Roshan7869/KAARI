@@ -160,7 +160,7 @@ export async function sendShippingNotificationEmail(
     <p>Tracking Number: ${trackingNumber}</p>
   `;
 
-  console.log('📧 Shipping notification would be sent:', { customerEmail, orderId, trackingNumber });
+  logger.debug('📧 Shipping notification would be sent:', { customerEmail, orderId, trackingNumber });
 
   try {
     await queueNotification({
