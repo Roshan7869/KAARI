@@ -176,7 +176,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const body = await request.json();
-    const { rating, title, content, is_verified_purchase } = body;
+    const { rating, title, content } = body;
+    // NOTE: is_verified_purchase is NOT accepted from the client — always computed server-side
 
     // Validate rating
     if (!rating || rating < 1 || rating > 5) {
@@ -203,13 +204,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Check if user purchased this product (if not verified purchase)
+    // Check if user purchased this product — compute server-side, never trust client
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orderItem } = await (supabase as any)
       .from('order_items')
       .select('id')
       .eq('product_id', result.data.id)
+      .eq('user_id', userId)
       .maybeSingle() as { data: { id: string } | null; error: Error | null };
+
+    const isVerifiedPurchase = !!orderItem;
 
     // Create review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,8 +225,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         rating,
         title: title || null,
         content: content || null,
-        is_verified_purchase: orderItem ? true : (is_verified_purchase || false),
-        status: orderItem ? 'approved' : 'pending',
+        is_verified_purchase: isVerifiedPurchase,
+        status: isVerifiedPurchase ? 'approved' : 'pending',
       })
       .select()
       .single() as SupabaseResponse<{ id: string }>;

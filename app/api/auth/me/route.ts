@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
+
+// Whitelist of fields users can update on their own profile
+// NEVER allow: role, email, user_id, is_admin, or any privileged field
+const UpdateProfileSchema = z.object({
+  full_name: z.string()
+    .min(2, 'Name too short')
+    .max(100, 'Name too long')
+    .regex(/^[a-zA-Z\s'-]+$/, 'Name contains invalid characters')
+    .transform(val => val.trim())
+    .optional(),
+  phone: z.string()
+    .regex(/^[6-9]\d{9}$/, 'Invalid Indian phone number')
+    .optional()
+    .nullable(),
+  email_notifications_enabled: z.boolean().optional(),
+  sms_notifications_enabled: z.boolean().optional(),
+  marketing_emails_enabled: z.boolean().optional(),
+});
 
 // Type definition for Supabase error with code property
 interface SupabaseError extends Error {
@@ -101,16 +120,14 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 
     const supabase = createAdminClient();
     const body = await request.json();
-    const { full_name, phone, email_notifications_enabled, sms_notifications_enabled, marketing_emails_enabled } = body;
+
+    // Validate and sanitize input — only whitelisted fields pass through
+    const validated = UpdateProfileSchema.parse(body);
 
     // Update profile in database using bypass helper
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profile, error: profileError } = await updateWithBypass(supabase, 'profiles', {
-      full_name,
-      phone,
-      email_notifications_enabled,
-      sms_notifications_enabled,
-      marketing_emails_enabled,
+      ...validated,
       updated_at: new Date().toISOString(),
     } as unknown as Record<string, unknown>)
       .eq('id', userId)
