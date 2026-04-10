@@ -28,9 +28,9 @@ export default function AdminReviewsPage() {
   const [filters, setFilters] = useState({
     productId: '',
     customerName: '',
-    ratingFilter: 'all', // all, 5star, 4star, etc.
-    statusFilter: 'all', // all, pending, approved, rejected
-    visibilityFilter: 'all', // all, visible, hidden
+    ratingFilter: 'all',
+    statusFilter: 'all',
+    visibilityFilter: 'all',
     dateFrom: '',
     dateTo: '',
     searchQuery: ''
@@ -39,6 +39,7 @@ export default function AdminReviewsPage() {
   const loadReviews = async () => {
     try {
       setLoading(true);
+      // Read-only query via Supabase client (RLS-protected)
       const { data: reviewsData, error } = await supabase
         .from('product_reviews')
         .select(`
@@ -62,31 +63,22 @@ export default function AdminReviewsPage() {
   const applyFilters = useCallback(() => {
     let filtered = [...reviews];
 
-    // Filter by product
     if (filters.productId) {
       filtered = filtered.filter(r => r.product?.id === filters.productId);
     }
-
-    // Filter by customer name
     if (filters.customerName) {
       filtered = filtered.filter(r =>
         r.user?.full_name?.toLowerCase().includes(filters.customerName.toLowerCase()) ||
         r.user?.email?.toLowerCase().includes(filters.customerName.toLowerCase())
       );
     }
-
-    // Filter by rating
     if (filters.ratingFilter !== 'all') {
       const targetRating = parseInt(filters.ratingFilter);
       filtered = filtered.filter(r => r.rating === targetRating);
     }
-
-    // Filter by status
     if (filters.statusFilter !== 'all') {
       filtered = filtered.filter(r => r.status === filters.statusFilter);
     }
-
-    // Filter by visibility
     if (filters.visibilityFilter !== 'all') {
       filtered = filtered.filter(r => {
         if (filters.visibilityFilter === 'visible') {
@@ -97,8 +89,6 @@ export default function AdminReviewsPage() {
         return true;
       });
     }
-
-    // Filter by date range
     if (filters.dateFrom) {
       const fromDate = new Date(filters.dateFrom);
       filtered = filtered.filter(r => new Date(r.created_at) >= fromDate);
@@ -108,8 +98,6 @@ export default function AdminReviewsPage() {
       toDate.setHours(23, 59, 59);
       filtered = filtered.filter(r => new Date(r.created_at) <= toDate);
     }
-
-    // Full-text search
     if (filters.searchQuery) {
       const query = filters.searchQuery.toLowerCase();
       filtered = filtered.filter(r =>
@@ -122,29 +110,28 @@ export default function AdminReviewsPage() {
     setFilteredReviews(filtered);
   }, [filters, reviews]);
 
-  // Load reviews on mount
   useEffect(() => {
     loadReviews();
   }, []);
 
-  // Apply filters when filter state changes
   useEffect(() => {
     applyFilters();
   }, [applyFilters]);
 
+  // All mutations go through server API routes with requireAdmin()
+
   const handleToggleVisibility = async (reviewId: string, currentVisibility: boolean) => {
     try {
-      const { error } = await supabase
-        .from('review_visibility')
-        .update({
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           is_visible: !currentVisibility,
-          admin_notes: `Toggled by admin - was ${currentVisibility ? 'visible' : 'hidden'}`
-        })
-        .eq('review_id', reviewId);
+          admin_notes: `Toggled by admin - was ${currentVisibility ? 'visible' : 'hidden'}`,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to toggle visibility');
 
-      if (error) throw error;
-
-      // Update local state
       setReviews(reviews.map(r =>
         r.id === reviewId
           ? {
@@ -162,15 +149,15 @@ export default function AdminReviewsPage() {
 
   const handleSetPriority = async (reviewId: string, priority: number) => {
     try {
-      const { error } = await supabase
-        .from('review_visibility')
-        .update({
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           display_priority: priority,
-          admin_notes: `Priority set to ${priority}`
-        })
-        .eq('review_id', reviewId);
-
-      if (error) throw error;
+          admin_notes: `Priority set to ${priority}`,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to set priority');
 
       setReviews(reviews.map(r =>
         r.id === reviewId
@@ -189,15 +176,15 @@ export default function AdminReviewsPage() {
 
   const handleSetPlacement = async (reviewId: string, placement: 'featured' | 'normal' | 'hidden') => {
     try {
-      const { error } = await supabase
-        .from('review_visibility')
-        .update({
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           placement_type: placement,
-          admin_notes: `Placement changed to ${placement}`
-        })
-        .eq('review_id', reviewId);
-
-      if (error) throw error;
+          admin_notes: `Placement changed to ${placement}`,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to set placement');
 
       setReviews(reviews.map(r =>
         r.id === reviewId
@@ -216,12 +203,12 @@ export default function AdminReviewsPage() {
 
   const handleApproveReview = async (reviewId: string) => {
     try {
-      const { error } = await supabase
-        .from('product_reviews')
-        .update({ status: 'approved' })
-        .eq('id', reviewId);
-
-      if (error) throw error;
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved' }),
+      });
+      if (!res.ok) throw new Error('Failed to approve review');
 
       setReviews(reviews.map(r =>
         r.id === reviewId ? { ...r, status: 'approved' } : r
@@ -233,12 +220,12 @@ export default function AdminReviewsPage() {
 
   const handleRejectReview = async (reviewId: string) => {
     try {
-      const { error } = await supabase
-        .from('product_reviews')
-        .update({ status: 'rejected' })
-        .eq('id', reviewId);
-
-      if (error) throw error;
+      const res = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+      if (!res.ok) throw new Error('Failed to reject review');
 
       setReviews(reviews.map(r =>
         r.id === reviewId ? { ...r, status: 'rejected' } : r
@@ -250,15 +237,16 @@ export default function AdminReviewsPage() {
 
   const handleBulkToggleVisibility = async () => {
     try {
-      for (const reviewId of Array.from(selectedReviews)) {
-        const review = reviews.find(r => r.id === reviewId);
-        if (review?.review_visibility) {
-          await supabase
-            .from('review_visibility')
-            .update({ is_visible: !review.review_visibility.is_visible })
-            .eq('review_id', reviewId);
-        }
-      }
+      const res = await fetch(`/api/admin/reviews/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bulk-toggle-visibility',
+          reviewIds: Array.from(selectedReviews),
+        }),
+      });
+      if (!res.ok) throw new Error('Bulk toggle failed');
+
       setSelectedReviews(new Set());
       loadReviews();
     } catch (err) {
@@ -287,7 +275,6 @@ export default function AdminReviewsPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Review Management</h1>
           <p className="text-gray-600 mt-2">
@@ -295,10 +282,8 @@ export default function AdminReviewsPage() {
           </p>
         </div>
 
-        {/* Filters */}
         <AdminReviewFilters filters={filters} setFilters={setFilters} />
 
-        {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded p-4 shadow">
             <div className="text-sm text-gray-600">Total Reviews</div>
@@ -324,7 +309,6 @@ export default function AdminReviewsPage() {
           </div>
         </div>
 
-        {/* Bulk Actions */}
         {selectedReviews.size > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-6 flex items-center justify-between">
             <div className="text-sm font-semibold text-blue-900">
@@ -347,7 +331,6 @@ export default function AdminReviewsPage() {
           </div>
         )}
 
-        {/* Audit Log Toggle */}
         <button
           onClick={() => setShowAuditLog(!showAuditLog)}
           className="mb-6 text-blue-600 hover:text-blue-800 underline text-sm font-medium"
@@ -357,7 +340,6 @@ export default function AdminReviewsPage() {
 
         {showAuditLog && <AdminReviewAuditLog />}
 
-        {/* Review List */}
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin">⏳</div>

@@ -4,31 +4,27 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/lib/supabase/client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ShieldCheck, Eye, EyeOff, TestTube, Zap, Loader2 } from 'lucide-react';
-import type { TypedSupabaseClient } from '@/lib/supabase/types';
 
-// Explicitly type the Supabase client
-const typedSupabase = supabase as TypedSupabaseClient;
-
-interface GatewayConfig {
-  id?: string;
+interface PaymentConfigResponse {
+  id: string | null;
   provider: string;
-  api_key: string;
-  api_secret: string;
-  webhook_secret: string;
+  api_key_masked: string;
+  has_api_secret: boolean;
+  has_webhook_secret: boolean;
   is_test_mode: boolean;
   is_active: boolean;
+  updated_at: string | null;
 }
 
 export default function PaymentGatewaySettings() {
   const queryClient = useQueryClient();
   const [showSecret, setShowSecret] = useState(false);
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
-  const [config, setConfig] = useState<GatewayConfig>({
-    provider: 'cashfree',
+  const [isEditing, setIsEditing] = useState(false);
+  const [config, setConfig] = useState({
     api_key: '',
     api_secret: '',
     webhook_secret: '',
@@ -36,82 +32,69 @@ export default function PaymentGatewaySettings() {
     is_active: false,
   });
 
-  // Fetch existing config
+  // Fetch config via server API (masked secrets, never exposed)
   const { data: existingConfig, isLoading } = useQuery({
     queryKey: ['payment-gateway-config'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('payment_gateways')
-        .select('*')
-        .eq('provider', 'cashfree')
-        .maybeSingle();
-
-      if (error) throw error;
-      return data as GatewayConfig | null;
+      const res = await fetch('/api/admin/settings/payment');
+      if (!res.ok) throw new Error('Failed to fetch payment config');
+      return res.json() as Promise<PaymentConfigResponse>;
     },
   });
 
   useEffect(() => {
     if (existingConfig) {
       setConfig({
-        id: existingConfig.id,
-        provider: 'cashfree',
-        api_key: existingConfig.api_key || '',
-        api_secret: existingConfig.api_secret || '',
-        webhook_secret: existingConfig.webhook_secret || '',
-        is_test_mode: existingConfig.is_test_mode ?? true,
-        is_active: existingConfig.is_active ?? false,
+        api_key: existingConfig.api_key_masked || '',
+        api_secret: existingConfig.has_api_secret ? '••••••••' : '',
+        webhook_secret: existingConfig.has_webhook_secret ? '••••••••' : '',
+        is_test_mode: existingConfig.is_test_mode,
+        is_active: existingConfig.is_active,
       });
+      setIsEditing(false);
     }
   }, [existingConfig]);
 
-  // Save config mutation
+  // Save config via server API (secrets written server-side, never returned)
   const saveMutation = useMutation({
-    mutationFn: async (gatewayConfig: GatewayConfig) => {
-      if (gatewayConfig.id) {
-        const { error } = await typedSupabase
-          .from('payment_gateways')
-          .update({
-            api_key: gatewayConfig.api_key,
-            api_secret: gatewayConfig.api_secret,
-            webhook_secret: gatewayConfig.webhook_secret,
-            is_test_mode: gatewayConfig.is_test_mode,
-            is_active: gatewayConfig.is_active,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', gatewayConfig.id);
-
-        if (error) throw error;
-      } else {
-        const { error } = await typedSupabase
-          .from('payment_gateways')
-          .insert({
-            provider: 'cashfree',
-            api_key: gatewayConfig.api_key,
-            api_secret: gatewayConfig.api_secret,
-            webhook_secret: gatewayConfig.webhook_secret,
-            is_test_mode: gatewayConfig.is_test_mode,
-            is_active: gatewayConfig.is_active,
-          });
-
-        if (error) throw error;
+    mutationFn: async (gatewayConfig: typeof config) => {
+      const res = await fetch('/api/admin/settings/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gatewayConfig),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save');
       }
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-gateway-config'] });
       toast.success('Payment gateway settings saved!');
+      setIsEditing(false);
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error(`Failed to save: ${error.message}`);
     },
   });
 
   const handleSave = () => {
-    if (config.is_active && (!config.api_key || !config.api_secret)) {
+    if (config.is_active && (!config.api_key || !config.api_secret || config.api_key.includes('••'))) {
       toast.error('API Key and Secret are required to activate the gateway.');
       return;
     }
     saveMutation.mutate(config);
+  };
+
+  const startEditing = () => {
+    setConfig(prev => ({
+      ...prev,
+      api_key: '',
+      api_secret: '',
+      webhook_secret: '',
+    }));
+    setIsEditing(true);
   };
 
   if (isLoading) {
@@ -192,16 +175,16 @@ export default function PaymentGatewaySettings() {
             API Credentials
           </CardTitle>
           <CardDescription className="font-body">
-            Enter your Cashfree {config.is_test_mode ? 'sandbox' : 'production'} credentials.
-            Get them from{' '}
-            <a
-              href="https://merchant.cashfree.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              Cashfree Dashboard
-            </a>
+            {isEditing ? (
+              'Enter your Cashfree credentials below'
+            ) : (
+              <>
+                Credentials are stored securely.{' '}
+                <button onClick={startEditing} className="text-primary hover:underline font-medium">
+                  Update credentials
+                </button>
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -210,9 +193,10 @@ export default function PaymentGatewaySettings() {
             <label className="font-body text-sm font-medium">App ID (Client ID)</label>
             <Input
               value={config.api_key}
-              onChange={(e) => setConfig((prev) => ({ ...prev, api_key: e.target.value }))}
+              onChange={(e) => { setConfig((prev) => ({ ...prev, api_key: e.target.value })); setIsEditing(true); }}
               placeholder={config.is_test_mode ? 'TEST_APP_ID_xxxxx' : 'APP_ID_xxxxx'}
               className="mt-1 font-mono text-sm"
+              type={isEditing ? 'text' : 'text'}
             />
           </div>
 
@@ -223,9 +207,10 @@ export default function PaymentGatewaySettings() {
               <Input
                 type={showSecret ? 'text' : 'password'}
                 value={config.api_secret}
-                onChange={(e) => setConfig((prev) => ({ ...prev, api_secret: e.target.value }))}
-                placeholder="cfsk_xxxxx"
+                onChange={(e) => { setConfig((prev) => ({ ...prev, api_secret: e.target.value })); setIsEditing(true); }}
+                placeholder={isEditing ? 'cfsk_xxxxx' : '••••••••'}
                 className="font-mono text-sm pr-10"
+                disabled={!isEditing && config.api_secret === '••••••••'}
               />
               <button
                 type="button"
@@ -244,9 +229,10 @@ export default function PaymentGatewaySettings() {
               <Input
                 type={showWebhookSecret ? 'text' : 'password'}
                 value={config.webhook_secret}
-                onChange={(e) => setConfig((prev) => ({ ...prev, webhook_secret: e.target.value }))}
-                placeholder="whsec_xxxxx"
+                onChange={(e) => { setConfig((prev) => ({ ...prev, webhook_secret: e.target.value })); setIsEditing(true); }}
+                placeholder={isEditing ? 'whsec_xxxxx' : '••••••••'}
                 className="font-mono text-sm pr-10"
+                disabled={!isEditing && config.webhook_secret === '••••••••'}
               />
               <button
                 type="button"
