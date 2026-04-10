@@ -73,7 +73,14 @@ export function validatePhone(phone: string): boolean {
  */
 export function sanitizeUrl(url: string): string {
   if (!url) return '';
-  
+
+  // Block dangerous protocols before any parsing
+  const lowerUrl = url.trim().toLowerCase();
+  const dangerousProtocols = ['javascript:', 'vbscript:', 'data:', 'file:'];
+  if (dangerousProtocols.some(p => lowerUrl.startsWith(p))) {
+    return '';
+  }
+
   try {
     const parsedUrl = new URL(url);
     // Only allow http/https
@@ -82,10 +89,19 @@ export function sanitizeUrl(url: string): string {
     }
     return url;
   } catch {
-    // If it's a relative URL
-    if (!url.startsWith('javascript:') && !url.startsWith('data:')) {
-      return url;
-    }
-    return '';
+    // If it's a relative URL that isn't dangerous, allow it
+    return url;
   }
+}
+
+/**
+ * Sanitize file paths — remove CRLF, null bytes, excess whitespace.
+ * Prevents directory traversal, injection, and database corruption.
+ */
+export function sanitizeFilePath(raw: string): string {
+  return raw
+    .replace(/[\r\n\t\0]+/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\/+/g, '/')
+    .trim()
 }

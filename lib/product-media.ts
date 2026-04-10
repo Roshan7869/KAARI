@@ -1,5 +1,5 @@
 import { getCloudinaryImageUrl } from '@/lib/cloudinary';
-import { sanitizeFilePath } from '@/lib/sanitize';
+import { sanitizeFilePath } from '@/lib/sanitization';
 
 const STORAGE_BUCKET = 'product-media';
 

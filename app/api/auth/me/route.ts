@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
@@ -58,7 +59,8 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     }
 
     const clerkUser = await currentUser();
-    const supabase = createAdminClient();
+    // Use RLS-enforced client for user-scoped queries
+    const supabase = await createClient();
 
     // Get user profile from database
     // Bypass strict type checking - Supabase's generic type inference is too strict
@@ -118,7 +120,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const supabase = createAdminClient();
+    const supabase = await createClient();
     const body = await request.json();
 
     // Validate and sanitize input — only whitelisted fields pass through
