@@ -1,33 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger';
 
 /**
  * POST /api/payment-session/verify
  * Verifies a payment session belongs to the current user.
+ *
+ * SECURITY: Always enforces ownership. The requireOwnership parameter is
+ * no longer accepted from the client — every request must pass the
+ * authenticated user's ID to the RPC.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ valid: false, error: 'Authentication required' }, { status: 401 });
+  }
 
-  const { sessionId, requireOwnership = true } = await request.json() as {
+  const { sessionId } = await request.json() as {
     sessionId: string;
-    requireOwnership?: boolean;
   };
 
   if (!sessionId) {
     return NextResponse.json({ valid: false, error: 'sessionId is required' }, { status: 400 });
   }
 
-  const lookupUserId = requireOwnership ? userId : null;
-
+  // Always enforce ownership — pass authenticated userId, never null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createAdminClient() as any;
   const { data, error } = await admin.rpc('verify_payment_session', {
     p_session_id: sessionId,
-    p_user_id: lookupUserId,
+    p_user_id: userId,
   });
 
   if (error) {
+    logger.error('Payment session verification failed', { error, sessionId });
     return NextResponse.json({ valid: false, error: 'Failed to verify payment session' }, { status: 500 });
   }
 
