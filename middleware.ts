@@ -19,6 +19,8 @@ function isSafeRedirectPath(path: string): boolean {
   if (!path || typeof path !== 'string') return false
   if (!path.startsWith('/') || path.startsWith('//')) return false
   if (/^\/[a-z]+:/i.test(path)) return false
+  // Block control characters (ASCII 0-31, 127) and unicode direction overrides
+  if (/[\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069\u200e\u200f]/.test(path)) return false
   return true
 }
 

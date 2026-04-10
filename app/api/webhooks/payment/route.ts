@@ -110,7 +110,7 @@ async function processWebhookInBackground(params: {
         if (orderId) {
           const { data: order } = await supabase
             .from('orders')
-            .select('id, status, user_id')
+            .select('id, status, user_id, cart_id')
             .eq('order_number', orderId)
             .maybeSingle();
 
@@ -139,11 +139,19 @@ async function processWebhookInBackground(params: {
                 });
             }
 
-            // Clear user's cart after successful payment
-            await supabase
-              .from('cart_items')
-              .delete()
-              .eq('user_id', order.user_id);
+            // Clear the specific cart that was checked out (not ALL user carts)
+            if (order.cart_id) {
+              await supabase
+                .from('cart_items')
+                .delete()
+                .eq('cart_id', order.cart_id);
+            } else {
+              // Fallback: if no cart_id on order, clear by user_id
+              await supabase
+                .from('cart_items')
+                .delete()
+                .eq('user_id', order.user_id);
+            }
           }
         }
 
