@@ -8,6 +8,7 @@
 
 import { supabase } from '@/lib/supabase/client';
 import { logger } from '@/lib/logger';
+import { fetchWithRetry } from '@/lib/fetch-with-timeout';
 
 // Cashfree API Configuration
 export interface CashfreeConfig {
@@ -197,7 +198,7 @@ export async function createCashfreeOrder(params: {
   };
 
   try {
-    const response = await fetch(`${baseUrl}/orders`, {
+    const response = await fetchWithRetry(`${baseUrl}/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -243,8 +244,22 @@ export async function createCashfreeOrder(params: {
       payment_link: `${window.location.origin}/pay/${data.payment_session_id}`,
     };
   } catch (error) {
-    logger.error('Cashfree order creation failed:', error);
-    throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('timed out')) {
+      logger.error('Cashfree order creation timed out after 10s (retry mechanism applied)', {
+        error: errorMessage,
+        orderPayload: {
+          order_id: params.orderId,
+          amount: params.amount,
+          customer_email: params.customerEmail
+        }
+      });
+      // Return a more user-friendly error
+      throw new Error('Payment gateway timeout. Please try again in a moment.');
+    } else {
+      logger.error('Cashfree order creation failed:', error);
+      throw error;
+    }
   }
 }
 
@@ -262,7 +277,7 @@ export async function getCashfreePaymentSession(
   const baseUrl = getCashfreeBaseUrl(config.isTestMode);
 
   try {
-    const response = await fetch(`${baseUrl}/orders/${sessionId}`, {
+    const response = await fetchWithRetry(`${baseUrl}/orders/${sessionId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -278,7 +293,15 @@ export async function getCashfreePaymentSession(
 
     return await response.json();
   } catch (error) {
-    logger.error('Failed to get Cashfree session:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('timed out')) {
+      logger.error('Cashfree session fetch timed out after 10s (retry mechanism applied)', {
+        error: errorMessage,
+        sessionId: sessionId
+      });
+    } else {
+      logger.error('Failed to get Cashfree session:', error);
+    }
     return null;
   }
 }
@@ -297,7 +320,7 @@ export async function getCashfreePaymentDetails(
   const baseUrl = getCashfreeBaseUrl(config.isTestMode);
 
   try {
-    const response = await fetch(`${baseUrl}/orders/${cfOrderId}/payments`, {
+    const response = await fetchWithRetry(`${baseUrl}/orders/${cfOrderId}/payments`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -318,7 +341,15 @@ export async function getCashfreePaymentDetails(
     }
     return null;
   } catch (error) {
-    logger.error('Failed to get Cashfree payment details:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('timed out')) {
+      logger.error('Cashfree payment details fetch timed out after 10s (retry mechanism applied)', {
+        error: errorMessage,
+        cfOrderId: cfOrderId
+      });
+    } else {
+      logger.error('Failed to get Cashfree payment details:', error);
+    }
     return null;
   }
 }
@@ -367,6 +398,7 @@ export function verifyCashfreeWebhookSignature(
 
 /**
  * Sync version for Node.js environments
+ * Uses timingSafeEqual to prevent timing attacks
  */
 export async function verifyCashfreeWebhookSignatureNode(
   payload: string,
@@ -379,7 +411,13 @@ export async function verifyCashfreeWebhookSignatureNode(
     .createHmac('sha256', secret)
     .update(payload)
     .digest('base64');
-  return signature === expectedSignature;
+
+  const sigBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  if (sigBuffer.length !== expectedBuffer.length) return false;
+
+  return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
 }
 
 /**

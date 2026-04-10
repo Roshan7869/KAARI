@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
 import { applyRateLimit } from '@/lib/server-rate-limit';
 import { z } from 'zod';
+import { waitUntil } from '@vercel/functions';
 
 // Cashfree PG v2/v3 nested payload schema
 // v3 uses `type` and nested data.order / data.payment
@@ -57,99 +58,23 @@ const PaymentWebhookSchema = z.object({
  * Validates HMAC-SHA256 signature before processing.
  * All events are deduplicated via the webhook_events table.
  */
-export async function POST(request: NextRequest): Promise<NextResponse> {
+// Background processing function for webhook events
+// This processes the actual business logic AFTER returning 200 to Cashfree
+async function processWebhookInBackground(params: {
+  event: string;
+  orderId: string | undefined;
+  cfPaymentId: string;
+  cashfreeSessionId: string | null;
+  paymentMessage: string | undefined;
+  webhookEventId: string;
+  supabase: ReturnType<typeof createAdminClient>;
+}) {
+  const { event, orderId, cfPaymentId, cashfreeSessionId, paymentMessage, webhookEventId, supabase } = params;
+  let eventResult: Record<string, unknown> = {};
+
   try {
-    // Rate limit: 200 requests / 1 min per IP (DDoS protection; Cashfree retries are expected)
-    const rateLimitResponse = await applyRateLimit(request, 'webhook', false);
-    if (rateLimitResponse) return rateLimitResponse;
-
-    // ── 1. Read raw body (required for HMAC verification) ────────────────
-    const rawBody = await request.text();
-
-    // ── 2. Extract signature & timestamp headers ────────────────────────
-    const signature = request.headers.get('x-webhook-signature') ||
-                      request.headers.get('x-cf-signature');
-    const timestamp = request.headers.get('x-webhook-timestamp') ||
-                      request.headers.get('x-webhook-ts') || '';
-
-    // ── 3. Get webhook secret from config ───────────────────────────────
-    const cashfreeConfig = await getServerCashfreeConfig();
-    const webhookSecret = cashfreeConfig?.webhookSecret || process.env.CASHFREE_WEBHOOK_SECRET || '';
-
-    // ── 4. Verify signature ────────────────────────────────────────────
-    if (!signature || !webhookSecret) {
-      logger.warn('Webhook rejected: missing signature or secret');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const isValid = verifyCashfreeWebhookSignature(rawBody, signature, timestamp, webhookSecret);
-    if (!isValid) {
-      logger.warn('Webhook rejected: invalid signature', { timestamp });
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // ── 5. Parse and validate webhook body ────────────────────────────
-    let body: unknown;
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-    }
-
-    const parseResult = PaymentWebhookSchema.safeParse(body);
-    if (!parseResult.success) {
-      logger.warn('Webhook payload validation failed', { errors: parseResult.error.flatten() });
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
-    }
-
-    const { data } = parseResult.data;
-    // Normalise: prefer nested v3 fields, fall back to v2 flat fields
-    const event = parseResult.data.type ?? parseResult.data.event!;
-    const orderId = data.order?.order_id ?? data.order_id;
-    const cfPaymentId = String(data.payment?.cf_payment_id ?? data.cf_payment_id ?? data.payment_id ?? '');
-    const paymentMessage = data.payment?.payment_message ?? data.payment_message ?? data.failure_reason;
-
-    logger.info('Webhook verified and parsed', { event, order_id: orderId });
-
-    const supabase = createAdminClient();
-
-    // ── 6. Global idempotency check via webhook_events table ─────────────
-    // All events (not just SUCCESS) are deduplicated here.
-    // First, look up the cashfree_session for this payment.
-    let cashfreeSessionId: string | null = null;
-
-    if (cfPaymentId || orderId) {
-      const { data: session } = await supabase
-        .from('cashfree_sessions')
-        .select('id, status')
-        .eq(orderId ? 'cf_order_id' : 'cf_payment_id', orderId || cfPaymentId)
-        .maybeSingle();
-
-      cashfreeSessionId = session?.id ?? null;
-    }
-
-    // Check webhook_events for deduplication (only if we have session + payment ID)
-    if (cashfreeSessionId && cfPaymentId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: existingEvent } = await (supabase as any)
-        .from('webhook_events')
-        .select('id')
-        .eq('cf_payment_id', cfPaymentId)
-        .eq('event_type', event)
-        .eq('cashfree_session_id', cashfreeSessionId)
-        .maybeSingle();
-
-      if (existingEvent) {
-        logger.info('Webhook duplicate skipped (webhook_events)', { cf_payment_id: cfPaymentId, event });
-        return NextResponse.json({ received: true, duplicate: true });
-      }
-    }
-
-    // ── 7. Handle different webhook events ──────────────────────────────
-    let eventResult: Record<string, unknown> = {};
-
+    // Process different webhook events asynchronously
     switch (event) {
-
       // ── ORDER_CREATED: Cashfree created the order, awaiting payment ──
       case 'ORDER_CREATED': {
         if (orderId) {
@@ -160,7 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .eq('status', 'pending'); // idempotent — no-op if already set
         }
         eventResult = { newStatus: 'pending', message: 'Order created' };
-        logger.info('Order created event', { order_id: orderId });
+        logger.info('Order created event processed', { order_id: orderId });
         break;
       }
 
@@ -185,7 +110,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (orderId) {
           const { data: order } = await supabase
             .from('orders')
-            .select('id, status')
+            .select('id, status, user_id')
             .eq('order_number', orderId)
             .maybeSingle();
 
@@ -195,6 +120,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               .update({ status: 'paid', payment_status: 'paid' })
               .eq('id', order.id);
             eventResult = { newStatus: 'paid', oldStatus: order.status };
+
+            // Queue order confirmation email
+            const { data: userProfile } = await supabase
+              .from('profiles')
+              .select('email')
+              .eq('id', order.user_id)
+              .maybeSingle();
+
+            if (userProfile?.email) {
+              await supabase
+                .from('email_queue')
+                .insert({
+                  order_id: order.id,
+                  type: 'order_confirmation',
+                  recipient: userProfile.email,
+                  status: 'PENDING'
+                });
+            }
+
+            // Clear user's cart after successful payment
+            await supabase
+              .from('cart_items')
+              .delete()
+              .eq('user_id', order.user_id);
           }
         }
 
@@ -230,14 +179,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           }
         }
 
-        logger.warn('Payment failed', { cf_payment_id: cfPaymentId, reason: paymentMessage });
+        logger.warn('Payment failed processed', { cf_payment_id: cfPaymentId, reason: paymentMessage });
         break;
       }
 
       // ── PAYMENT_USER_DROPPED: User abandoned payment flow ─────────────
       case 'PAYMENT_USER_DROPPED_WEBHOOK': {
         eventResult = { message: 'User dropped payment flow' };
-        logger.info('User dropped payment flow', { order_id: orderId });
+        logger.info('User dropped payment flow processed', { order_id: orderId });
         break;
       }
 
@@ -254,45 +203,226 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           .eq(orderId ? 'cf_order_id' : 'cf_payment_id', orderId || cfPaymentId);
 
         if (orderId) {
-          await supabase
+          // Guard: only allow refund from valid states (prevents replay attacks)
+          const REFUNDABLE_STATUSES = ['payment_confirmed', 'paid', 'processing', 'packed', 'shipped', 'delivered'];
+          const { data: order } = await supabase
             .from('orders')
-            .update({ status: 'refunded' })
-            .eq('order_number', orderId);
+            .select('id, status')
+            .eq('order_number', orderId)
+            .maybeSingle();
+
+          if (order && REFUNDABLE_STATUSES.includes(order.status)) {
+            // Optimistic lock: only update if status hasn't changed
+            await supabase
+              .from('orders')
+              .update({ status: 'refunded', payment_status: 'refunded' })
+              .eq('id', order.id)
+              .eq('status', order.status);
+            eventResult = { newStatus: 'refunded', oldStatus: order.status };
+          } else {
+            logger.warn('Refund rejected: invalid state transition', {
+              orderId,
+              currentStatus: order?.status,
+            });
+            eventResult = { message: 'Refund rejected: invalid order state' };
+          }
         }
 
-        eventResult = { newStatus: 'refunded' };
-        logger.info('Payment refunded', { cf_payment_id: cfPaymentId, order_id: orderId });
+        logger.info('Payment refunded processed', { cf_payment_id: cfPaymentId, order_id: orderId });
         break;
       }
 
       case 'ORDER_COMPLETED': {
         eventResult = { message: 'Order completed' };
-        logger.info('Order completed', { order_id: orderId });
+        logger.info('Order completed processed', { order_id: orderId });
         break;
       }
 
       default:
-        logger.info('Unhandled webhook event', { event });
+        logger.info('Unhandled webhook event processed', { event });
     }
 
-    // ── 8. Log event to webhook_events (idempotency store) ────────────────
+    // Update webhook event status to PROCESSED
+    if (webhookEventId) {
+      await supabase
+        .from('webhook_events')
+        .update({
+          status: 'PROCESSED',
+          result: { ...eventResult, timestamp: new Date().toISOString() },
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', webhookEventId);
+    }
+
+  } catch (error) {
+    const err = error as Error;
+    logger.error('Background webhook processing failed', {
+      message: err.message,
+      stack: err.stack,
+      eventId: webhookEventId,
+      event,
+      orderId,
+      cfPaymentId
+    });
+
+    // Update webhook event status to FAILED
+    if (webhookEventId) {
+      await supabase
+        .from('webhook_events')
+        .update({
+          status: 'FAILED',
+          error: err.message,
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', webhookEventId);
+    }
+  }
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    // Rate limit: 200 requests / 1 min per IP (DDoS protection; Cashfree retries are expected)
+    const rateLimitResponse = await applyRateLimit(request, 'webhook', false);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    // ── 1. Read raw body (required for HMAC verification) ────────────────
+    const rawBody = await request.text();
+
+    // ── 2. Extract signature & timestamp headers ────────────────────────
+    const signature = request.headers.get('x-webhook-signature') ||
+                      request.headers.get('x-cf-signature');
+    const timestamp = request.headers.get('x-webhook-timestamp') ||
+                      request.headers.get('x-webhook-ts') || '';
+
+    // ── 3. Get webhook secret from config ───────────────────────────────
+    const cashfreeConfig = await getServerCashfreeConfig();
+    const webhookSecret = cashfreeConfig?.webhookSecret || process.env.CASHFREE_WEBHOOK_SECRET || '';
+
+    // ── 4. Verify signature ────────────────────────────────────────────
+    if (!signature || !webhookSecret) {
+      logger.warn('Webhook rejected: missing signature or secret');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const isValid = verifyCashfreeWebhookSignature(rawBody, signature, timestamp, webhookSecret);
+    if (!isValid) {
+      logger.warn('Webhook rejected: invalid signature', { timestamp });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ── 4.1 Verify timestamp freshness (prevent replay attacks) ────────
+    const timestampNum = parseInt(timestamp, 10);
+    const currentTime = Date.now();
+    const timeDiff = Math.abs(currentTime - timestampNum);
+
+    // Reject webhooks older than 5 minutes (300,000 ms)
+    if (isNaN(timestampNum) || timeDiff > 300000) {
+      logger.warn('Webhook rejected: stale timestamp', {
+        timestamp,
+        currentTime,
+        timeDiffMs: timeDiff,
+        maxAllowedDiff: 300000
+      });
+      return NextResponse.json({ error: 'Stale webhook' }, { status: 400 });
+    }
+
+    // ── 5. Parse and validate webhook body ────────────────────────────
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const parseResult = PaymentWebhookSchema.safeParse(body);
+    if (!parseResult.success) {
+      logger.warn('Webhook payload validation failed', { errors: parseResult.error.flatten() });
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+
+    const { data } = parseResult.data;
+    // Normalise: prefer nested v3 fields, fall back to v2 flat fields
+    const event = parseResult.data.type ?? parseResult.data.event!;
+    const orderId = data.order?.order_id ?? data.order_id;
+    const cfPaymentId = String(data.payment?.cf_payment_id ?? data.cf_payment_id ?? data.payment_id ?? '');
+    const paymentMessage = data.payment?.payment_message ?? data.payment_message ?? data.failure_reason;
+
+    logger.info('Webhook verified and parsed', { event, order_id: orderId });
+
+    const supabase = createAdminClient();
+
+    // ── 6. Atomic deduplication via webhook_events table ─────────────
+    // All events (not just SUCCESS) are deduplicated here.
+    // First, look up the cashfree_session for this payment.
+    let cashfreeSessionId: string | null = null;
+
+    if (cfPaymentId || orderId) {
+      const { data: session } = await supabase
+        .from('cashfree_sessions')
+        .select('id, status')
+        .eq(orderId ? 'cf_order_id' : 'cf_payment_id', orderId || cfPaymentId)
+        .maybeSingle();
+
+      cashfreeSessionId = session?.id ?? null;
+    }
+
+    // ── 7. Handle different webhook events (MOVED TO BACKGROUND) ──────────
+    // All heavy processing now happens AFTER we return 200 to Cashfree
+    // This prevents timeouts and duplicate webhook deliveries
+
+    // ── 8. Atomic INSERT for deduplication + event logging ────────────
+    // Record webhook receipt BEFORE doing any heavy work.
+    // Atomic INSERT catches duplicate key violations (no TOCTOU race).
     if (cashfreeSessionId && cfPaymentId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: logError } = await (supabase as any)
+      const { data: insertedEvent, error: insertError } = await (supabase as any)
         .from('webhook_events')
         .insert({
           cf_payment_id: cfPaymentId,
           event_type: event,
           cashfree_session_id: cashfreeSessionId,
-          result: { ...eventResult, timestamp: new Date().toISOString() },
+          status: 'RECEIVED',
           received_at: new Date().toISOString(),
-        });
+        })
+        .select('id')
+        .single();
 
-      if (logError && !logError.message.includes('duplicate')) {
-        // Unique constraint violation = already logged (duplicate delivery) — safe to ignore
-        logger.error('Failed to log webhook event', { error: logError.message, event });
+      if (insertError) {
+        // Postgres unique_violation (code 23505) = already processed
+        if (insertError.code === '23505' || insertError.message?.includes('duplicate') || insertError.message?.includes('unique')) {
+          logger.info('Webhook duplicate skipped (atomic dedup)', { cf_payment_id: cfPaymentId, event });
+          return NextResponse.json({ received: true, duplicate: true });
+        }
+        logger.error('Failed to record webhook receipt', { error: insertError.message, event });
+      } else if (insertedEvent) {
+        // Use waitUntil so Vercel keeps the container alive until processing completes
+        waitUntil(processWebhookInBackground({
+          event,
+          orderId,
+          cfPaymentId,
+          cashfreeSessionId,
+          paymentMessage,
+          webhookEventId: insertedEvent.id,
+          supabase,
+        }).catch(error => {
+          logger.error('Background webhook processing failed', {
+            error: error.message,
+            eventId: insertedEvent.id,
+            event,
+            orderId,
+            cfPaymentId
+          });
+        }));
       }
     }
+
+    // IMMEDIATELY return 200 to Cashfree BEFORE doing any heavy processing
+    // This prevents Cashfree from timing out (5s limit) and retrying
+    logger.info('Webhook received and queued for processing', {
+      event,
+      order_id: orderId,
+      cf_payment_id: cfPaymentId
+    });
 
     return NextResponse.json({ success: true });
 
