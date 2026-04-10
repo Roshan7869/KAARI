@@ -1,332 +1,208 @@
-# Cashfree Payment Integration & UI/UX Enhancement Plan
+# Kaari Security Fix Plan — Validated Against Codebase
 
-## Executive Summary
+## Key Corrections vs Original Fix Document
 
-Complete the Cashfree payment integration for Kaari Marketplace, transitioning from the current dummy payment flow to a production-ready UPI payment system, along with UI/UX enhancements.
-
----
-
-## Current State Analysis
-
-### Already Implemented ✅
-1. **Cashfree Library** (`src/lib/cashfree.ts`)
-   - Order creation, session management
-   - Webhook signature verification (HMAC-SHA256)
-   - Test/production mode switching
-   - UPI-only payment method enforcement
-
-2. **Dummy Payment System** (`src/lib/payment.ts`)
-   - Session-based payment simulation
-   - Used for development/testing
-
-3. **Payment Webhook** (`supabase/functions/payment-webhook/index.ts`)
-   - Signature validation for Cashfree webhooks
-   - Dummy session verification
-   - Order status updates on payment completion/failure
-   - Idempotency checks
-
-4. **Cashfree Edge Function** (`supabase/functions/cashfree-payment/index.ts`)
-   - Server-side order creation
-   - User authentication verification
-   - Amount validation against order total
-
-5. **Database Schema**
-   - `payment_gateways` - Gateway configuration (api_key, api_secret, webhook_secret)
-   - `cashfree_sessions` - Payment session tracking
-   - `payments` - Payment records
-   - `notifications` - Notification queue
-
-6. **UI Components**
-   - Checkout page with payment method selection
-   - DummyPayment page for simulated payments
-   - OrderConfirmation page
-
-### Gaps to Address ❌
-
-1. **Checkout Integration**: Currently uses dummy payment - needs to integrate Cashfree
-2. **Cashfree SDK Drop-in**: Missing Cashfree SDK JavaScript integration
-3. **Payment Gateway Admin UI**: No admin interface to configure Cashfree credentials
-4. **Order Confirmation Enhancement**: Missing order items, shipping details
-5. **Payment Status Polling**: No fallback for webhook failures
-6. **UPI Deep Linking**: Missing UPI app redirect support
+The original fix document assumed Supabase auth (`requireAuth(request)` with cookies). **The app uses Clerk** (`auth()` from `@clerk/nextjs/server`). The `requireAdmin()` already exists in `lib/auth/verify-jwt.ts` using Clerk session claims — it just isn't used. Most admin routes already do inline Clerk auth correctly; only 3 routes are broken.
 
 ---
 
-## Implementation Plan
+## CRITICAL FIXES (7)
 
-### Phase 1: Cashfree SDK Integration (Priority: HIGH)
+### Fix #1 — Replace requireAuth() with requireAdmin() on broken admin routes
+**Reality check**: Only 3 routes need fixing, not "all":
+- `app/api/admin/products/route.ts` — uses `requireAuth()` (4 handlers)
+- `app/api/admin/stats/route.ts` — uses `requireAuth()` (1 handler)
+- `app/api/admin/settings/route.ts` GET — zero auth (PUT already has inline Clerk auth)
 
-#### 1.1 Add Cashfree SDK to Frontend
-**File**: `src/lib/cashfree-sdk.ts` (new)
+**Action**: Replace `requireAuth()` → `requireAdmin()` in products and stats. Add `requireAdmin()` to settings GET. The existing `requireAdmin()` from `lib/auth/verify-jwt.ts` works — no need to create a new one.
 
-```typescript
-// Initialize Cashfree Drop/Checkout components
-// Handle UPI app redirects (GPay, PhonePe, Paytm, etc.)
-// Manage payment status polling
-```
+**Do NOT touch**: billboard, coupons, media, tracking routes — they already have correct inline Clerk auth.
 
-**Tasks**:
-- [ ] Create Cashfree SDK initialization utility
-- [ ] Implement UPI app detection and deep linking
-- [ ] Add payment status polling with exponential backoff
-- [ ] Handle payment failures with retry logic
+### Fix #2 — Add middleware-level admin guard for /api/admin/*
+**Reality check**: Middleware uses `clerkMiddleware`, not raw Supabase. The fix document's Supabase query approach is wrong.
 
-#### 1.2 Update Checkout Flow
-**File**: `src/pages/Checkout.tsx`
-
-**Changes**:
-- Replace `generateDummyPaymentSession()` with `createCashfreeOrder()` for non-COD
-- Add Cashfree SDK script loading
-- Implement Cashfree Drop/Checkout modal
-- Handle payment callback/redirect
-
-#### 1.3 Create Payment Processing Page
-**File**: `src/pages/Payment.tsx` (new)
-
-**Features**:
-- Cashfree SDK initialization
-- UPI payment flow with app selection
-- Card/NetBanking fallback UI
-- Real-time payment status polling
-- Success/failure redirects
-
----
-
-### Phase 2: Admin Payment Gateway Configuration (Priority: HIGH)
-
-#### 2.1 Create Admin Payment Settings
-**File**: `src/pages/admin/AdminPaymentSettings.tsx` (new)
-
-**Features**:
-- Configure Cashfree credentials (API Key, Secret, Webhook Secret)
-- Toggle test/production mode
-- View recent transactions
-- Test gateway connection
-- View payment logs
-
-#### 2.2 Database Seed for Payment Gateway
-**File**: `supabase/migrations/seed_payment_gateway.sql` (new)
-
-```sql
--- Insert default Cashfree configuration (inactive)
-INSERT INTO payment_gateways (provider, is_active, is_test_mode, config)
-VALUES ('cashfree', false, true, '{"upi_only": true}');
-```
-
----
-
-### Phase 3: Order Confirmation Enhancement (Priority: MEDIUM)
-
-#### 3.1 Enhanced Order Confirmation Page
-**File**: `src/pages/OrderConfirmation.tsx`
-
-**Add**:
-- Order items list with images, quantities, prices
-- Shipping address display
-- Payment method details
-- Estimated delivery date
-- Track order button (links to order history)
-- Download invoice button
-
----
-
-### Phase 4: Payment Status Management (Priority: MEDIUM)
-
-#### 4.1 Payment Status Polling Hook
-**File**: `src/hooks/usePaymentStatus.ts` (new)
-
-**Features**:
-- Poll payment status every 3-5 seconds
-- Exponential backoff on errors
-- Timeout after 15 minutes
-- Real-time status updates
-
-#### 4.2 Webhook Retry Mechanism
-**File**: `supabase/functions/payment-webhook/index.ts`
-
-**Enhancements**:
-- Queue failed webhooks for retry
-- Implement idempotency with transaction ID
-- Log all webhook attempts
-
----
-
-### Phase 5: Security Hardening (Priority: HIGH)
-
-#### 5.1 Environment Configuration
-**File**: `supabase/functions/cashfree-payment/index.ts`
-
-**Tasks**:
-- [ ] Ensure CASHFREE_APP_ID and CASHFREE_SECRET_KEY are read from Supabase secrets
-- [ ] Add webhook secret validation
-- [ ] Implement rate limiting for order creation
-
-#### 5.2 Client-Side Security
-**File**: `src/pages/Checkout.tsx`
-
-**Tasks**:
-- [ ] Verify amount on payment page matches cart total
-- [ ] Validate order ownership before redirect
-- [ ] Clear sensitive data after payment
-
----
-
-### Phase 6: Error Handling & UX (Priority: MEDIUM)
-
-#### 6.1 Payment Error Pages
-**Files**:
-- `src/pages/PaymentFailed.tsx` (new)
-- `src/pages/PaymentExpired.tsx` (new)
-
-**Features**:
-- Clear error messages
-- Retry payment option
-- Contact support link
-- Order status summary
-
-#### 6.2 Payment Loading States
-**File**: `src/components/PaymentLoading.tsx` (new)
-
-**Features**:
-- Animated loading indicator
-- "Processing payment" messaging
-- Timeout handling
-
----
-
-## Technical Implementation Details
-
-### Cashfree SDK Integration Pattern
-
-```typescript
-// src/lib/cashfree-sdk.ts
-export async function initializeCashfreePayment(session: CashfreePaymentSession): Promise<void> {
-  // Load Cashfree SDK dynamically
-  const script = document.createElement('script');
-  script.src = 'https://sdk.cashfree.com/js/v3/cashfree-sdk.js';
-  script.async = true;
-
-  await new Promise((resolve, reject) => {
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-
-  // Initialize Cashfree instance
-  const cashfree = CashfreeSDK.init({
-    paymentSessionId: session.payment_session_id,
-    mode: 'PRODUCTION' // or 'SANDBOX'
-  });
-
-  // Open payment modal
-  cashfree.open();
+**Action**: In `middleware.ts`, before the `/api/` early return (lines 67-71), add:
+```ts
+if (pathname.startsWith('/api/admin')) {
+  const { userId, sessionClaims } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role
+  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // fall through to CSP header logic
 }
 ```
+This uses Clerk's `auth()` which the middleware already has access to via `clerkMiddleware`.
 
-### Checkout Flow Update
+### Fix #3 — Payment bypass: client declares payment status
+**Reality check**: Confirmed. `complete/route.ts` passes client `status` to RPC without Cashfree verification.
 
+**Action**: Remove `status` from request body destructuring. After extracting `sessionId`, call Cashfree API to verify payment status server-side before calling `complete_payment_session` RPC.
+
+### Fix #4 — Payment session verify: client-controllable ownership bypass
+**Reality check**: Confirmed. `requireOwnership: boolean` from client body controls whether user_id filtering happens.
+
+**Action**: Remove `requireOwnership` parameter entirely. Always pass `userId` to the RPC. Never accept a client-controlled bypass flag.
+
+### Fix #5 — Admin reviews: client-side Supabase mutations
+**Reality check**: Confirmed. `app/admin/reviews/page.tsx` does 7 direct Supabase mutations from the browser.
+
+**Action**: Create `app/api/admin/reviews/[id]/route.ts` with PATCH (update status/visibility) and DELETE handlers, all using `requireAdmin()`. Update the reviews page to call these API routes instead of direct Supabase.
+
+### Fix #6 — Payment credentials exposed via client-side Supabase
+**Reality check**: Confirmed. `app/admin/settings/payment/page.tsx` reads/writes `api_key`, `api_secret`, `webhook_secret` via browser Supabase.
+
+**Action**: Create `app/api/admin/settings/payment/route.ts` — GET returns masked credentials, POST writes them server-side. Update the payment page to use fetch() instead of direct Supabase. Never return `api_secret` or `webhook_secret` to the client.
+
+### Fix #7 — Mass assignment in coupon PATCH
+**Reality check**: Confirmed. `body` passed directly to `supabase.update(body)` with `as any` cast.
+
+**Action**: Add Zod schema `UpdateCouponSchema` that whitelists only `description`, `is_active`, `valid_until`, `usage_limit`, `min_order_amount`, `max_discount_amount`. Parse body with schema before update. Remove `as any` cast.
+
+---
+
+## HIGH FIXES (8)
+
+### Fix #8 — Webhook fire-and-forget in serverless
+**Reality check**: Confirmed. `processWebhookInBackground().catch()` is fire-and-forget.
+
+**Action**: Replace with `waitUntil()` from `@vercel/functions`. If not available, process synchronously before returning 200 (Cashfree waits up to 30s).
+
+### Fix #9 — TOCTOU race in webhook deduplication
+**Reality check**: Confirmed. SELECT then INSERT pattern.
+
+**Action**: Replace with atomic INSERT. Catch Postgres unique violation error (code `23505`) to detect duplicates. Ensure `webhook_events` has `UNIQUE(cf_payment_id, event_type)` constraint.
+
+### Fix #10 — Refund webhook sets status unconditionally
+**Reality check**: Confirmed. No status guard on refund, unlike success handler.
+
+**Action**: Add state machine guard — only allow refund from valid states. Use optimistic lock (`.eq('status', currentOrder.status)`) on the update.
+
+### Fix #11 — Profile update: no input validation
+**Reality check**: Confirmed. No Zod, `as unknown as Record<string, unknown>` cast, no sanitization.
+
+**Action**: Add Zod `UpdateProfileSchema` whitelisting `full_name`, `phone`, `avatar_url`, notification preferences. Remove unsafe cast.
+
+### Fix #12 — Non-timing-safe webhook signature comparison
+**Reality check**: The PRIMARY function `verifyCashfreeWebhookSignature` already uses `timingSafeEqual`. Only the **unused** `verifyCashfreeWebhookSignatureNode` uses `===`.
+
+**Action**: Delete or fix `verifyCashfreeWebhookSignatureNode`. Replace `===` with `timingSafeEqual` or remove the function if truly unused.
+
+### Fix #13 — is_verified_purchase set by client
+**Reality check**: WORSE than the document describes. The `order_items` query doesn't even filter by `user_id` — it checks if ANY order exists for the product.
+
+**Action**: Remove `is_verified_purchase` from request body destructuring. Query `order_items` with `user_id` filter. Always compute server-side.
+
+### Fix #14 — Two conflicting sanitization modules
+**Reality check**: Only 1 file imports the weaker module (`lib/product-media.ts` for `sanitizeFilePath`). The `sanitizeTextInput` difference is moot since nobody imports it from the weak module.
+
+**Action**: Move `sanitizeFilePath` to `lib/sanitization.ts`. Update the single import in `lib/product-media.ts`. Delete `lib/sanitize.ts`. Add `vbscript:` and other dangerous protocol checks to `sanitizeUrl`.
+
+### Fix #15 — createAdminClient() for user-scoped queries
+**Reality check**: Widespread — 12 user-facing routes use admin client, bypassing RLS.
+
+**Action**: Replace `createAdminClient()` with `createClient()` from `lib/supabase/server.ts` in user-scoped routes: auth/me, cart, checkout, orders/return, reviews, payment-session, coupons/validate. Keep admin client ONLY for: admin routes, webhook handler, cron jobs, payment order creation.
+
+---
+
+## MEDIUM FIXES (10)
+
+### Fix #16 — Middleware /api/ skip logic
+Add comment documenting the security model. No code change needed beyond Fix #2.
+
+### Fix #17 — CSP unsafe-inline in style-src
+Short-term: Add CSP report endpoint. Long-term: remove unsafe-inline. Not blocking.
+
+### Fix #18 — Admin layout: client-side-only guard
+Convert to async server component with Clerk `auth()`. Use `redirect()` for non-admins. Keep client UI components as children.
+
+### Fix #19 — Cart items deleted by user_id not cart_id
+Change webhook cart deletion to filter by `cart_id` from the order record.
+
+### Fix #20 — Social order intent: no rate limiting
+Add Upstash rate limiting by IP.
+
+### Fix #21 — Admin settings: no validation on value field
+Add Zod schema for key allowlist + value type checking.
+
+### Fix #22 — Billboard: no product_id existence check
+Add existence validation before linking product to billboard slot.
+
+### Fix #23 — Media delete: no rate limiting
+Add Upstash rate limiting on bulk delete endpoint.
+
+### Fix #24 — Cloudinary full response to client
+Whitelist only safe fields (public_id, secure_url, width, height, format, bytes, created_at).
+
+### Fix #25 — Cron routes: bearer token over GET
+Remove query param token fallback. Ensure token only from Authorization header.
+
+---
+
+## LOW FIXES (5)
+
+### Fix #26 — isSafeRedirectPath misses control characters
+Add regex check for `[\x00-\x1f\x7f]` and unicode direction override chars.
+
+### Fix #27 — Duplicate auth() call in checkout
+Call auth() once, reuse result.
+
+### Fix #28 — Client-side rate limiting is security theater
+Add comment clarifying it's UX-only, not security. Verify server-side rate limiting exists.
+
+### Fix #29 — Wishlist returns empty instead of 401
+Return 401 for unauthenticated requests.
+
+### Fix #30 — console.error in admin reviews
+Replace with logger.error() or remove.
+
+---
+
+## Execution Order
+
+### Group 1: Admin Auth (Fixes #1, #2) — commit 1
+- Replace requireAuth → requireAdmin in products, stats, settings
+- Add middleware admin guard for /api/admin/*
+- Verify: `grep -rn "requireAuth" app/api/admin/` → 0 results
+- Run: `npx tsc --noEmit`
+
+### Group 2: Payment Security (Fixes #3, #4) — commit 2
+- Server-side Cashfree verification in complete route
+- Remove requireOwnership bypass in verify route
+- Run: `npx tsc --noEmit`
+
+### Group 3: Client-Side Mutation Fixes (Fixes #5, #6) — commit 3
+- Create admin reviews API route
+- Create payment settings API route
+- Update client pages to use API routes
+- Run: `npx tsc --noEmit`
+
+### Group #4: Input Validation (Fixes #7, #11, #13) — commit 4
+- Zod schema for coupon PATCH
+- Zod schema for profile update
+- Fix is_verified_purchase to compute server-side with user_id filter
+- Run: `npx tsc --noEmit`
+
+### Group #5: Webhook & Cashfree (Fixes #8, #9, #10, #12) — commit 5
+- waitUntil for webhook processing
+- Atomic INSERT deduplication
+- Refund status guard
+- Fix or remove verifyCashfreeWebhookSignatureNode
+- Run: `npx tsc --noEmit`
+
+### Group #6: Data Layer (Fixes #14, #15) — commit 6
+- Consolidate sanitization modules
+- Replace createAdminClient with createClient in user-scoped routes
+- Run: `npx tsc --noEmit`
+
+### Group #7: Medium/Low Fixes (Fixes #16–#30) — commit 7
+- All remaining fixes
+- Run: `npx tsc --noEmit && npm run lint`
+
+### Final Verification
+```bash
+npx tsc --noEmit && npm run lint
+grep -rn "requireAuth" app/api/admin/  # 0 results
+grep -rn "requireAdmin" app/api/admin/  # matches every handler
+ls lib/sanitize.ts  # should not exist
+npm run build  # should succeed
 ```
-User selects UPI/Card → Checkout validates cart →
-  └─ COD → Create order → Order confirmation
-  └─ UPI/Card → Create order → Cashfree order creation →
-      └─ Redirect to Cashfree SDK → User pays →
-          └─ Success → Webhook → Order status: paid
-          └─ Failure → Webhook → Order status: cancelled → Restore inventory
-```
-
----
-
-## Database Changes Required
-
-### New Tables: None (schema exists)
-
-### Migration: Seed default gateway
-
-```sql
--- supabase/migrations/seed_payment_gateway.sql
-INSERT INTO payment_gateways (provider, is_active, is_test_mode, config)
-VALUES ('cashfree', false, true, '{"upi_only": true}')
-ON CONFLICT (provider) WHERE is_active = true DO NOTHING;
-```
-
----
-
-## Environment Variables Required
-
-```env
-# Supabase Edge Functions
-CASHFREE_APP_ID=your_app_id
-CASHFREE_SECRET_KEY=your_secret_key
-CASHFREE_WEBHOOK_SECRET=your_webhook_secret
-
-# Supabase Client (Frontend)
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your_anon_key
-```
-
----
-
-## Testing Checklist
-
-- [ ] Cashfree test mode payment flow
-- [ ] Cashfree production mode payment flow
-- [ ] UPI app deep linking (GPay, PhonePe, Paytm)
-- [ ] Card payment flow
-- [ ] NetBanking payment flow
-- [ ] Payment failure handling
-- [ ] Payment timeout handling
-- [ ] Webhook signature verification
-- [ ] Duplicate payment prevention
-- [ ] Inventory restoration on payment failure
-- [ ] Order status updates
-- [ ] Email/SMS notifications
-
----
-
-## Rollout Plan
-
-1. **Stage 1**: Deploy to development environment
-   - Configure Cashfree sandbox credentials
-   - Test UPI flow in test mode
-   - Verify webhook handling
-
-2. **Stage 2**: User acceptance testing
-   - Test with real UPI apps in sandbox
-   - Verify order confirmation emails
-   - Check inventory management
-
-3. **Stage 3**: Production deployment
-   - Switch to production credentials
-   - Enable webhook endpoint
-   - Monitor first transactions
-
----
-
-## Files to Create/Modify
-
-### New Files
-- `src/lib/cashfree-sdk.ts` - Cashfree SDK wrapper
-- `src/pages/Payment.tsx` - Payment processing page
-- `src/pages/PaymentFailed.tsx` - Payment failure page
-- `src/pages/admin/AdminPaymentSettings.tsx` - Gateway config
-- `src/hooks/usePaymentStatus.ts` - Payment polling hook
-- `src/components/PaymentLoading.tsx` - Loading component
-- `supabase/migrations/seed_payment_gateway.sql` - Seed data
-
-### Modified Files
-- `src/pages/Checkout.tsx` - Integrate Cashfree
-- `src/pages/OrderConfirmation.tsx` - Enhanced display
-- `src/App.tsx` - Add new routes
-- `src/lib/cashfree.ts` - Add SDK integration helpers
-
----
-
-## Success Criteria
-
-1. ✅ Non-COD payments route through Cashfree
-2. ✅ UPI payments work with deep linking
-3. ✅ Payment failures restore inventory
-4. ✅ Order status updates correctly
-5. ✅ Admin can configure gateway
-6. ✅ Webhook validates signatures
-7. ✅ All tests pass with 80%+ coverage

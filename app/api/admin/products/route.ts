@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/auth/verify-jwt';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger';
 import {
   AdminProductCreateSchema,
@@ -47,7 +47,7 @@ function updateWithBypass(supabase: any, table: string, data: unknown) {
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const supabase = await createClient();
     const body = await request.json();
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  */
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const supabase = await createClient();
     const { searchParams, pathname } = new URL(request.url);
@@ -236,7 +236,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
  */
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const supabase = await createClient();
     const { searchParams, pathname } = new URL(request.url);

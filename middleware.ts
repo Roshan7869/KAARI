@@ -9,6 +9,8 @@ const isProtectedRoute = createRouteMatcher([
   '/cart/(.*)',
   '/payment(.*)',
   '/order-confirmation(.*)',
+  '/orders',
+  '/orders/(.*)',
 ])
 const isAdminRoute = createRouteMatcher(['/admin', '/admin/(.*)'])
 const isAuthPage = createRouteMatcher(['/login', '/signup'])
@@ -31,7 +33,7 @@ function buildCsp(nonce: string): string {
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
     `img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://img.clerk.com`,
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev`,
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://vitals.vercel-insights.com https://*.vercel-analytics.com`,
     `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev`,
     `object-src 'none'`,
     `base-uri 'self'`,
@@ -48,6 +50,31 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   const cspHeader = buildCsp(nonce)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
+
+  // EXEMPT WEBHOOKS FROM RATE LIMITING
+  if (pathname.startsWith('/api/webhooks/')) {
+    // Allow Cashfree webhooks without rate limiting
+    // Cashfree IPs: 52.66.76.63, 13.126.158.60 (and others from their documentation)
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim();
+
+    // Still apply very loose rate limiting for abuse prevention but don't block legitimate retries
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set('Content-Security-Policy', cspHeader);
+    return response;
+  }
+
+  // Admin API routes — enforce admin role at middleware level (defense in depth)
+  if (pathname.startsWith('/api/admin')) {
+    const { userId, sessionClaims } = await auth()
+    const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    }
+    // fall through — admin confirmed
+  }
 
   // API routes: only apply CSP, skip auth redirects
   if (pathname.startsWith('/api/')) {

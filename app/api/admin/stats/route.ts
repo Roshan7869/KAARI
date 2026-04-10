@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/auth/verify-jwt';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger';
 import { AdminStatsSchema } from '@/lib/validations/admin.schema';
 
@@ -10,7 +10,7 @@ import { AdminStatsSchema } from '@/lib/validations/admin.schema';
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    await requireAdmin();
 
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
