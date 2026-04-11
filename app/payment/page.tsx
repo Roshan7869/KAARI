@@ -35,6 +35,7 @@ function PaymentContent() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [processingStep, setProcessingStep] = useState(0);
   const [isCashfreeMode, setIsCashfreeMode] = useState(false);
+  const [isDummyMode, setIsDummyMode] = useState(false);
 
   // Load session on mount
   useEffect(() => {
@@ -59,6 +60,10 @@ function PaymentContent() {
       setLoading(false);
       return;
     }
+
+    // Detect dummy mode from session ID prefix
+    const isDummy = sessionId.startsWith('dummy_');
+    setIsDummyMode(isDummy);
 
     const loadSession = async () => {
       try {
@@ -101,6 +106,13 @@ function PaymentContent() {
   }, [sessionId, cfSessionId, router]);
 
   const simulateProcessing = useCallback(async () => {
+    // This function should ONLY be called in dummy/demo mode
+    // In production, Cashfree handles all processing — skip this delay
+    if (process.env.NODE_ENV === 'production' && !isDummyMode) {
+      console.warn('[Payment] simulateProcessing called in production — skipping');
+      return;
+    }
+
     const steps = [
       'Initializing secure connection...',
       'Verifying payment details...',
@@ -112,7 +124,7 @@ function PaymentContent() {
       setProcessingStep(i);
       await new Promise(resolve => setTimeout(resolve, 800));
     }
-  }, []);
+  }, [isDummyMode]);
 
   // Handle UPI app deep link
   const handleUPIAppSelect = async (app: UPIApp) => {
@@ -158,7 +170,11 @@ function PaymentContent() {
     setError(null);
 
     try {
-      await simulateProcessing();
+      // Only simulate processing steps in dummy/demo mode
+      // In production, Cashfree handles all processing — skip this delay
+      if (isDummyMode) {
+        await simulateProcessing();
+      }
 
       const result = await processSecurePayment(sessionId, {
         processingDelayMs: 500,
@@ -283,6 +299,13 @@ function PaymentContent() {
   return (
     <div className="min-h-screen py-8 md:py-12 px-4 bg-gradient-to-b from-background to-muted/30">
       <div className="max-w-lg mx-auto space-y-6">
+        {/* Test mode banner */}
+        {isDummyMode && (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 rounded px-4 py-2 text-sm font-medium">
+            ⚠️ Test Mode — No real payment will be processed
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center">
           <h1 className="font-display text-2xl md:text-3xl mb-2">Secure Payment</h1>
@@ -351,14 +374,16 @@ function PaymentContent() {
                 ))}
               </div>
 
-              {/* Pay Now Button (Dummy fallback) */}
-              <Button
-                onClick={handleDummyPayment}
-                size="lg"
-                className="w-full py-6 text-lg font-medium"
-              >
-                Pay ₹{session.amount.toLocaleString('en-IN')}
-              </Button>
+              {/* Pay Now Button (Dummy/test mode only — hidden in production) */}
+              {isDummyMode && (
+                <Button
+                  onClick={handleDummyPayment}
+                  size="lg"
+                  className="w-full py-6 text-lg font-medium"
+                >
+                  Pay ₹{session.amount.toLocaleString('en-IN')} (Test Mode)
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

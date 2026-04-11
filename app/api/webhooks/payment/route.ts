@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerCashfreeConfig } from '@/lib/cashfree-server';
+import { getServerCashfreeConfig, verifyCashfreeWebhookSignature } from '@/lib/cashfree-server';
 import { logger } from '@/lib/logger';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
 import { applyRateLimit } from '@/lib/server-rate-limit';
 import { z } from 'zod';
 import { waitUntil } from '@vercel/functions';
@@ -67,8 +66,7 @@ async function processWebhookInBackground(params: {
   cashfreeSessionId: string | null;
   paymentMessage: string | undefined;
   webhookEventId: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any;
+  supabase: ReturnType<typeof createAdminClient>;
 }) {
   const { event, orderId, cfPaymentId, cashfreeSessionId, paymentMessage, webhookEventId, supabase } = params;
   let eventResult: Record<string, unknown> = {};
@@ -358,8 +356,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     logger.info('Webhook verified and parsed', { event, order_id: orderId });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = createAdminClient() as any;
+    const supabase = createAdminClient();
 
     // ── 6. Atomic deduplication via webhook_events table ─────────────
     // All events (not just SUCCESS) are deduplicated here.
@@ -384,8 +381,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Record webhook receipt BEFORE doing any heavy work.
     // Atomic INSERT catches duplicate key violations (no TOCTOU race).
     if (cashfreeSessionId && cfPaymentId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: insertedEvent, error: insertError } = await (supabase as any)
+      const { data: insertedEvent, error: insertError } = await supabase
         .from('webhook_events')
         .insert({
           cf_payment_id: cfPaymentId,

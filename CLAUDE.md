@@ -201,6 +201,16 @@ function buildCsp(nonce: string): string {
 }
 ```
 
+### Clerk JWT Template (REQUIRED for order pages to work)
+1. Go to Clerk Dashboard → JWT Templates
+2. Click "New Template" → Choose "Supabase"
+3. Set template name: `supabase` (exactly this, case-sensitive)
+4. Audience (aud): `authenticated`
+5. Subject (sub): `{{user.id}}`
+6. Save template
+
+**WITHOUT THIS STEP**: All authenticated users see empty orders page with no error message. The `createUserClient()` function in `lib/supabase/auth-client.ts` will throw if this template is missing.
+
 ### Environment Variables
 
 Required in `.env.local`:

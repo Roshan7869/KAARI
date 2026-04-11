@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getCashfreePaymentDetails } from '@/lib/cashfree';
+import { getCashfreePaymentDetailsServer } from '@/lib/cashfree-server';
 import { logger } from '@/lib/logger';
 
 /**
@@ -27,8 +27,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+  const admin = createAdminClient();
 
   // Step 1: Verify session ownership — this session must belong to the requesting user
   const { data: session, error: sessionError } = await admin
@@ -52,8 +51,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (session.cf_order_id) {
     try {
-      const payment = await getCashfreePaymentDetails(session.cf_order_id);
-      if (payment && payment.payment_status === 'SUCCESS') {
+      const payment = await getCashfreePaymentDetailsServer(session.cf_order_id);
+      if (payment && (payment.payment_status === 'SUCCESS' || payment.payment_status === 'completed')) {
         verifiedStatus = 'completed';
       } else {
         logger.warn('Cashfree payment not confirmed', {

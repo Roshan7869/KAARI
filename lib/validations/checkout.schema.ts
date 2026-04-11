@@ -4,7 +4,12 @@ export const CheckoutSchema = z.object({
   cart_id: z.string().uuid(),
   payment_method: z.enum(['cod', 'online', 'upi', 'card', 'netbanking', 'wallet']).default('cod'),
   email: z.string().email().min(1).max(255).optional(),
-  phone: z.string().min(10).max(15).optional(),
+  phone: z
+    .string({ required_error: 'Phone number is required' })
+    .regex(
+      /^[6-9]\d{9}$/,
+      'Enter a valid 10-digit Indian mobile number (must start with 6, 7, 8, or 9)'
+    ),
   shipping_name: z.string().min(1).max(100).optional(),
   shipping_line1: z.string().min(1).max(200).optional(),
   shipping_line2: z.string().max(200).optional(),

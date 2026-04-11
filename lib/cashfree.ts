@@ -136,10 +136,19 @@ function getCashfreeConfig(): CashfreeConfig | null {
     return null;
   }
 
+  const isTestMode = (process.env.CASHFREE_TEST_MODE?.trim() ?? 'true') !== 'false';
+
+  if (isTestMode) {
+    logger.warn(
+      '[Cashfree] Running in SANDBOX mode. ' +
+      'Set CASHFREE_TEST_MODE=false in production env to enable live payments.'
+    );
+  }
+
   return {
     appId,
     secretKey,
-    isTestMode: process.env.CASHFREE_TEST_MODE === 'true',
+    isTestMode,
     webhookSecret,
   };
 }

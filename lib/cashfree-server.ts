@@ -1,6 +1,8 @@
 import 'server-only'
 
 import { createAdminClient, hasAdminClientConfig } from '@/lib/supabase/admin'
+import { logger } from '@/lib/logger'
+import { fetchWithRetry } from '@/lib/fetch-with-timeout'
 
 export interface ServerCashfreeConfig {
   appId: string
@@ -21,8 +23,7 @@ function getEnvCashfreeConfig(): ServerCashfreeConfig {
     appId: (process.env.CASHFREE_APP_ID || '').trim(),
     secretKey: (process.env.CASHFREE_SECRET_KEY || '').trim(),
     isTestMode:
-      ((process.env.CASHFREE_TEST_MODE || process.env.NEXT_PUBLIC_CASHFREE_TEST_MODE || 'true').trim()) ===
-      'true',
+      ((process.env.CASHFREE_TEST_MODE || 'true').trim()) !== 'false',
     webhookSecret: (process.env.CASHFREE_WEBHOOK_SECRET || '').trim(),
   }
 }
@@ -73,4 +74,87 @@ export async function getServerCashfreeConfig(): Promise<ServerCashfreeConfig | 
 
 export function getCashfreeBaseUrl(isTestMode: boolean): string {
   return isTestMode ? 'https://sandbox.cashfree.com/pg' : 'https://api.cashfree.com/pg'
+}
+
+/**
+ * Verify Cashfree webhook signature (server-only).
+ * Validates HMAC-SHA256 signature with timing-safe comparison.
+ */
+export function verifyCashfreeWebhookSignature(
+  rawBody: string,
+  signature: string,
+  timestamp: string,
+  secret: string
+): boolean {
+  if (!secret || !signature) {
+    logger.warn('WEBHOOK: Missing secret or signature');
+    return false;
+  }
+
+  try {
+    const cryptoModule = require('crypto');
+
+    const signedPayload = timestamp + rawBody;
+    const expected = cryptoModule
+      .createHmac('sha256', secret)
+      .update(signedPayload)
+      .digest('base64');
+
+    const sigBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+
+    // Timing-safe comparison prevents timing attacks
+    if (sigBuffer.length !== expectedBuffer.length) return false;
+
+    return cryptoModule.timingSafeEqual(sigBuffer, expectedBuffer);
+  } catch (error) {
+    logger.error('Webhook signature verification failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Get Cashfree payment details (server-only, uses admin client).
+ * Fetches from Cashfree API using server credentials.
+ */
+export async function getCashfreePaymentDetailsServer(
+  cfOrderId: string
+): Promise<{ cf_payment_id: string; payment_status: string; payment_amount: number } | null> {
+  const config = await getServerCashfreeConfig();
+  if (!config) {
+    return null;
+  }
+
+  const baseUrl = getCashfreeBaseUrl(config.isTestMode);
+
+  try {
+    const response = await fetchWithRetry(`${baseUrl}/orders/${cfOrderId}/payments`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-version': '2023-08-01',
+        'x-client-id': config.appId,
+        'x-client-secret': config.secretKey,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.payments && data.payments.length > 0) {
+      const payment = data.payments[0];
+      return {
+        cf_payment_id: String(payment.cf_payment_id || payment.payment_id || ''),
+        payment_status: payment.payment_status || 'UNKNOWN',
+        payment_amount: payment.payment_amount || 0,
+      };
+    }
+    return null;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Failed to get Cashfree payment details (server):', { error: errorMessage, cfOrderId });
+    return null;
+  }
 }

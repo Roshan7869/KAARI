@@ -1,4 +1,5 @@
 import { getServerCashfreeConfig } from '@/lib/cashfree-server'
+import { validateCashfreeConfig } from '@/lib/startup-checks'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -41,6 +42,12 @@ export async function GET() {
 
   const httpStatus = dbStatus === 'ok' ? 200 : 503
 
+  // Check Cashfree config sync (server/client mode mismatch detection)
+  const cashfreeCheck = validateCashfreeConfig()
+  if (!cashfreeCheck.passed) {
+    console.error('STARTUP CHECK FAILED:', cashfreeCheck.errors)
+  }
+
   return NextResponse.json(
     {
       status: dbStatus === 'ok' ? 'ok' : 'degraded',
@@ -49,6 +56,11 @@ export async function GET() {
         supabase_configured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
         cashfree_configured: Boolean(cashfreeConfig?.appId && cashfreeConfig?.secretKey),
         cashfree_webhook_configured: Boolean(cashfreeConfig?.webhookSecret),
+        cashfree: {
+          mode: process.env.CASHFREE_TEST_MODE !== 'false' ? 'sandbox' : 'production',
+          warnings: cashfreeCheck.warnings,
+          errors: cashfreeCheck.errors,
+        },
         cloudinary_configured: Boolean(
           process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() &&
           process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY?.trim() &&

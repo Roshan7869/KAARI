@@ -15,8 +15,8 @@ import { applyRateLimit, applyCheckoutRateLimits } from '@/lib/server-rate-limit
  *  4. Marks cart converted with unique constraint (prevents double-checkout)
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Rate limit: 20 checkout requests / 5 min per IP (legacy)
-  const rateLimitResponse = await applyRateLimit(request, 'checkout', false);
+  // Rate limit: 20 checkout requests / 5 min per IP (fail-closed for payment safety)
+  const rateLimitResponse = await applyRateLimit(request, 'checkout', true);
   if (rateLimitResponse) return rateLimitResponse;
 
   // ── Enhanced rate limiting for order placement ────────────────────────
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // - Global: 100 orders per minute total
   const { userId } = await auth();
   if (userId) {
-    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, userId, false);
+    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, userId, true);
     if (enhancedRateLimitResponse) return enhancedRateLimitResponse;
   }
 
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const {
       cart_id,
       payment_method,
+      phone,
       shipping_name,
       shipping_line1,
       shipping_line2,
@@ -78,8 +79,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // All pricing MUST come from the database cart items to prevent manipulation
 
     // ── 3. Create checkout_session record ────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cart } = await (admin as any)
+    const { data: cart } = await admin
       .from('carts')
       .select('id, user_id, status, currency, pricing')
       .eq('id', cart_id)
@@ -95,8 +95,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Compute subtotal from cart items (used for checkout_session and totals response)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cartItems } = await (admin as any)
+    const { data: cartItems } = await admin
       .from('cart_items')
       .select('unit_price, quantity, line_total')
       .eq('cart_id', cart_id);
@@ -188,14 +187,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: checkoutSession, error: checkoutError } = await (admin as any)
+    const { data: checkoutSession, error: checkoutError } = await admin
       .from('checkout_sessions')
       .insert({
         cart_id,
         user_id: userId,
         status: payment_method === 'cod' ? 'completed' : 'payment_pending',
         payment_method: payment_method ?? 'cod',
+        phone,
         shipping_name: shipping_name ?? null,
         shipping_line1: shipping_line1 ?? null,
         shipping_line2: shipping_line2 ?? null,
@@ -295,6 +294,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ── 5. Atomic order creation via RPC ─────────────────────────────
     const shippingAddress = {
       name: shipping_name,
+      phone,
       line1: shipping_line1,
       line2: shipping_line2 ?? null,
       city: shipping_city,
@@ -309,8 +309,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Set order expiry to 15 minutes from now (matching Cashfree expiry)
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rpcResult, error: rpcError } = await (admin as any).rpc(
+    const { data: rpcResult, error: rpcError } = await admin.rpc(
       'create_order_from_checkout',
       {
         p_cart_id: cart_id,

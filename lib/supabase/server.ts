@@ -13,10 +13,16 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: { httpOnly?: boolean; sameSite?: boolean; path?: string } }[]) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                path: '/',
+                ...options,  // Allow Supabase SSR to override with its own secure defaults
+              })
             )
           } catch {
             // The `setAll` method was called from a Server Component.

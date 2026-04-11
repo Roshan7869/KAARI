@@ -4,18 +4,34 @@ import { auth } from '@clerk/nextjs/server'
 import { getCashfreeBaseUrl, getServerCashfreeConfig } from '@/lib/cashfree-server'
 import { logger } from '@/lib/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { validateCashfreeConfig } from '@/lib/startup-checks'
 
 const CreateOrderSchema = z.object({
   orderId: z.string().min(1),
   amount: z.number().positive(),
   customerName: z.string().min(1),
   customerEmail: z.string().email(),
-  customerPhone: z.string().min(10),
+  customerPhone: z
+    .string({ required_error: 'Phone number required for payment' })
+    .regex(
+      /^[6-9]\d{9}$/,
+      'Enter a valid 10-digit Indian mobile number'
+    ),
   returnUrl: z.string().url(),
   notifyUrl: z.string().url(),
 })
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Validate Cashfree config sync before processing payments
+  const configCheck = validateCashfreeConfig()
+  if (!configCheck.passed) {
+    console.error('[Payment] Cashfree misconfigured:', configCheck.errors)
+    return NextResponse.json(
+      { error: 'Payment service misconfigured. Contact support.' },
+      { status: 503 }
+    )
+  }
+
   try {
     const { userId } = await auth()
     if (!userId) {

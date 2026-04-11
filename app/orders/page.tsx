@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createUserClient } from '@/lib/supabase/auth-client';
 import { Package, ChevronRight } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -51,7 +51,16 @@ export default async function OrdersPage() {
   const { userId } = await auth();
   if (!userId) redirect('/login?redirect_url=/orders');
 
-  const supabase = createAdminClient();
+  let supabase;
+  try {
+    supabase = await createUserClient();
+  } catch (authError) {
+    // JWT template not configured or auth session expired
+    // Redirect user to sign in with a helpful return URL
+    redirect('/login?reason=session-expired&returnTo=/orders');
+  }
+  if (!supabase) redirect('/login?redirect_url=/orders');
+
   const { data: orders, error } = await supabase
     .from('orders')
     .select('id, order_number, status, total_amount, created_at, order_items(id)')
