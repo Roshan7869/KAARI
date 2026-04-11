@@ -291,8 +291,8 @@ https://YOUR_NGROK_URL/api/webhooks/payment
 | Variable | Value | Status |
 |----------|-------|--------|
 | `NEXT_PUBLIC_CASHFREE_MODE` | `sandbox` | ✅ Set |
-| `CASHFREE_APP_ID` | `TEST1101930...` (test key) | ✅ Set |
-| `CASHFREE_SECRET_KEY` | `cfsk_ma_test_...` (test key) | ✅ Set |
+| `CASHFREE_APP_ID` | `YOUR_CASHFREE_APP_ID` (test key) | ✅ Set |
+| `CASHFREE_SECRET_KEY` | `YOUR_CASHFREE_SECRET_KEY` (test key) | ✅ Set |
 | `CASHFREE_TEST_MODE` | `true` | ✅ Set |
 | `CASHFREE_WEBHOOK_SECRET` | `YOUR_CASHFREE_WEBHOOK_SECRET` | ⚠️ Placeholder |
 
@@ -302,7 +302,7 @@ https://YOUR_NGROK_URL/api/webhooks/payment
    ```bash
    # Get from Cashfree Console → Webhooks
    # Replace placeholder in .env.local and Vercel
-   CASHFREE_WEBHOOK_SECRET=cfsk_wh_XXXXXX...
+   CASHFREE_WEBHOOK_SECRET=YOUR_CASHFREE_WEBHOOK_SECRET
    ```
 
 2. **Add Rate Limiting:**

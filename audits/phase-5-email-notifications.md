@@ -284,7 +284,7 @@ CREATE TABLE public.notifications (
 
 ```env
 # Resend API (for email delivery)
-RESEND_API_KEY=re_1234567890123456789012345678901234567890
+RESEND_API_KEY=YOUR_RESEND_API_KEY
 
 # Sender Email
 NOTIFICATIONS_FROM_EMAIL=orders@kaari.shop

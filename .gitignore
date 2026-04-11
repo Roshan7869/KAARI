@@ -94,6 +94,9 @@ out
 # vercel
 .vercel
 
+# Claude Code worktrees and local config
+.claude/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -104,3 +107,7 @@ out
 *.njsproj
 *.sln
 *.sw?
+# Audit scripts and outputs
+audit-output.txt
+kaari-audit-report.json
+kaari-audit.mjs
