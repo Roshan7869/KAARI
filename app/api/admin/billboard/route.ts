@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       display_order,
       tag,
       is_active,
+      custom_image_url,
       product_id,
       products (
         id,
@@ -45,7 +46,7 @@ export async function PUT(req: NextRequest) {
   const admin = createAdminClient();
 
   const body = await req.json() as {
-    slots: Array<{ product_id: string; tag?: string; is_active?: boolean }>;
+    slots: Array<{ product_id: string; tag?: string; is_active?: boolean; custom_image_url?: string }>;
   };
 
   if (!Array.isArray(body.slots)) {
@@ -70,6 +71,7 @@ export async function PUT(req: NextRequest) {
     display_order: i,
     tag: slot.tag ?? null,
     is_active: slot.is_active !== false,
+    custom_image_url: slot.custom_image_url ?? null,
   }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

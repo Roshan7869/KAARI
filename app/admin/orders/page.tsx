@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
+import { APP_URL } from "@/lib/metadata";
 
 function AdminOrdersSkeleton() {
   return (
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   description: "Manage customer orders and track fulfillment status",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/admin/orders",
+    url: `${APP_URL}/admin/orders`,
     title: "Orders | Kaari Admin",
     description: "Manage customer orders and track fulfillment",
   },

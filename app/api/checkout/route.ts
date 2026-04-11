@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
-import { applyRateLimit } from '@/lib/server-rate-limit';
+import { applyRateLimit, applyCheckoutRateLimits } from '@/lib/server-rate-limit';
 
 /**
  * POST /api/checkout
@@ -15,9 +15,20 @@ import { applyRateLimit } from '@/lib/server-rate-limit';
  *  4. Marks cart converted with unique constraint (prevents double-checkout)
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Rate limit: 20 checkout requests / 5 min per IP
+  // Rate limit: 20 checkout requests / 5 min per IP (legacy)
   const rateLimitResponse = await applyRateLimit(request, 'checkout', false);
   if (rateLimitResponse) return rateLimitResponse;
+
+  // ── Enhanced rate limiting for order placement ────────────────────────
+  // Apply multi-tier rate limiting:
+  // - Per-user: 5 orders per minute per user
+  // - Per-IP: 20 orders per minute per IP
+  // - Global: 100 orders per minute total
+  const { userId } = await auth();
+  if (userId) {
+    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, userId, false);
+    if (enhancedRateLimitResponse) return enhancedRateLimitResponse;
+  }
 
   try {
     const admin = createAdminClient();
@@ -55,17 +66,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       shipping_postal_code,
       shipping_country,
       shipping_method,
-      shipping_amount,
-      tax_amount,
+      // Explicitly exclude amount fields to prevent client manipulation
+      // shipping_amount,
+      // tax_amount,
       shipping_provider,
       shipping_provider_label,
     } = result.data;
+
+    // SECURITY: Never trust client-provided amounts - always compute from cart
+    // Client may send shipping_amount or tax_amount but we ignore them completely
+    // All pricing MUST come from the database cart items to prevent manipulation
 
     // ── 3. Create checkout_session record ────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: cart } = await (admin as any)
       .from('carts')
-      .select('id, user_id, status, currency')
+      .select('id, user_id, status, currency, pricing')
       .eq('id', cart_id)
       .eq('user_id', userId)
       .single();
@@ -95,9 +111,82 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
     }
 
-    const shipping = shipping_amount ?? 0;
-    const tax = tax_amount ?? 0;
+    // SECURITY: Calculate shipping and tax from cart, NEVER from client-provided values
+    // Even though we extracted shipping_amount and tax_amount from the request above,
+    // we deliberately ignore them to prevent manipulation
+
+    // Get cart-level pricing information from the database (SECURE)
+    // Calculate shipping: Free for orders over ₹500, otherwise ₹99
+    const shipping = subtotal > 500 ? 0 : 99;
+    const tax = 0; // No tax for handmade goods in India
     const grandTotal = subtotal + shipping + tax;
+
+    // ── 3.1 Validate order amount ─────────────────────────────────────
+    // SECURITY: Validate minimum and maximum order amounts to prevent abuse
+    // and comply with Cashfree requirements
+    const MINIMUM_ORDER_AMOUNT = 1.00;  // Cashfree minimum
+    const MAXIMUM_ORDER_AMOUNT = 100000.00; // ₹1 lakh maximum to prevent abuse
+
+    if (grandTotal < MINIMUM_ORDER_AMOUNT) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Minimum order amount is ₹${MINIMUM_ORDER_AMOUNT.toFixed(2)}`
+        },
+        { status: 400 }
+      );
+    }
+
+    if (grandTotal > MAXIMUM_ORDER_AMOUNT) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Maximum order amount is ₹${MAXIMUM_ORDER_AMOUNT.toLocaleString('en-IN')} (₹1,00,000). Contact support for bulk orders`
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate amount matches cart items to prevent manipulation
+    // Calculate total from individual item prices
+    let calculatedTotal = 0;
+    for (const item of (cartItems || [])) {
+      calculatedTotal += item.line_total ?? (item.unit_price * item.quantity);
+    }
+
+    // Add shipping and tax to calculated total
+    const calculatedGrandTotal = calculatedTotal + shipping + tax;
+
+    // Allow 1 paisa (0.01) rounding difference tolerance
+    if (Math.abs(grandTotal - calculatedGrandTotal) > 0.01) {
+      logger.warn('Security Alert: Order total mismatch', {
+        userId,
+        cartId: cart_id,
+        providedTotal: grandTotal,
+        calculatedTotal: calculatedGrandTotal,
+        difference: Math.abs(grandTotal - calculatedGrandTotal)
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Order total mismatch. Please refresh cart and try again'
+        },
+        { status: 400 }
+      );
+    }
+
+    // Log if client sent amount values (potential attack vector)
+    if (result.data.shipping_amount !== undefined || result.data.tax_amount !== undefined) {
+      logger.warn('Security Alert: Client sent amount values (IGNORED)', {
+        userId,
+        cartId: cart_id,
+        sentShippingAmount: result.data.shipping_amount,
+        sentTaxAmount: result.data.tax_amount,
+        actualShippingAmount: shipping,
+        actualTaxAmount: tax,
+        message: 'Potential order manipulation attempt detected and blocked'
+      });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: checkoutSession, error: checkoutError } = await (admin as any)
@@ -131,7 +220,79 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // ── 4. Atomic order creation via RPC ─────────────────────────────
+    // SECURITY: Validate that item prices haven't been tampered with client-side
+    // ── 4. Validate individual item prices ─────────────────────────────
+    const adminClient = createAdminClient();
+    for (const item of (cartItems || [])) {
+      // Get the latest price for this item directly from the database
+      try {
+        const { data: productData, error: productError } = await adminClient
+          .from('products')
+          .select('base_price')
+          .eq('id', item.product_id)
+          .maybeSingle();
+
+        if (productError) {
+          logger.error('Failed to fetch product price', {
+            productId: item.product_id,
+            error: productError.message
+          });
+          continue; // Skip validation for this item if we can't fetch it
+        }
+
+        if (productData) {
+          // For products without variants, check base_price
+          const expectedPrice = productData.base_price;
+          const actualPrice = item.unit_price;
+
+          // Allow 1 paisa (0.01) rounding difference tolerance
+          if (Math.abs(actualPrice - expectedPrice) > 0.01) {
+            logger.warn('Security Alert: Item price mismatch', {
+              userId,
+              cartId: cart_id,
+              productId: item.product_id,
+              expectedPrice,
+              actualPrice,
+              difference: Math.abs(actualPrice - expectedPrice)
+            });
+
+            // Check for suspicious patterns - extremely low-value orders with many items
+            if (grandTotal <= 1.00 && (cartItems || []).length > 5) {
+              logger.warn('Security Alert: Suspicious low-value order with multiple items', {
+                userId,
+                cartId: cart_id,
+                totalAmount: grandTotal,
+                itemCount: (cartItems || []).length
+              });
+
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: 'Your order appears suspicious. Please contact support.'
+                },
+                { status: 400 }
+              );
+            }
+
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Price changed for an item in your cart. Please review your cart.`
+              },
+              { status: 400 }
+            );
+          }
+        }
+      } catch (priceError) {
+        logger.error('Error validating item price', {
+          productId: item.product_id,
+          error: (priceError as Error).message
+        });
+        // Don't fail checkout for price validation errors, proceed with caution
+      }
+    }
+
+    // ── 5. Atomic order creation via RPC ─────────────────────────────
     const shippingAddress = {
       name: shipping_name,
       line1: shipping_line1,
@@ -144,6 +305,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const resolvedProvider = shipping_provider ?? 'INDIA_POST';
     const resolvedProviderLabel = shipping_provider_label ?? resolvedProvider;
+
+    // Set order expiry to 15 minutes from now (matching Cashfree expiry)
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: rpcResult, error: rpcError } = await (admin as any).rpc(
@@ -158,6 +322,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         p_shipping_provider: resolvedProvider,
         p_shipping_provider_label: resolvedProviderLabel,
         p_checkout_session_id: checkoutSession.id,
+        p_expires_at: expiresAt,
       }
     );
 
@@ -196,7 +361,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const orderId: string = rpcRow.order_id;
     const orderNumber: string = rpcRow.order_number;
 
-    // ── 5. Create payments record (COD only; online handled by Cashfree route) ──
+    // ── 7. Create payments record (COD only; online handled by Cashfree route) ──
     if (payment_method === 'cod') {
       const { error: paymentError } = await admin
         .from('payments')

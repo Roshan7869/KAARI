@@ -9,6 +9,8 @@
  * - API keys for payment gateways should be server-side only
  */
 
+import { logger } from '@/lib/logger';
+
 // Define required and optional environment variables
 interface EnvConfig {
   // Required - Supabase configuration
@@ -177,7 +179,7 @@ export function logEnvStatus(): void {
   }
 
   if (result.valid && result.warnings.length === 0) {
-    console.log('✅ Environment configuration valid');
+    logger.info('✅ Environment configuration valid');
   }
 }
 

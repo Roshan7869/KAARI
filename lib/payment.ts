@@ -160,6 +160,15 @@ export async function processPayment(
     };
   }
 
+  // Reject invalid amounts (security: no free/negative payments)
+  if (session.amount <= 0) {
+    return {
+      success: false,
+      transactionId: '',
+      message: 'Invalid payment amount',
+    };
+  }
+
   // Simulate random failures
   const shouldFail = Math.random() < failureRate;
   if (shouldFail) {

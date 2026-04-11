@@ -10,7 +10,7 @@ export const CheckoutSchema = z.object({
   shipping_line2: z.string().max(200).optional(),
   shipping_city: z.string().min(1).max(100).optional(),
   shipping_state: z.string().min(1).max(100).optional(),
-  shipping_postal_code: z.string().min(5).max(10).optional(),
+  shipping_postal_code: z.string().length(6, 'PIN code must be exactly 6 digits').regex(/^[1-9][0-9]{5}$/, 'Invalid Indian PIN code format').optional(),
   shipping_country: z.string().min(2).max(100).default('India'),
   shipping_method: z.enum(['standard', 'express', 'priority']).default('standard'),
   shipping_amount: z.coerce.number().min(0).optional(),

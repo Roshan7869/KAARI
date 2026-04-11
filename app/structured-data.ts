@@ -1,10 +1,12 @@
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in';
+
 export const generateStructuredData = () => {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "Kaari Marketplace",
-    url: "https://kaari.in",
-    logo: "https://kaari.in/logo.png",
+    url: APP_URL,
+    logo: `${APP_URL}/logo.png`,
     description:
       "Handmade crochet marketplace connecting artisans with customers",
     address: {

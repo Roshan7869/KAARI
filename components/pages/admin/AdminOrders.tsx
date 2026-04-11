@@ -3,8 +3,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { Search } from 'lucide-react';
+import { Search, Plus, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
@@ -54,11 +55,19 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-foreground">Orders</h1>
-        <p className="font-body text-muted-foreground mt-1">
-          View and manage customer orders
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl text-foreground">Orders</h1>
+          <p className="font-body text-muted-foreground mt-1">View and manage customer orders</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open('/api/admin/export?type=orders', '_blank')}>
+            <Download className="w-4 h-4" /> Export CSV
+          </Button>
+          <Button size="sm" className="gap-2" asChild>
+            <Link href="/admin/orders/new"><Plus className="w-4 h-4" /> New Order</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

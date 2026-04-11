@@ -50,6 +50,15 @@
     --kaari-warm-brown: 20 30% 25%;
     --kaari-dark: 0 20% 8%;
     --kaari-light-cream: 35 50% 96%;
+
+    /* v2 palette */
+    --kaari-maroon: 354 64% 33%;
+    --kaari-maroon-dark: 353 71% 21%;
+    --kaari-maroon-deep: 354 77% 7%;
+    --kaari-gold: 36 51% 66%;
+    --kaari-gold-light: 38 58% 77%;
+    --kaari-cream-warm: 14 82% 96%;
+    --kaari-ivory: 24 100% 99%;
   }
 }
 
@@ -78,6 +87,14 @@
 
   .font-heritage {
     font-family: var(--font-cormorant), "Cormorant Garamond", serif;
+  }
+
+  .font-dm-sans {
+    font-family: var(--font-dm-sans), "DM Sans", sans-serif;
+  }
+
+  .font-devanagari {
+    font-family: var(--font-devanagari), "Noto Serif Devanagari", serif;
   }
 }
 

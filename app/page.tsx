@@ -1,6 +1,11 @@
 import { Suspense } from 'react';
 import { HeroBillboard } from '@/components/home/HeroBillboard';
 import { ProductShowcase } from '@/components/home/ProductShowcase';
+import { InstagramFeed } from '@/components/home/InstagramFeed';
+import { MarqueeTicker } from '@/components/home/MarqueeTicker';
+import { CategoryGrid } from '@/components/home/CategoryGrid';
+import { TrustBadges } from '@/components/TrustBadges';
+import ArtisanStory from '@/components/ArtisanStory';
 import { getBillboardProducts, getShowcaseProducts } from '@/lib/queries/top-products';
 import { BillboardSkeleton, ProductGridSkeleton } from '@/components/skeletons/BillboardSkeleton';
 import KaariFooter from '@/components/KaariFooter';
@@ -25,7 +30,13 @@ export default function Home() {
         <BillboardSection />
       </Suspense>
 
-      {/* ── SECTION 2: Product showcase grid ── */}
+      {/* ── SECTION 2: Marquee ticker ── */}
+      <MarqueeTicker />
+
+      {/* ── SECTION 3: Category grid ── */}
+      <CategoryGrid />
+
+      {/* ── SECTION 4: Product showcase grid ── */}
       <Suspense
         fallback={
           <section className="py-16 md:py-24 px-4 md:px-8 max-w-7xl mx-auto">
@@ -36,7 +47,16 @@ export default function Home() {
         <ShowcaseSection />
       </Suspense>
 
-      {/* ── SECTION 3: Footer ── */}
+      {/* ── SECTION 5: Trust badges ── */}
+      <TrustBadges />
+
+      {/* ── SECTION 6: Artisan story ── */}
+      <ArtisanStory />
+
+      {/* ── SECTION 7: Instagram feed ── */}
+      <InstagramFeed />
+
+      {/* ── SECTION 8: Footer ── */}
       <KaariFooter />
     </main>
   );

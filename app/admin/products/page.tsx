@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
+import { APP_URL } from "@/lib/metadata";
 
 function AdminProductsSkeleton() {
   return (
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   description: "Manage your handmade crochet products - add, edit, view orders",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/admin/products",
+    url: `${APP_URL}/admin/products`,
     title: "Products | Kaari Admin",
     description: "Manage your handmade crochet products",
   },

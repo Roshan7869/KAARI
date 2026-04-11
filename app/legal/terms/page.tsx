@@ -13,7 +13,7 @@ export default function TermsPage() {
 
           <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none text-foreground leading-relaxed">
             <p className="text-muted-foreground mb-8">
-              Last Updated: January 2026
+              Last Updated: April 2026
             </p>
 
             <section className="mb-8">
@@ -94,14 +94,27 @@ export default function TermsPage() {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-xl font-semibold mt-6 mb-3">11. Contact Us</h2>
+              <h2 className="text-xl font-semibold mt-6 mb-3">11. Grievance Redressal</h2>
+              <p className="text-muted-foreground">
+                In accordance with the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, the name and contact details of the Grievance Officer are:
+              </p>
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <p className="text-muted-foreground">
+                  <strong>Grievance Officer:</strong> Kaari Support Team<br />
+                  Email: <a href="mailto:grievance@kaari.in" className="text-primary">grievance@kaari.in</a><br />
+                  Response time: Acknowledgment within 24 hours, resolution within 15 days
+                </p>
+              </div>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-semibold mt-6 mb-3">12. Contact Us</h2>
               <p className="text-muted-foreground">
                 If you have any questions about these Terms of Service, please contact us:
               </p>
               <div className="mt-4 p-4 bg-muted rounded-lg">
                 <p className="text-muted-foreground">
-                  Email: <a href="mailto:hello@kaari.in" className="text-primary">hello@kaari.in</a><br />
-                  Phone: <a href="tel:+919999999999" className="text-primary">+91 99999 99999</a>
+                  Email: <a href="mailto:hello@kaari.in" className="text-primary">hello@kaari.in</a>
                 </p>
               </div>
             </section>

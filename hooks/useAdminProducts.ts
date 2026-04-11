@@ -270,10 +270,16 @@ export function useUploadProductMedia() {
       productId,
       file,
       altText,
+      productSlug,
+      category,
+      isPrimary,
       }: {
         productId: string;
         file: File;
         altText?: string;
+        productSlug?: string;
+        category?: string;
+        isPrimary?: boolean;
       }) => {
         const shouldUseCloudinary = Boolean(
           process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME &&
@@ -283,9 +289,15 @@ export function useUploadProductMedia() {
         let filePath = '';
 
         if (shouldUseCloudinary) {
+          // Use product-specific folder for organized storage
+          const folderName = productSlug || productId;
+          const tags = ['kaari-product', productId];
+          if (productSlug) tags.push(productSlug);
+          if (category) tags.push(category.toLowerCase().replace(/\s+/g, '-'));
+
           const uploadResult = await cloudinary.uploadImage(file, {
-            folder: 'products',
-            tags: ['product', productId],
+            folder: `products/${folderName}`,
+            tags,
           });
           filePath = uploadResult.public_id;
         } else {
@@ -300,15 +312,26 @@ export function useUploadProductMedia() {
           if (uploadError) throw uploadError;
         }
 
-      // Get current max sort order
+      // Get current max sort order and check if any primary exists
       const { data: existingMedia } = await supabase
         .from('product_media')
-        .select('sort_order')
+        .select('sort_order, is_primary')
         .eq('product_id', productId)
-        .order('sort_order', { ascending: false })
-        .limit(1);
+        .order('sort_order', { ascending: false });
 
       const sortOrder = existingMedia && existingMedia.length > 0 ? existingMedia[0].sort_order + 1 : 0;
+      // First image auto-becomes primary if no primary set yet
+      const hasPrimary = existingMedia?.some(m => m.is_primary);
+      const setAsPrimary = isPrimary ?? !hasPrimary;
+
+      // If setting as primary, unset existing primary first
+      if (setAsPrimary && hasPrimary) {
+        await supabase
+          .from('product_media')
+          .update({ is_primary: false })
+          .eq('product_id', productId)
+          .eq('is_primary', true);
+      }
 
       // Create media record
       const { data, error } = await supabase
@@ -318,6 +341,7 @@ export function useUploadProductMedia() {
           file_path: filePath,
           alt_text: altText,
           sort_order: sortOrder,
+          is_primary: setAsPrimary,
         })
         .select()
         .single();
@@ -361,6 +385,33 @@ export function useDeleteProductMedia() {
       console.error('Error deleting image:', error);
       toast.error('Failed to delete image');
     },
+  });
+}
+
+export function useSetPrimaryMedia() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ mediaId, productId }: { mediaId: string; productId: string }) => {
+      // Unset all primary flags for this product first
+      await supabase
+        .from('product_media')
+        .update({ is_primary: false })
+        .eq('product_id', productId);
+
+      // Set selected image as primary
+      const { error } = await supabase
+        .from('product_media')
+        .update({ is_primary: true })
+        .eq('id', mediaId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-product', variables.productId] });
+      toast.success('Primary image updated');
+    },
+    onError: () => toast.error('Failed to set primary image'),
   });
 }
 

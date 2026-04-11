@@ -8,7 +8,7 @@ export const ProductListSchema = z.object({
   is_active: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  sort_by: z.enum(['created_at', 'price', 'title']).optional(),
+  sort_by: z.enum(['created_at', 'price', 'title', 'sold_count', 'average_rating']).optional(),
   sort_order: z.enum(['asc', 'desc']).optional(),
 });
 

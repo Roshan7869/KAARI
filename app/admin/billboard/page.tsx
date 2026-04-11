@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import {
   GripVertical, Plus, Trash2, ChevronUp, ChevronDown,
-  Eye, EyeOff, Save, RotateCcw, Loader2, Search, Tv2,
+  Eye, EyeOff, Save, RotateCcw, Loader2, Search, Tv2, Upload, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase/client';
 import { resolveProductImageUrl } from '@/lib/product-media';
+import cloudinary from '@/lib/cloudinary';
 
 // ── Types ───────────────────────────────────────────────────────────
 interface BillboardSlot {
@@ -26,6 +27,7 @@ interface BillboardSlot {
   slug: string;
   price: number;
   imageUrl: string;
+  customImageUrl?: string;
   tag: string;
   is_active: boolean;
 }
@@ -50,6 +52,7 @@ interface ApiBillboardRow {
   display_order: number;
   tag: string | null;
   is_active: boolean;
+  custom_image_url: string | null;
   products: {
     id: string;
     name: string;
@@ -82,12 +85,15 @@ export default function AdminBillboardPage() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   // Product picker state
   const [pickerOpen, setPickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
   const [searching, setSearching] = useState(false);
+
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // ── Load current billboard ───────────────────────────────────────
   const loadBillboard = useCallback(async () => {
@@ -106,6 +112,7 @@ export default function AdminBillboardPage() {
           slug: p?.slug ?? '',
           price: p?.price ?? 0,
           imageUrl: resolveProductImageUrl(media[0]?.file_path),
+          customImageUrl: row.custom_image_url ?? undefined,
           tag: row.tag ?? '',
           is_active: row.is_active ?? true,
         };
@@ -220,6 +227,41 @@ export default function AdminBillboardPage() {
     setDirty(true);
   }
 
+  async function handleCustomImageUpload(index: number, file: File) {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Use JPEG, PNG, or WebP for billboard images');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5 MB');
+      return;
+    }
+    setUploadingIndex(index);
+    try {
+      const result = await cloudinary.uploadImage(file, {
+        folder: 'billboard',
+        tags: ['kaari-billboard'],
+      });
+      const imageUrl = result.secure_url;
+      setSlots((prev) =>
+        prev.map((s, i) => (i === index ? { ...s, customImageUrl: imageUrl } : s))
+      );
+      setDirty(true);
+      toast.success('Billboard image uploaded');
+    } catch (err) {
+      toast.error('Upload failed — check Cloudinary configuration');
+      console.error('[Billboard upload]', err);
+    } finally {
+      setUploadingIndex(null);
+    }
+  }
+
+  function clearCustomImage(index: number) {
+    setSlots((prev) => prev.map((s, i) => (i === index ? { ...s, customImageUrl: undefined } : s)));
+    setDirty(true);
+  }
+
   // ── Save ────────────────────────────────────────────────────────
   async function handleSave() {
     setSaving(true);
@@ -232,6 +274,7 @@ export default function AdminBillboardPage() {
             product_id: s.product_id,
             tag: s.tag || null,
             is_active: s.is_active,
+            custom_image_url: s.customImageUrl || null,
           })),
         }),
       });
@@ -346,15 +389,55 @@ export default function AdminBillboardPage() {
             </span>
 
             {/* Product image */}
-            <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted shrink-0">
+            <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted shrink-0 group/img">
               <Image
-                src={slot.imageUrl || '/placeholder.svg'}
+                src={slot.customImageUrl || slot.imageUrl || '/placeholder.svg'}
                 alt={slot.name}
                 fill
                 className="object-cover"
                 sizes="56px"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/placeholder.svg'; }}
               />
+              {/* Upload overlay */}
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                <label
+                  className="cursor-pointer text-white"
+                  title="Upload custom image"
+                >
+                  {uploadingIndex === index ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    ref={(el) => { fileInputRefs.current[index] = el; }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleCustomImageUpload(index, f);
+                      e.target.value = '';
+                    }}
+                    disabled={uploadingIndex !== null}
+                  />
+                </label>
+                {slot.customImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => clearCustomImage(index)}
+                    className="text-red-300 hover:text-red-100"
+                    title="Remove custom image"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {slot.customImageUrl && (
+                <div className="absolute bottom-0 left-0 right-0 bg-primary/80 text-primary-foreground text-[9px] text-center py-0.5">
+                  custom
+                </div>
+              )}
             </div>
 
             {/* Product info */}

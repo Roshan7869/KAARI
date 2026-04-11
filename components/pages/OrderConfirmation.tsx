@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -44,11 +45,14 @@ interface Order {
 export default function OrderConfirmation() {
   const params = useParams();
   const orderId = params?.orderId as string | undefined;
+  const { user } = useAuth();
 
   const { data: order, isLoading } = useQuery<Order>({
     queryKey: ['order', orderId],
     queryFn: async () => {
       if (!orderId) throw new Error('No order ID');
+      if (!user?.id) throw new Error('User not authenticated');
+
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -84,8 +88,12 @@ export default function OrderConfirmation() {
           )
         `)
         .eq('id', orderId)
+        .eq('user_id', user.id) // Security: Ensure user owns this order
         .single();
+
       if (error) throw error;
+      if (!data) throw new Error('Order not found or unauthorized');
+
       return data as Order;
     },
     enabled: !!orderId,

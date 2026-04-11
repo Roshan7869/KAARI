@@ -13,7 +13,8 @@ export async function GET() {
     const supabase = await createClient();
 
     // Get wishlist items with product details
-    const { data: items, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: items, error } = await (supabase as any)
       .from('wishlist_items')
       .select(`
         id,
@@ -56,8 +57,11 @@ export async function POST(req: NextRequest) {
 
     const supabase = await createClient();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
     // Get or create user's wishlist
-    let { data: wishlist, error: wishlistError } = await supabase
+    let { data: wishlist, error: wishlistError } = await supabaseAny
       .from('wishlists')
       .select('id')
       .eq('user_id', userId)
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     // Create wishlist if it doesn't exist
     if (!wishlist) {
-      const { data: newWishlist, error: createError } = await supabase
+      const { data: newWishlist, error: createError } = await supabaseAny
         .from('wishlists')
         .insert({ user_id: userId })
         .select('id')
@@ -85,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if item is already in wishlist
-    const { data: existingItem, error: checkError } = await supabase
+    const { data: existingItem, error: checkError } = await supabaseAny
       .from('wishlist_items')
       .select('id')
       .eq('wishlist_id', wishlist.id)
@@ -101,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     if (existingItem) {
       // Remove from wishlist
-      const { error: removeError } = await supabase
+      const { error: removeError } = await supabaseAny
         .from('wishlist_items')
         .delete()
         .eq('id', existingItem.id);
@@ -114,7 +118,7 @@ export async function POST(req: NextRequest) {
       actionResult = { action: 'removed', wishlisted: false };
     } else {
       // Add to wishlist
-      const { error: addError } = await supabase
+      const { error: addError } = await supabaseAny
         .from('wishlist_items')
         .insert({
           wishlist_id: wishlist.id,

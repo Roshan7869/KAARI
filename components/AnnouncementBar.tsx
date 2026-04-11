@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Instagram } from 'lucide-react';
+import { X } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AnnouncementBar() {
   const [dismissed, setDismissed] = useState(false);
@@ -9,25 +10,36 @@ export default function AnnouncementBar() {
   if (dismissed) return null;
 
   return (
-    <div className="relative z-[60] bg-primary text-primary-foreground py-2 px-4">
-      <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 text-center">
-        <Instagram className="w-3.5 h-3.5 flex-shrink-0 opacity-80" />
-        <p className="font-body text-xs tracking-wide">
-          <span className="font-semibold">Order via Instagram DM!</span>
-          <span className="hidden sm:inline"> — DM us at </span>
-          <a
-            href="https://www.instagram.com/kaari.handmade"
+    <div
+      className="relative z-[60] overflow-hidden py-2 px-4 text-center"
+      style={{ background: 'hsl(var(--kaari-maroon-deep))' }}
+    >
+      {/* Shimmer sweep */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 w-1/4 animate-ann-sweep"
+        style={{
+          background:
+            'linear-gradient(90deg, transparent, rgba(212,175,127,0.15), transparent)',
+        }}
+      />
+
+      <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-center">
+        <p className="font-dm-sans text-[12px] tracking-wide text-gold-light/90">
+          <span className="font-semibold text-gold">Free Shipping ₹999+ &nbsp;·&nbsp;</span>
+          Custom Orders Welcome —{' '}
+          <Link
+            href="https://wa.me/919999999999"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:opacity-80 transition-opacity ml-1"
+            className="underline underline-offset-2 text-gold hover:text-gold-light transition-colors"
           >
-            @kaari.handmade
-          </a>
-          <span className="hidden sm:inline"> for custom orders &amp; availability</span>
+            WhatsApp Us
+          </Link>
         </p>
         <button
           onClick={() => setDismissed(true)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gold/50 hover:text-gold transition-colors"
           aria-label="Dismiss announcement"
         >
           <X className="w-3.5 h-3.5" />

@@ -67,7 +67,8 @@ async function processWebhookInBackground(params: {
   cashfreeSessionId: string | null;
   paymentMessage: string | undefined;
   webhookEventId: string;
-  supabase: ReturnType<typeof createAdminClient>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
 }) {
   const { event, orderId, cfPaymentId, cashfreeSessionId, paymentMessage, webhookEventId, supabase } = params;
   let eventResult: Record<string, unknown> = {};
@@ -357,7 +358,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     logger.info('Webhook verified and parsed', { event, order_id: orderId });
 
-    const supabase = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any;
 
     // ── 6. Atomic deduplication via webhook_events table ─────────────
     // All events (not just SUCCESS) are deduplicated here.

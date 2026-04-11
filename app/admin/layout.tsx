@@ -16,6 +16,10 @@ import {
   Image as ImageIcon,
   Star,
   Tv2,
+  Tag,
+  Boxes,
+  FileUp,
+  ScrollText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -37,6 +41,10 @@ const navItems: NavItem[] = [
   { label: "Orders", path: "/admin/orders", icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Customers", path: "/admin/customers", icon: <Users className="w-5 h-5" /> },
   { label: "Reviews", path: "/admin/reviews", icon: <Star className="w-5 h-5" /> },
+  { label: "Coupons", path: "/admin/coupons", icon: <Tag className="w-5 h-5" /> },
+  { label: "Inventory", path: "/admin/inventory", icon: <Boxes className="w-5 h-5" /> },
+  { label: "Import", path: "/admin/products/import", icon: <FileUp className="w-5 h-5" /> },
+  { label: "Audit Log", path: "/admin/audit", icon: <ScrollText className="w-5 h-5" /> },
   { label: "Settings", path: "/admin/settings", icon: <Settings className="w-5 h-5" /> },
 ];
 

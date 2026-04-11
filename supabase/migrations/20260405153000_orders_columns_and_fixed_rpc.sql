@@ -40,7 +40,8 @@ CREATE OR REPLACE FUNCTION create_order_from_checkout(
   p_shipping_amount         NUMERIC DEFAULT 0,
   p_shipping_provider       TEXT    DEFAULT 'INDIA_POST',
   p_shipping_provider_label TEXT    DEFAULT NULL,
-  p_checkout_session_id     UUID    DEFAULT NULL
+  p_checkout_session_id     UUID    DEFAULT NULL,
+  p_expires_at              TIMESTAMPTZ DEFAULT NULL
 )
 RETURNS TABLE (
   success         BOOLEAN,
@@ -147,7 +148,8 @@ BEGIN
     total_amount,
     shipping_provider,
     shipping_provider_label,
-    shipping_address
+    shipping_address,
+    expires_at
   ) VALUES (
     p_user_id,
     p_checkout_session_id,
@@ -167,22 +169,27 @@ BEGIN
     v_cart_total + COALESCE(p_shipping_amount, 0) + COALESCE(p_tax_amount, 0),
     p_shipping_provider,
     p_shipping_provider_label,
-    p_shipping_address
+    p_shipping_address,
+    p_expires_at
   )
   RETURNING id, order_number INTO v_order_id, v_order_number;
 
   -- ── STEP 6: Create order items + reduce stock atomically ───────────
+  -- SECURITY: Fetch fresh product prices from database to prevent price manipulation
   INSERT INTO public.order_items (
-    order_id, product_id, variant_id, quantity, unit_price, line_total
+    order_id, product_id, variant_id, quantity, unit_price, line_total, price_at_purchase
   )
   SELECT
     v_order_id,
     ci.product_id,
     ci.variant_id,
     ci.quantity,
-    ci.unit_price,
-    ci.line_total
+    COALESCE(pv.price, p.base_price, ci.unit_price),  -- Fresh price prioritizing variant > product > cart
+    ci.quantity * COALESCE(pv.price, p.base_price, ci.unit_price),  -- Fresh line total
+    COALESCE(pv.price, p.base_price, ci.unit_price)   -- Save fresh price as price_at_purchase
   FROM cart_items ci
+  JOIN products p ON p.id = ci.product_id
+  LEFT JOIN product_variants pv ON pv.id = ci.variant_id
   WHERE ci.cart_id = p_cart_id;
 
   -- Reduce stock only for non-customized items with known variants
@@ -227,6 +234,15 @@ $$ LANGUAGE plpgsql SECURITY DEFINER
    SET search_path = public;
 
 -- Grant to authenticated users only
-REVOKE ALL ON FUNCTION create_order_from_checkout(UUID,UUID,TEXT,JSONB,NUMERIC,NUMERIC,TEXT,TEXT,UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION create_order_from_checkout(UUID,UUID,TEXT,JSONB,NUMERIC,NUMERIC,TEXT,TEXT,UUID)
+REVOKE ALL ON FUNCTION create_order_from_checkout(UUID,UUID,TEXT,JSONB,NUMERIC,NUMERIC,TEXT,TEXT,UUID,TIMESTAMPTZ) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION create_order_from_checkout(UUID,UUID,TEXT,JSONB,NUMERIC,NUMERIC,TEXT,TEXT,UUID,TIMESTAMPTZ)
   TO authenticated;
+
+-- ===================================================================
+-- Cleanup: Remove superseded order creation RPCs
+-- ===================================================================
+-- create_order_from_cart (v1, from 20260314101500) — replaced by create_order_from_checkout
+DROP FUNCTION IF EXISTS public.create_order_from_cart(uuid, text, text, text, text, text, text, text, text, text, text) CASCADE;
+
+-- create_order_from_cart_limited (v2, from 20260325101500) — rate-limit wrapper, no longer needed
+DROP FUNCTION IF EXISTS public.create_order_from_cart_limited(uuid, text, text, text, text, text, text, text, text, text, text) CASCADE;

@@ -13,7 +13,7 @@ export default function PrivacyPage() {
 
           <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none text-foreground leading-relaxed">
             <p className="text-muted-foreground mb-8">
-              Last Updated: January 2026
+              Last Updated: April 2026
             </p>
 
             <section className="mb-8">
@@ -141,8 +141,7 @@ export default function PrivacyPage() {
               </p>
               <div className="mt-4 p-4 bg-muted rounded-lg">
                 <p className="text-muted-foreground">
-                  Email: <a href="mailto:privacy@kaari.in" className="text-primary">privacy@kaari.in</a><br />
-                  Phone: <a href="tel:+919999999999" className="text-primary">+91 99999 99999</a>
+                  Email: <a href="mailto:privacy@kaari.in" className="text-primary">privacy@kaari.in</a>
                 </p>
               </div>
             </section>

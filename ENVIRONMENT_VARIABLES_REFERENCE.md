@@ -27,7 +27,7 @@ Kaari Marketplace requires environment variables for different third-party servi
 ### 1. **Authentication & Database (Supabase)**
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=[HIDDEN_SECRET]
 NEXT_PUBLIC_SUPABASE_PROJECT_ID=YOUR_PROJECT_ID
 NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY              # Public (safe)
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY          # Server-side only ⚠️
@@ -55,7 +55,7 @@ SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY          # Server-side only ⚠�
 ```
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=YOUR_CLOUD_NAME
 NEXT_PUBLIC_CLOUDINARY_API_KEY=YOUR_API_KEY              # Public (safe)
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=kaari_products
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=[HIDDEN_SECRET]
 CLOUDINARY_API_KEY=YOUR_API_KEY                          # Duplicate for server
 CLOUDINARY_API_SECRET=YOUR_API_SECRET                    # Server-side only ⚠️
 ```
@@ -105,8 +105,8 @@ NEXT_PUBLIC_CASHFREE_MODE=sandbox                        # Safe for client
 ### 4. **Email Notifications (Resend)**
 
 ```
-RESEND_API_KEY=re_YOUR_RESEND_API_KEY                    # Server-side only ⚠️
-NOTIFICATIONS_FROM_EMAIL=noreply@kaari.in
+RESEND_API_KEY=[HIDDEN_SECRET]                    # Server-side only ⚠️
+NOTIFICATIONS_FROM_EMAIL=[HIDDEN_SECRET]
 ```
 
 **What it does:**
@@ -122,7 +122,7 @@ NOTIFICATIONS_FROM_EMAIL=noreply@kaari.in
 ### 5. **Rate Limiting & Caching (Upstash Redis)**
 
 ```
-UPSTASH_REDIS_REST_URL=https://YOUR_DB.upstash.io
+UPSTASH_REDIS_REST_URL=[HIDDEN_SECRET]
 UPSTASH_REDIS_REST_TOKEN=YOUR_TOKEN                      # Server-side only ⚠️
 ```
 
@@ -140,7 +140,7 @@ UPSTASH_REDIS_REST_TOKEN=YOUR_TOKEN                      # Server-side only ⚠�
 
 ```
 NEXT_PUBLIC_APP_URL=http://localhost:3000                # Local dev
-KAARI_BASE_URL=https://YOUR_VERCEL_DOMAIN.vercel.app     # Production
+KAARI_BASE_URL=[HIDDEN_SECRET]     # Production
 NEXT_PUBLIC_CASHFREE_TEST_MODE=true                      # or false
 ```
 
@@ -242,7 +242,7 @@ CASHFREE_SECRET_KEY
 
 **Solution:**
 1. Check `CLOUDINARY_API_KEY` vs `CLOUDINARY_API_SECRET`
-2. Upload preset must match: `kaari_products`
+2. Upload preset must match: `[HIDDEN_SECRET]`
 3. Verify signature validation in Edge Function
 4. Check Cloudinary upload limits
 

@@ -12,9 +12,10 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { ArrowLeft, Loader2, Plus, Trash2, Edit, ImagePlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2, Edit, ImagePlus, Star, ArrowUp, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
+import { getCloudinaryImageUrl } from '@/lib/cloudinary';
 import {
   useAdminProduct,
   useCreateProduct,
@@ -24,6 +25,8 @@ import {
   useDeleteVariant,
   useUploadProductMedia,
   useDeleteProductMedia,
+  useSetPrimaryMedia,
+  useReorderProductMedia,
   useProductCategories,
   type Product,
   type ProductInsert,
@@ -112,6 +115,8 @@ export default function AdminProductForm() {
   const deleteVariantMutation = useDeleteVariant();
   const uploadMediaMutation = useUploadProductMedia();
   const deleteMediaMutation = useDeleteProductMedia();
+  const setPrimaryMutation = useSetPrimaryMedia();
+  const reorderMutation = useReorderProductMedia();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -221,6 +226,9 @@ export default function AdminProductForm() {
           productId,
           file: pendingFiles[i],
           altText: formData.title,
+          productSlug: formData.slug,
+          category: formData.category,
+          isPrimary: i === 0, // first image is primary
         });
       } catch (error) {
         logger.error(`Error uploading image ${i + 1}:`, error);
@@ -316,6 +324,8 @@ export default function AdminProductForm() {
             productId: currentProductId,
             file,
             altText: formData.title,
+            productSlug: formData.slug,
+            category: formData.category,
           });
           // Refresh media list would be handled by the mutation invalidating the query
         } catch (error) {
@@ -449,8 +459,46 @@ export default function AdminProductForm() {
   const isLoading = isLoadingProduct && isEditing;
   const isPending = isSubmitting || createProductMutation.isPending || updateProductMutation.isPending;
 
-  // Get Supabase URL for image URLs
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/v1', '') || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // Resolve image URL — supports Cloudinary public IDs and Supabase storage paths
+  const resolveImageUrl = (filePath: string) => {
+    if (!filePath) return '';
+    if (filePath.startsWith('http')) return filePath;
+    // Cloudinary public IDs don't have a leading slash and usually contain a folder prefix
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    if (cloudName && !filePath.includes('/storage/v1/')) {
+      return getCloudinaryImageUrl(filePath, { width: 400, height: 400, quality: 'auto' });
+    }
+    // Supabase storage path fallback
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('/v1', '') || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    return `${supabaseUrl}/storage/v1/object/public/${filePath}`;
+  };
+
+  // Move image up/down in sort order
+  const handleMoveMedia = async (index: number, direction: 'up' | 'down') => {
+    const currentProductId = isEditing ? productId : savedProductId;
+    if (!currentProductId) return;
+    const newMedia = [...media];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newMedia.length) return;
+    [newMedia[index], newMedia[targetIndex]] = [newMedia[targetIndex], newMedia[index]];
+    const mediaOrder = newMedia.map((m, i) => ({ id: m.id, sort_order: i }));
+    try {
+      await reorderMutation.mutateAsync({ productId: currentProductId, mediaOrder });
+      setMedia(newMedia.map((m, i) => ({ ...m, sort_order: i })));
+    } catch (error) {
+      logger.error('Error reordering images:', error);
+    }
+  };
+
+  const handleSetPrimary = async (mediaItem: ProductMedia) => {
+    const currentProductId = isEditing ? productId : savedProductId;
+    if (!currentProductId) return;
+    try {
+      await setPrimaryMutation.mutateAsync({ mediaId: mediaItem.id, productId: currentProductId });
+    } catch (error) {
+      logger.error('Error setting primary image:', error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -590,24 +638,67 @@ export default function AdminProductForm() {
               {media.map((item, index) => (
                 <div key={item.id} className="relative group aspect-square rounded-lg overflow-hidden border">
                   <Image
-                    src={`${supabaseUrl}/storage/v1/object/public/${item.file_path}`}
+                    src={resolveImageUrl(item.file_path)}
                     alt={item.alt_text || `Product image ${index + 1}`}
                     fill
                     className="object-cover"
                     sizes="(max-width: 768px) 50vw, 25vw"
                   />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      type="button"
-                      onClick={() => handleDeleteMedia(item)}
-                      disabled={deleteMediaMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  {/* Primary badge */}
+                  {item.is_primary && (
+                    <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                      <Star className="w-2.5 h-2.5 fill-current" /> Primary
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                    {/* Set Primary */}
+                    {!item.is_primary && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => handleSetPrimary(item)}
+                        disabled={setPrimaryMutation.isPending}
+                        className="text-xs h-7 px-2 bg-white/90 hover:bg-white text-black"
+                      >
+                        <Star className="w-3 h-3 mr-1" /> Set Primary
+                      </Button>
+                    )}
+                    {/* Reorder */}
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        type="button"
+                        onClick={() => handleMoveMedia(index, 'up')}
+                        disabled={index === 0 || reorderMutation.isPending}
+                        className="h-7 w-7 bg-white/90 hover:bg-white text-black"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        type="button"
+                        onClick={() => handleMoveMedia(index, 'down')}
+                        disabled={index === media.length - 1 || reorderMutation.isPending}
+                        className="h-7 w-7 bg-white/90 hover:bg-white text-black"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        type="button"
+                        onClick={() => handleDeleteMedia(item)}
+                        disabled={deleteMediaMutation.isPending}
+                        className="h-7 w-7"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                  <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
                     {index + 1}
                   </div>
                 </div>

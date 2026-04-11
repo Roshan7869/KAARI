@@ -8,6 +8,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 // Get Supabase client
 const getSupabaseClient = () => {
@@ -95,7 +96,7 @@ export async function loadCashfreeSDK(): Promise<void> {
     script.crossOrigin = 'anonymous';
 
     script.onload = () => {
-      console.log('Cashfree SDK loaded successfully');
+      logger.info('Cashfree SDK loaded successfully');
       resolve();
     };
 
@@ -140,7 +141,7 @@ export async function initializeCashfreePayment(config: CashfreeSDKConfig): Prom
     const dropConfig = {
       components: ['upi'], // UPI only
       onSuccess: (data: CashfreeSDKResponse) => {
-        console.log('Payment successful:', data);
+        logger.info('Payment successful', { data });
         return data;
       },
       onFailure: (data: CashfreeSDKResponse) => {
@@ -148,7 +149,7 @@ export async function initializeCashfreePayment(config: CashfreeSDKConfig): Prom
         throw new Error(data.payment_status || 'Payment failed');
       },
       onClose: () => {
-        console.log('Payment modal closed');
+        logger.info('Payment modal closed');
       },
     };
 

@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ProductGrid from "@/components/products/ProductGrid";
 import CrochetDivider from "@/components/CrochetDivider";
 import KaariFooter from "@/components/KaariFooter";
 import Navbar from "@/components/Navbar";
+import { ProductGridSkeleton } from "@/components/skeletons/BillboardSkeleton";
 
 // ISR: revalidate product listing every 60 seconds
 export const revalidate = 60;
@@ -13,7 +15,9 @@ export default function ProductsPage() {
       <Navbar />
       <div className="pt-16">
         <ErrorBoundary componentName="Product Grid">
-          <ProductGrid />
+          <Suspense fallback={<ProductGridSkeleton count={9} />}>
+            <ProductGrid />
+          </Suspense>
         </ErrorBoundary>
         <CrochetDivider />
         <ErrorBoundary componentName="Footer">

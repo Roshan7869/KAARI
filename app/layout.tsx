@@ -1,10 +1,14 @@
 import { Metadata } from "next";
-import { Playfair_Display, Cormorant_Garamond, Inter } from "next/font/google";
+import { Playfair_Display, Cormorant_Garamond, Inter, DM_Sans, Noto_Serif_Devanagari } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "./providers";
 import { WhatsAppButton } from "@/components/ui/WhatsAppButton";
+import AnnouncementBar from "@/components/AnnouncementBar";
+import Navbar from "@/components/Navbar";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -27,6 +31,20 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
   weight: ["300", "400", "500", "600"],
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  display: "swap",
+  weight: ["300", "400", "500"],
+});
+
+const notoDevanagari = Noto_Serif_Devanagari({
+  subsets: ["devanagari"],
+  variable: "--font-devanagari",
+  display: "swap",
+  weight: ["400", "600", "700"],
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in'
@@ -110,10 +128,17 @@ export default async function RootLayout({
   const nonce = headersList.get('x-nonce') ?? '';
 
   return (
-    <html lang="en" className={`${playfair.variable} ${cormorant.variable} ${inter.variable}`}>
+    <html lang="en" className={`${playfair.variable} ${cormorant.variable} ${inter.variable} ${dmSans.variable} ${notoDevanagari.variable}`}>
       <head>
         <link rel="canonical" href={APP_URL} />
         <link rel="alternate" href={`${APP_URL}/sitemap.xml`} type="application/xml" title="Sitemap" />
+        {/* PWA */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#8B1F2A" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Kaari" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <script
           nonce={nonce}
           type="application/ld+json"
@@ -124,9 +149,15 @@ export default async function RootLayout({
       </head>
       <body className={`${inter.className} antialiased`}>
         <ClerkProvider>
-          <Providers>{children}</Providers>
+          <Providers>
+            <AnnouncementBar />
+            <Navbar />
+            {children}
+          </Providers>
           <WhatsAppButton />
         </ClerkProvider>
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

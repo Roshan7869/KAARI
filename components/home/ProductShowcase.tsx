@@ -4,9 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, useInView } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, Heart } from 'lucide-react';
 import type { ShowcaseProduct } from '@/lib/queries/top-products';
 
 interface Props {
@@ -17,6 +15,13 @@ function ProductCard({ product, index }: { product: ShowcaseProduct; index: numb
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-60px' });
 
+  const tagStyle =
+    product.tag?.toLowerCase() === 'new'
+      ? 'bg-maroon text-gold-light'
+      : product.tag?.toLowerCase() === 'hot'
+        ? 'bg-orange-600 text-white'
+        : 'bg-maroon/80 text-gold-light';
+
   return (
     <motion.div
       ref={ref}
@@ -26,11 +31,11 @@ function ProductCard({ product, index }: { product: ShowcaseProduct; index: numb
     >
       <Link
         href={`/products/${product.slug}`}
-        className="group block rounded-2xl overflow-hidden border border-stone-200 bg-white hover:shadow-xl transition-all duration-300"
+        className="group block rounded-2xl overflow-hidden border border-maroon/[0.06] bg-ivory hover:shadow-xl transition-all duration-300"
         aria-label={`View ${product.name} — ₹${product.price.toLocaleString('en-IN')}`}
       >
         {/* Image */}
-        <div className="relative aspect-[4/5] overflow-hidden bg-stone-100">
+        <div className="relative aspect-[4/5] overflow-hidden bg-cream-warm">
           <Image
             src={product.imageUrl || '/placeholder.svg'}
             alt={product.name}
@@ -43,14 +48,23 @@ function ProductCard({ product, index }: { product: ShowcaseProduct; index: numb
           />
 
           {product.tag && (
-            <Badge className="absolute top-3 left-3 z-10 font-body text-xs">
+            <span className={`absolute top-3 left-3 z-10 text-[10px] font-dm-sans font-semibold tracking-wider uppercase px-2.5 py-1 rounded-full ${tagStyle}`}>
               {product.tag}
-            </Badge>
+            </span>
           )}
 
-          {/* Quick view overlay on hover */}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-            <span className="w-full flex items-center justify-center gap-2 bg-white text-stone-900 rounded-xl py-2.5 font-body text-sm font-semibold">
+          {/* Wishlist button — top right on hover */}
+          <button
+            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-white"
+            aria-label={`Add ${product.name} to wishlist`}
+            onClick={(e) => e.preventDefault()}
+          >
+            <Heart className="w-4 h-4 text-maroon" />
+          </button>
+
+          {/* Quick add bar — bottom on hover */}
+          <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-maroon/90 backdrop-blur-sm p-3">
+            <span className="w-full flex items-center justify-center gap-2 text-gold-light font-dm-sans text-xs font-semibold tracking-wider uppercase">
               <ShoppingBag className="w-4 h-4" aria-hidden="true" />
               Quick View
             </span>
@@ -58,11 +72,11 @@ function ProductCard({ product, index }: { product: ShowcaseProduct; index: numb
         </div>
 
         {/* Info */}
-        <div className="p-4 space-y-1">
-          <h3 className="font-body font-semibold text-stone-800 leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+        <div className="p-4 space-y-1.5">
+          <h3 className="font-dm-sans font-semibold text-maroon-deep leading-snug line-clamp-2 group-hover:text-maroon transition-colors text-sm">
             {product.name}
           </h3>
-          <p className="font-display font-bold text-lg text-primary">
+          <p className="font-cormorant font-bold text-lg text-maroon">
             ₹{product.price.toLocaleString('en-IN')}
           </p>
         </div>
@@ -83,16 +97,19 @@ export function ProductShowcase({ products }: Props) {
       {/* Header */}
       <div className="flex items-end justify-between mb-10">
         <div>
-          <p className="font-body text-sm text-stone-400 uppercase tracking-widest mb-2">
+          <p className="font-dm-sans text-xs text-maroon/50 uppercase tracking-[0.25em] mb-2">
             Handcrafted for you
           </p>
-          <h2 className="font-display text-3xl md:text-4xl text-stone-800">
+          <h2 className="font-cormorant text-3xl md:text-4xl text-maroon-deep font-semibold">
             Our Collection
           </h2>
         </div>
-        <Button variant="outline" asChild className="hidden sm:flex rounded-full font-body">
-          <Link href="/products">View All →</Link>
-        </Button>
+        <Link
+          href="/products"
+          className="hidden sm:inline-flex h-10 px-6 rounded-full border border-maroon/15 text-maroon font-dm-sans text-xs tracking-wider uppercase items-center gap-1.5 hover:bg-maroon hover:text-white transition-all duration-300"
+        >
+          View All →
+        </Link>
       </div>
 
       {/* Grid */}
@@ -110,9 +127,12 @@ export function ProductShowcase({ products }: Props) {
 
       {/* Mobile view-all */}
       <div className="mt-10 flex justify-center sm:hidden">
-        <Button variant="outline" asChild className="rounded-full w-full max-w-xs font-body">
-          <Link href="/products">View All Products →</Link>
-        </Button>
+        <Link
+          href="/products"
+          className="w-full max-w-xs h-11 rounded-full border border-maroon/15 text-maroon font-dm-sans text-xs tracking-wider uppercase flex items-center justify-center hover:bg-maroon hover:text-white transition-all duration-300"
+        >
+          View All Products →
+        </Link>
       </div>
     </section>
   );

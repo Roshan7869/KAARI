@@ -586,6 +586,7 @@ export type Database = {
           alt_text: string | null
           file_path: string
           id: string
+          is_primary: boolean
           product_id: string
           sort_order: number
         }
@@ -593,6 +594,7 @@ export type Database = {
           alt_text?: string | null
           file_path: string
           id?: string
+          is_primary?: boolean
           product_id: string
           sort_order?: number
         }
@@ -600,6 +602,7 @@ export type Database = {
           alt_text?: string | null
           file_path?: string
           id?: string
+          is_primary?: boolean
           product_id?: string
           sort_order?: number
         }
@@ -663,43 +666,58 @@ export type Database = {
       products: {
         Row: {
           allow_customization: boolean
+          average_rating: number | null
           base_price: number
           category: string | null
+          compare_at_price: number | null
           created_at: string
           currency: string
           description: string | null
           id: string
           is_active: boolean
           product_type: string
+          review_count: number
+          season_tag: string | null
           slug: string
+          sold_count: number
           title: string
           updated_at: string
         }
         Insert: {
           allow_customization?: boolean
+          average_rating?: number | null
           base_price: number
           category?: string | null
+          compare_at_price?: number | null
           created_at?: string
           currency?: string
           description?: string | null
           id?: string
           is_active?: boolean
           product_type: string
+          review_count?: number
+          season_tag?: string | null
           slug: string
+          sold_count?: number
           title: string
           updated_at?: string
         }
         Update: {
           allow_customization?: boolean
+          average_rating?: number | null
           base_price?: number
           category?: string | null
+          compare_at_price?: number | null
           created_at?: string
           currency?: string
           description?: string | null
           id?: string
           is_active?: boolean
           product_type?: string
+          review_count?: number
+          season_tag?: string | null
           slug?: string
+          sold_count?: number
           title?: string
           updated_at?: string
         }

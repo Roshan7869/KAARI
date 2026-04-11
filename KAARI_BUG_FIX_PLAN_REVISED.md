@@ -50,19 +50,19 @@ CASHFREE_TEST_MODE=true
 # Cloudinary (for product images)
 # Get from: https://console.cloudinary.com
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
-NEXT_PUBLIC_CLOUDINARY_API_KEY=462322952618421
-CLOUDINARY_API_KEY=462322952618421
+NEXT_PUBLIC_CLOUDINARY_API_KEY=[HIDDEN_SECRET]
+CLOUDINARY_API_KEY=[HIDDEN_SECRET]
 CLOUDINARY_API_SECRET=your_cloud_name_secret
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=kaari_products
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=[HIDDEN_SECRET]
 
 # Upstash Redis (optional for local — gracefully degrades without it)
 # Get from: https://console.upstash.com
-# UPSTASH_REDIS_REST_URL=https://YOUR_DB.upstash.io
+# UPSTASH_REDIS_REST_URL=[HIDDEN_SECRET]
 # UPSTASH_REDIS_REST_TOKEN=AXXXxxxxxxxxxx
 
 # Resend (email, optional for local)
 # RESEND_API_KEY=re_xxxxx
-# NOTIFICATIONS_FROM_EMAIL=noreply@kaari.in
+# NOTIFICATIONS_FROM_EMAIL=[HIDDEN_SECRET]
 
 # Instagram (optional, can be empty)
 # INSTAGRAM_BUSINESS_ACCOUNT_ID=

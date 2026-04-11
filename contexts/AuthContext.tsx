@@ -28,6 +28,7 @@ interface AuthContextType {
   user: AuthUser | null;
   session: null;
   loading: boolean;
+  isLoaded: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -97,6 +98,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         session: null,
         loading: !isLoaded,
+        isLoaded,
         isAdmin,
         signIn,
         signUp,

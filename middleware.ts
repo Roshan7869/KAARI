@@ -31,7 +31,7 @@ function isSafeRedirectPath(path: string): boolean {
 function buildCsp(nonce: string): string {
   return [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
     `img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://img.clerk.com`,
@@ -39,7 +39,7 @@ function buildCsp(nonce: string): string {
     `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev`,
     `object-src 'none'`,
     `base-uri 'self'`,
-    `form-action 'self'`,
+    `form-action 'self' https://*.clerk.accounts.dev`,
     `upgrade-insecure-requests`,
   ].join('; ')
 }

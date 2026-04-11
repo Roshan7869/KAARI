@@ -3,6 +3,8 @@
  * Production-ready GTM integration with Next.js
  */
 
+import { logger } from '@/lib/logger';
+
 declare global {
   interface Window {
     dataLayer?: Record<string, unknown>[];
@@ -43,7 +45,7 @@ export function initGTM(measurementId: string): void {
   gtag('js', new Date());
   gtag('config', measurementId);
 
-  console.log('✅ Google Tag Manager initialized:', measurementId);
+  logger.info('✅ Google Tag Manager initialized:', { measurementId });
 }
 
 /**

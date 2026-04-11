@@ -1,0 +1,62 @@
+- generic [active] [ref=e1]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - img "Hero background texture" [ref=e5]
+      - generic [ref=e8]:
+        - img "Kaari Handmade Logo" [ref=e11]
+        - heading "कारी" [level=1] [ref=e12]
+        - paragraph [ref=e13]: Handmade Crochet Collection
+        - paragraph [ref=e14]: प्यार से बुनी गई खास डिज़ाइन्स — Unique designs woven with love
+        - generic [ref=e15]:
+          - link "Explore Collection" [ref=e16] [cursor=pointer]:
+            - /url: /products
+          - link "View Instagram" [ref=e17] [cursor=pointer]:
+            - /url: https://www.instagram.com/kaari.handmade
+      - generic [ref=e20]: Scroll
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - paragraph [ref=e28]: Shop Handmade
+        - heading "Our Crochet Collection" [level=1] [ref=e29]
+        - paragraph [ref=e30]: Each piece is lovingly handcrafted by skilled Indian artisans using premium yarn
+      - generic [ref=e31]:
+        - button "All" [ref=e32] [cursor=pointer]
+        - button "Crochet Handbags" [ref=e33] [cursor=pointer]
+        - button "Crochet Gajra" [ref=e34] [cursor=pointer]
+        - button "Crochet Dolls" [ref=e35] [cursor=pointer]
+        - button "Crochet Keychains" [ref=e36] [cursor=pointer]
+        - button "Crochet Accessories" [ref=e37] [cursor=pointer]
+      - generic [ref=e38]:
+        - searchbox "Search products" [ref=e39]
+        - combobox "Sort products" [ref=e40]:
+          - 'option "Sort: Featured" [selected]'
+          - 'option "Price: Low to High"'
+          - 'option "Price: High to Low"'
+          - 'option "Name: A to Z"'
+    - generic [ref=e66]:
+      - img "Dark wool texture" [ref=e68]
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - generic [ref=e72]:
+            - img "Kaari Logo" [ref=e74]
+            - heading "कारी" [level=3] [ref=e75]
+            - paragraph [ref=e76]: Kaari Handmade
+            - paragraph [ref=e77]: Unique designs woven with love
+          - generic [ref=e78]:
+            - heading "Contact" [level=4] [ref=e79]
+            - generic [ref=e80]:
+              - paragraph [ref=e81]:
+                - link "@kaari.handmade" [ref=e82] [cursor=pointer]:
+                  - /url: https://www.instagram.com/kaari.handmade
+              - paragraph [ref=e83]:
+                - link "9131548788" [ref=e84] [cursor=pointer]:
+                  - /url: tel:9131548788
+          - generic [ref=e85]:
+            - heading "Services" [level=4] [ref=e86]
+            - generic [ref=e87]:
+              - paragraph [ref=e88]: ✦ Online Orders Accepted
+              - paragraph [ref=e89]: ✦ Customisation Available
+        - paragraph [ref=e91]: © 2026 Kaari Handmade. All rights reserved. Crafted with ♡
+  - alert [ref=e92]

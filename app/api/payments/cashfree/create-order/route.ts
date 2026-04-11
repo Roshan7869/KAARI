@@ -30,6 +30,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       )
     }
 
+    // Validate URLs in production environment
+    if (process.env.NODE_ENV === 'production') {
+      const envAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
+      // Check if URLs are provided in payload and validate them
+      if (payload.success) {
+        const { returnUrl, notifyUrl } = payload.data;
+
+        // Ensure URLs don't point to localhost in production
+        if (returnUrl.includes('localhost') || returnUrl.includes('127.0.0.1') ||
+            notifyUrl.includes('localhost') || notifyUrl.includes('127.0.0.1')) {
+          logger.warn('Invalid localhost URL in production', {
+            returnUrl,
+            notifyUrl,
+            envAppUrl,
+            userId
+          });
+          return NextResponse.json(
+            { success: false, error: 'Invalid URLs for production environment' },
+            { status: 400 }
+          );
+        }
+
+        // If we have a configured domain, ensure URLs use it
+        if (envAppUrl && envAppUrl.length > 0) {
+          if (!returnUrl.startsWith(envAppUrl) || !notifyUrl.startsWith(envAppUrl)) {
+            logger.warn('URLs not from allowed domain', {
+              returnUrl,
+              notifyUrl,
+              envAppUrl,
+              userId
+            });
+            return NextResponse.json(
+              { success: false, error: 'URLs must be from the allowed domain' },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
     const { orderId, amount, customerName, customerEmail, customerPhone, returnUrl, notifyUrl } =
       payload.data
 
@@ -104,6 +145,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         order_amount: amount,
         order_currency: 'INR',
         order_note: `Kaari Order ${orderId.slice(0, 8)}`,
+        order_expiry_time: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes expiry
         customer_details: {
           customer_id: orderId,
           customer_name: customerName,
@@ -144,7 +186,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       customer_name: customerName,
       return_url: returnUrl,
       notify_url: notifyUrl,
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes expiry
       raw_response: responseData,
     })
 

@@ -48,7 +48,7 @@
 
 #### Next Steps:
 - Get Cloudinary credentials from https://cloudinary.com/users/register/free
-- Create unsigned upload preset "kaari_products" in Cloudinary dashboard
+- Create unsigned upload preset "[HIDDEN_SECRET]" in Cloudinary dashboard
 - Update product upload handler to use Cloudinary instead of Supabase Storage
 
 ---
@@ -182,7 +182,7 @@ matcher: [
 1. **Set up Cloudinary account**
    - Sign up at https://cloudinary.com/users/register/free
    - Get API credentials
-   - Create upload preset "kaari_products"
+   - Create upload preset "[HIDDEN_SECRET]"
 
 2. **Update product image upload handler**
    - Modify `AdminProductForm` to upload to Cloudinary

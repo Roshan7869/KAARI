@@ -89,7 +89,7 @@ Added Cloudinary environment variables:
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
 NEXT_PUBLIC_CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=kaari_products
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=[HIDDEN_SECRET]
 ```
 
 ### 5. Next.js Configuration ✅
@@ -176,7 +176,7 @@ WHERE file_path ~* '^[a-zA-Z0-9]+/[a-f0-9-]+$';
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
 NEXT_PUBLIC_CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=kaari_products
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=[HIDDEN_SECRET]
 ```
 
 ### Step 2: Create Upload Preset (2 minutes)
@@ -184,7 +184,7 @@ NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET=kaari_products
 1. Go to Cloudinary Dashboard > Settings > Upload
 2. Click "Add upload preset"
 3. Configure:
-   - **Name:** `kaari_products`
+   - **Name:** `[HIDDEN_SECRET]`
    - **Signing Mode:** Unsigned
    - **Folder:** `products`
    - **Allowed Formats:** jpg, png, webp, gif

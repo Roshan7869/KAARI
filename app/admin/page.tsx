@@ -1,13 +1,14 @@
 import { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { AdminDashboardSkeleton } from "@/components/ui/skeleton-loader";
+import { APP_URL } from "@/lib/metadata";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Kaari",
   description: "Kaari Marketplace Admin Dashboard",
   openGraph: {
     type: "website",
-    url: "https://kaari.in/admin",
+    url: `${APP_URL}/admin`,
     title: "Admin Dashboard | Kaari",
     description: "Manage products, orders, and customers",
   },

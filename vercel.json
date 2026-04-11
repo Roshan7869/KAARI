@@ -20,5 +20,15 @@
       "destination": "/order-confirmation",
       "permanent": false
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/send-emails",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-orders",
+      "schedule": "*/15 * * * *"
+    }
   ]
 }

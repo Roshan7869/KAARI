@@ -187,7 +187,7 @@ export async function sendPromotionalEmail(
   subject: string,
   html: string
 ): Promise<{ success: boolean; error?: string }> {
-  console.log('📧 Promotional email would be sent:', { customerEmail, subject });
+  logger.debug('📧 Promotional email would be sent:', { customerEmail, subject });
 
   try {
     await queueNotification({

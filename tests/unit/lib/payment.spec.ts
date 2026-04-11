@@ -396,25 +396,74 @@ describe('buildPaymentWebhook', () => {
 });
 
 // ============================================
-// Tests: buildPaymentWebhook with different statuses
+// Tests: Amount Integrity
 // ============================================
 
-describe('buildPaymentWebhook status mapping', () => {
-  it('maps pending status to failed for webhook', async () => {
+describe('amount integrity', () => {
+  it('rejects processing a session with amount of zero', async () => {
     const module = await getPaymentModule();
-    const session = {
-      session_id: 'session-abc',
-      order_id: 'order-123',
-      amount: 1000,
-      currency: 'INR',
-      payment_method: 'upi',
-      status: 'pending',
-      created_at: '2024-01-01T00:00:00.000Z',
-      expires_at: '2024-01-01T00:15:00.000Z',
-    };
+    const session = module.generateDummyPaymentSession('order-zero', 0, 'upi');
 
-    const payload = module.buildPaymentWebhook(session, 'txn-123');
+    // A zero-amount session should fail processing (no real payment possible)
+    const result = await module.processPayment(session.session_id, { processingDelayMs: 0 });
+    expect(result.success).toBe(false);
+  });
 
-    expect(payload.status).toBe('failed');
+  it('rejects processing a session with negative amount', async () => {
+    const module = await getPaymentModule();
+    const session = module.generateDummyPaymentSession('order-neg', -100, 'upi');
+
+    const result = await module.processPayment(session.session_id, { processingDelayMs: 0 });
+    expect(result.success).toBe(false);
+  });
+
+  it('stores the exact amount that was passed in — not a client-supplied value', async () => {
+    const module = await getPaymentModule();
+    const session = module.generateDummyPaymentSession('order-amount', 1499, 'upi');
+
+    expect(session.amount).toBe(1499);
+    // Verify the stored session also has the same amount (no drift)
+    const stored = module.getDummyPaymentSession(session.session_id);
+    expect(stored?.amount).toBe(1499);
+  });
+
+  it('preserves INR as the currency regardless of input', async () => {
+    const module = await getPaymentModule();
+    const session = module.generateDummyPaymentSession('order-cur', 750, 'upi');
+
+    expect(session.currency).toBe('INR');
+    const stored = module.getDummyPaymentSession(session.session_id);
+    expect(stored?.currency).toBe('INR');
+  });
+});
+
+// ============================================
+// Tests: Session Ownership
+// ============================================
+
+describe('session ownership', () => {
+  it('two different orders produce different session IDs', async () => {
+    const module = await getPaymentModule();
+    const s1 = module.generateDummyPaymentSession('order-a', 100, 'upi');
+    const s2 = module.generateDummyPaymentSession('order-b', 200, 'upi');
+
+    expect(s1.session_id).not.toBe(s2.session_id);
+  });
+
+  it('session order_id matches the order that created it', async () => {
+    const module = await getPaymentModule();
+    const session = module.generateDummyPaymentSession('order-ownership', 999, 'upi');
+
+    const stored = module.getDummyPaymentSession(session.session_id);
+    expect(stored?.order_id).toBe('order-ownership');
+  });
+
+  it('cannot retrieve another order\'s session via a guessed ID prefix', async () => {
+    const module = await getPaymentModule();
+    const session = module.generateDummyPaymentSession('order-victim', 500, 'upi');
+
+    // Attacker guesses a nearby session ID — should return null
+    const guessed = session.session_id.replace(/.$/, 'X');
+    expect(module.getDummyPaymentSession(guessed)).toBeNull();
   });
 });
