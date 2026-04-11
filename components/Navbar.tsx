@@ -73,7 +73,8 @@ export default function Navbar() {
               className="w-8 h-8 rounded-full flex items-center justify-center ring-2 flex-shrink-0"
               style={{
                 background: 'hsl(var(--kaari-maroon))',
-                ringColor: 'hsl(var(--kaari-gold) / 0.35)',
+                // ringColor is not a standard CSS property; use boxShadow for ring effect
+                boxShadow: '0 0 0 2px hsl(var(--kaari-gold) / 0.35)',
               }}
             >
               <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" aria-hidden>

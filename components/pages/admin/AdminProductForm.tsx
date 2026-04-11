@@ -138,6 +138,26 @@ export default function AdminProductForm() {
   const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
   const [variantForm, setVariantForm] = useState<VariantFormData>(emptyVariantForm);
 
+  // Display options state (mapped to product_display_controls DB columns)
+  const [displayOpts, setDisplayOpts] = useState({
+    hasSizeSelector: false,
+    sizeOptions: [] as string[],
+    sizeInput: '',
+    hasColorSelector: false,
+    colorOptions: [] as Array<{ name: string; hex: string }>,
+    colorInput: '',
+    colorHex: '#8B1F2A',
+    trustBadgesMode: 'default' as 'default' | 'custom',
+    customBadges: [
+      { icon: '🧶', label: '100% Handmade' },
+      { icon: '🚚', label: 'Free Ship ₹999+' },
+      { icon: '🔒', label: 'Secure UPI' },
+    ],
+    showRelatedProducts: true,
+    whatsappCtaUrl: '',
+    adminNote: '',
+  });
+
   // Media state
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -165,6 +185,21 @@ export default function AdminProductForm() {
       setVariants(productData.variants || []);
       setMedia(productData.media || []);
       setIsSlugManuallyEdited(true);
+      // Load display options (new columns — available after migration)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pd = (productData as unknown) as Record<string, unknown>;
+      setDisplayOpts((prev) => ({
+        ...prev,
+        hasSizeSelector: Boolean(pd.has_size_selector ?? false),
+        sizeOptions: (pd.size_options as string[]) ?? [],
+        hasColorSelector: Boolean(pd.has_color_selector ?? false),
+        colorOptions: (pd.color_options as Array<{ name: string; hex: string }>) ?? [],
+        trustBadgesMode: pd.trust_badges_config ? 'custom' : 'default',
+        customBadges: (pd.trust_badges_config as typeof prev.customBadges) ?? prev.customBadges,
+        showRelatedProducts: (pd.show_related_products as boolean) ?? true,
+        whatsappCtaUrl: (pd.whatsapp_cta_url as string) ?? '',
+        adminNote: (pd.admin_note as string) ?? '',
+      }));
     }
   }, [productData]);
 
@@ -251,7 +286,7 @@ export default function AdminProductForm() {
     setIsSubmitting(true);
 
     try {
-      const productDataToSave: ProductInsert = {
+      const productDataToSave = {
         title: formData.title.trim(),
         slug: formData.slug.trim(),
         description: formData.description.trim() || null,
@@ -261,7 +296,16 @@ export default function AdminProductForm() {
         allow_customization: formData.allowCustomization,
         is_active: formData.isActive,
         currency: 'INR',
-      };
+        // Display options (new product_display_controls columns)
+        has_size_selector: displayOpts.hasSizeSelector,
+        size_options: displayOpts.sizeOptions,
+        has_color_selector: displayOpts.hasColorSelector,
+        color_options: displayOpts.colorOptions,
+        trust_badges_config: displayOpts.trustBadgesMode === 'custom' ? displayOpts.customBadges : null,
+        show_related_products: displayOpts.showRelatedProducts,
+        whatsapp_cta_url: displayOpts.whatsappCtaUrl.trim() || null,
+        admin_note: displayOpts.adminNote.trim() || null,
+      } as ProductInsert;
 
       let savedProduct: Product;
 
@@ -833,6 +877,209 @@ export default function AdminProductForm() {
                 No variants added yet. Products without variants will use base price and stock.
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Display Options */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display">Display Options</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+
+            {/* Size Selector */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Size Selector</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Leave off for most crochet items — only enable if this product has distinct sizes</p>
+                </div>
+                <Switch
+                  checked={displayOpts.hasSizeSelector}
+                  onCheckedChange={(v) => setDisplayOpts((p) => ({ ...p, hasSizeSelector: v }))}
+                />
+              </div>
+              {displayOpts.hasSizeSelector && (
+                <div className="space-y-2 pl-1">
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayOpts.sizeOptions.map((s) => (
+                      <span key={s} className="inline-flex items-center gap-1 bg-stone-100 px-2.5 py-1 rounded text-sm">
+                        {s}
+                        <button
+                          type="button"
+                          onClick={() => setDisplayOpts((p) => ({ ...p, sizeOptions: p.sizeOptions.filter((x) => x !== s) }))}
+                          className="text-muted-foreground hover:text-destructive ml-1"
+                        >✕</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add size (e.g. S, M, L or Petite) — press Enter"
+                      value={displayOpts.sizeInput}
+                      onChange={(e) => setDisplayOpts((p) => ({ ...p, sizeInput: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          const v = displayOpts.sizeInput.trim();
+                          if (v && !displayOpts.sizeOptions.includes(v))
+                            setDisplayOpts((p) => ({ ...p, sizeOptions: [...p.sizeOptions, v], sizeInput: '' }));
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const v = displayOpts.sizeInput.trim();
+                        if (v && !displayOpts.sizeOptions.includes(v))
+                          setDisplayOpts((p) => ({ ...p, sizeOptions: [...p.sizeOptions, v], sizeInput: '' }));
+                      }}
+                    >Add</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Color Selector */}
+            <div className="space-y-3 border-t pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Colour Selector</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Show colour swatches on the product page</p>
+                </div>
+                <Switch
+                  checked={displayOpts.hasColorSelector}
+                  onCheckedChange={(v) => setDisplayOpts((p) => ({ ...p, hasColorSelector: v }))}
+                />
+              </div>
+              {displayOpts.hasColorSelector && (
+                <div className="space-y-2 pl-1">
+                  <div className="flex flex-wrap gap-2">
+                    {displayOpts.colorOptions.map((c) => (
+                      <div key={c.name} className="flex items-center gap-1.5 bg-stone-100 px-2 py-1 rounded text-sm">
+                        <span className="w-4 h-4 rounded-full border border-stone-300 flex-shrink-0" style={{ background: c.hex }} />
+                        <span>{c.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setDisplayOpts((p) => ({ ...p, colorOptions: p.colorOptions.filter((x) => x.name !== c.name) }))}
+                          className="text-muted-foreground hover:text-destructive ml-1"
+                        >✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="color"
+                      value={displayOpts.colorHex}
+                      onChange={(e) => setDisplayOpts((p) => ({ ...p, colorHex: e.target.value }))}
+                      className="w-9 h-9 rounded border border-stone-300 cursor-pointer"
+                      title="Pick colour"
+                    />
+                    <Input
+                      placeholder="Colour name (e.g. Dusty Rose)"
+                      value={displayOpts.colorInput}
+                      onChange={(e) => setDisplayOpts((p) => ({ ...p, colorInput: e.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const name = displayOpts.colorInput.trim();
+                        if (!name || displayOpts.colorOptions.find((c) => c.name === name)) return;
+                        setDisplayOpts((p) => ({
+                          ...p,
+                          colorOptions: [...p.colorOptions, { name, hex: p.colorHex }],
+                          colorInput: '',
+                        }));
+                      }}
+                    >Add</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Trust Badges */}
+            <div className="space-y-3 border-t pt-5">
+              <Label className="font-medium">Trust Badges</Label>
+              <div className="flex gap-6">
+                {(['default', 'custom'] as const).map((mode) => (
+                  <label key={mode} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="trustBadgesMode"
+                      value={mode}
+                      checked={displayOpts.trustBadgesMode === mode}
+                      onChange={() => setDisplayOpts((p) => ({ ...p, trustBadgesMode: mode }))}
+                      className="accent-[#8B1F2A]"
+                    />
+                    <span className="text-sm">{mode === 'default' ? 'Use site defaults' : 'Custom for this product'}</span>
+                  </label>
+                ))}
+              </div>
+              {displayOpts.trustBadgesMode === 'custom' && (
+                <div className="space-y-2 pl-1">
+                  {displayOpts.customBadges.map((b, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <Input
+                        placeholder="Icon (emoji)"
+                        value={b.icon}
+                        onChange={(e) => setDisplayOpts((p) => {
+                          const next = [...p.customBadges];
+                          next[i] = { ...next[i], icon: e.target.value };
+                          return { ...p, customBadges: next };
+                        })}
+                        className="w-20"
+                      />
+                      <Input
+                        placeholder="Label text"
+                        value={b.label}
+                        onChange={(e) => setDisplayOpts((p) => {
+                          const next = [...p.customBadges];
+                          next[i] = { ...next[i], label: e.target.value };
+                          return { ...p, customBadges: next };
+                        })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Related Products */}
+            <div className="flex items-center justify-between border-t pt-5">
+              <div>
+                <Label className="font-medium">Show Related Products</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">"You May Also Love" section at page bottom</p>
+              </div>
+              <Switch
+                checked={displayOpts.showRelatedProducts}
+                onCheckedChange={(v) => setDisplayOpts((p) => ({ ...p, showRelatedProducts: v }))}
+              />
+            </div>
+
+            {/* WhatsApp CTA URL */}
+            <div className="space-y-2 border-t pt-5">
+              <Label className="font-medium">Custom WhatsApp CTA URL</Label>
+              <p className="text-xs text-muted-foreground">Override the default WhatsApp link for this product only. Leave blank to use the global number.</p>
+              <Input
+                placeholder="https://wa.me/919876543210?text=Hi+about+this+item"
+                value={displayOpts.whatsappCtaUrl}
+                onChange={(e) => setDisplayOpts((p) => ({ ...p, whatsappCtaUrl: e.target.value }))}
+              />
+            </div>
+
+            {/* Admin Note */}
+            <div className="space-y-2 border-t pt-5">
+              <Label className="font-medium">Admin Note <span className="font-normal text-muted-foreground text-xs">(internal — not shown to customers)</span></Label>
+              <Textarea
+                placeholder="Any notes about this product for the team..."
+                value={displayOpts.adminNote}
+                onChange={(e) => setDisplayOpts((p) => ({ ...p, adminNote: e.target.value }))}
+                rows={3}
+              />
+            </div>
+
           </CardContent>
         </Card>
 

@@ -1,17 +1,15 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SlidersHorizontal, Search, LayoutGrid, List } from 'lucide-react';
+import { SlidersHorizontal, LayoutGrid, List } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import ProductCard, { type GridProduct } from './ProductCard';
 import FilterDrawer, { type FilterState } from './FilterDrawer';
 import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
 import { categories, getProductsByCategory, type Category, type Product } from '@/data/products';
 import { supabase } from '@/lib/supabase/client';
-import { sanitizeTextInput } from '@/lib/sanitization';
 import { resolveProductImageUrl } from '@/lib/product-media';
-import { useSearchSuggestions } from '@/hooks/useSearchSuggestions';
 
 type SortOption = 'featured' | 'newest' | 'most_popular' | 'best_rated' | 'price_low_high' | 'price_high_low' | 'name_az';
 type ViewMode = 'grid' | 'list';
@@ -60,7 +58,6 @@ export default function ProductGrid() {
     const cat = searchParams.get('cat');
     return (categories.includes(cat as Category) ? cat : 'All') as Category;
   });
-  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [sortBy, setSortBy] = useState<SortOption>(
     () => (searchParams.get('sort') as SortOption) ?? 'featured'
   );
@@ -69,18 +66,14 @@ export default function ProductGrid() {
   const [drawerFilters, setDrawerFilters] = useState<FilterState>(DEFAULT_DRAWER_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(DEFAULT_DRAWER_FILTERS);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
   const [useDatabase, setUseDatabase] = useState(false);
+  const search = searchParams.get('search') ?? '';
   const pageSize = 9;
-
-  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Sync state → URL (replace, no scroll)
   useEffect(() => {
     const params = new URLSearchParams();
     if (active !== 'All') params.set('cat', active);
-    if (search) params.set('q', search);
     if (sortBy !== 'featured') params.set('sort', sortBy);
     if (page > 1) params.set('page', String(page));
 
@@ -182,12 +175,7 @@ export default function ProductGrid() {
   const isLoading = useDatabase && dbLoading;
 
   const filteredAndSortedProducts = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-
-    let filtered =
-      normalizedSearch.length === 0
-        ? products
-        : products.filter((p) => p.title.toLowerCase().includes(normalizedSearch));
+    let filtered = products;
 
     // Applied drawer filters
     if (appliedFilters.maxPrice < DEFAULT_MAX_PRICE)
@@ -212,7 +200,7 @@ export default function ProductGrid() {
     if (sortBy === 'best_rated') return [...filtered].sort((a, b) => (b.average_rating ?? 0) - (a.average_rating ?? 0));
 
     return filtered;
-  }, [products, search, sortBy, appliedFilters]);
+  }, [products, sortBy, appliedFilters]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedProducts.length / pageSize));
   const paginatedProducts = filteredAndSortedProducts.slice(
@@ -220,7 +208,7 @@ export default function ProductGrid() {
     page * pageSize
   );
 
-  useEffect(() => { setPage(1); }, [active, search, sortBy, appliedFilters]);
+  useEffect(() => { setPage(1); }, [active, sortBy, appliedFilters]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const drawerActiveCount = [
@@ -232,47 +220,8 @@ export default function ProductGrid() {
     appliedFilters.customizableOnly,
   ].filter(Boolean).length;
 
-  // Autocomplete
-  const { suggestions } = useSearchSuggestions(search);
-
-  const handleSuggestionSelect = useCallback(
-    (slug: string, type: string, title: string) => {
-      if (type === 'category') {
-        setActive(title as Category);
-        setSearch('');
-      } else {
-        router.push(`/products/${slug}`);
-      }
-      setShowSuggestions(false);
-      setActiveIndex(-1);
-    },
-    [router]
-  );
-
-  const handleSearchKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (!showSuggestions || suggestions.length === 0) return;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActiveIndex((i) => Math.min(i + 1, suggestions.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActiveIndex((i) => Math.max(i - 1, -1));
-      } else if (e.key === 'Enter' && activeIndex >= 0) {
-        e.preventDefault();
-        const s = suggestions[activeIndex];
-        handleSuggestionSelect(s.slug, s.type, s.title);
-      } else if (e.key === 'Escape') {
-        setShowSuggestions(false);
-        setActiveIndex(-1);
-      }
-    },
-    [showSuggestions, suggestions, activeIndex, handleSuggestionSelect]
-  );
-
   const handleReset = useCallback(() => {
     setActive('All');
-    setSearch('');
     setSortBy('featured');
     setDrawerFilters(DEFAULT_DRAWER_FILTERS);
     setAppliedFilters(DEFAULT_DRAWER_FILTERS);
@@ -324,7 +273,7 @@ export default function ProductGrid() {
 
           <h1 className="font-display text-4xl md:text-6xl text-white mb-4">
             Shop{' '}
-            <span className="text-amber-300">
+            <span style={{ color: '#D4AF7F' }}>
               {active === 'All' ? 'All' : active}
             </span>{' '}
             Products
@@ -339,91 +288,54 @@ export default function ProductGrid() {
         </div>
       </section>
 
-      {/* Sticky filter bar */}
-      <div className="sticky top-[60px] z-[90] bg-background/95 backdrop-blur border-b border-border">
+      {/* Sticky filter bar — order: [Filters] [cat pills] [Sort] [View toggle] */}
+      <div className="sticky top-[60px] z-[90] border-b border-[rgba(139,31,42,0.1)]" style={{ background: '#fdf0ec' }}>
         <div className="max-w-7xl mx-auto px-6 py-3">
-          {/* Scrollable category pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide mb-3">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActive(cat as Category)}
-                className={`flex-shrink-0 px-4 py-1.5 font-body text-xs tracking-[0.12em] uppercase border rounded-full transition-all duration-200 ${
-                  active === cat
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-transparent text-muted-foreground border-border hover:border-primary/60 hover:text-foreground'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+          <div className="flex items-center gap-3">
+            {/* Filters button — leftmost per design */}
+            <button
+              onClick={() => {
+                setDrawerFilters(appliedFilters);
+                setDrawerOpen(true);
+              }}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border rounded-md font-body text-xs transition-all ${
+                drawerActiveCount > 0
+                  ? 'bg-[#8B1F2A] text-white border-[#8B1F2A]'
+                  : 'border-[rgba(139,31,42,0.3)] text-[#8B1F2A] hover:border-[#8B1F2A]'
+              }`}
+              aria-label="Open filters"
+            >
+              <SlidersHorizontal size={14} aria-hidden />
+              Filters
+              {drawerActiveCount > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 bg-white text-[#8B1F2A] rounded-full text-[9px] font-bold">
+                  {drawerActiveCount}
+                </span>
+              )}
+            </button>
 
-          {/* Search + Sort + Filters + View row */}
-          <div className="flex items-center gap-2">
-            {/* Search */}
-            <div className="flex-1 relative min-w-0" ref={suggestionsRef}>
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" aria-hidden />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => {
-                  setSearch(sanitizeTextInput(e.target.value, 50));
-                  setShowSuggestions(true);
-                  setActiveIndex(-1);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Search products…"
-                className="w-full pl-8 pr-3 py-2 bg-background border border-border rounded-md font-body text-sm"
-                aria-label="Search products"
-                aria-expanded={showSuggestions && suggestions.length > 0}
-                aria-controls="search-suggestions"
-                aria-autocomplete="list"
-                role="combobox"
-              />
-
-              <AnimatePresence>
-                {showSuggestions && suggestions.length > 0 && (
-                  <motion.div
-                    id="search-suggestions"
-                    role="listbox"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute z-50 w-full top-full mt-1 bg-background border border-border rounded-md shadow-lg overflow-hidden"
-                  >
-                    {suggestions.map((s, i) => (
-                      <button
-                        key={s.id}
-                        role="option"
-                        aria-selected={i === activeIndex}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSuggestionSelect(s.slug, s.type, s.title);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${
-                          i === activeIndex ? 'bg-accent/10' : 'hover:bg-muted'
-                        } ${i > 0 ? 'border-t border-border/50' : ''}`}
-                      >
-                        <span className="font-body text-sm text-foreground truncate">{s.title}</span>
-                        <span className="font-body text-xs text-muted-foreground ml-3 flex-shrink-0">
-                          {s.type === 'product' ? `₹${s.price.toLocaleString('en-IN')}` : s.category}
-                        </span>
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            {/* Scrollable category pills — centre flex-1 */}
+            <div className="flex items-center gap-2 overflow-x-auto flex-1 scrollbar-hide">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActive(cat as Category)}
+                  className={`flex-shrink-0 px-4 py-1.5 font-body text-xs tracking-[0.12em] uppercase border rounded-full transition-all duration-200 ${
+                    active === cat
+                      ? 'bg-[#8B1F2A] text-white border-[#8B1F2A]'
+                      : 'bg-transparent text-[#5a0f18]/70 border-[rgba(139,31,42,0.25)] hover:border-[#8B1F2A] hover:text-[#8B1F2A]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
 
-            {/* Sort */}
+            {/* Sort — rightmost */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="px-3 py-2 bg-background border border-border rounded-md font-body text-xs"
+              className="flex-shrink-0 px-3 py-2 bg-transparent border border-[rgba(139,31,42,0.25)] rounded-md font-body text-xs text-[#5a0f18] hover:border-[#8B1F2A] transition-colors"
               aria-label="Sort products"
             >
               <option value="featured">Featured</option>
@@ -435,41 +347,27 @@ export default function ProductGrid() {
               <option value="name_az">Name: A → Z</option>
             </select>
 
-            {/* Filters button */}
-            <button
-              onClick={() => {
-                setDrawerFilters(appliedFilters);
-                setDrawerOpen(true);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-2 border rounded-md font-body text-xs transition-all ${
-                drawerActiveCount > 0
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-border hover:border-primary/60 hover:text-foreground'
-              }`}
-              aria-label="Open filters"
-            >
-              <SlidersHorizontal size={14} aria-hidden />
-              Filters
-              {drawerActiveCount > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 bg-primary-foreground text-primary rounded-full text-[9px] font-bold">
-                  {drawerActiveCount}
-                </span>
-              )}
-            </button>
-
             {/* View toggle */}
-            <div className="flex border border-border rounded-md overflow-hidden">
+            <div className="flex-shrink-0 flex border border-[rgba(139,31,42,0.25)] rounded-md overflow-hidden">
               <button
                 onClick={() => setViewMode('grid')}
                 aria-label="Grid view"
-                className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                className={`p-2 transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-[#8B1F2A] text-white'
+                    : 'hover:bg-[rgba(139,31,42,0.08)] text-[#5a0f18]'
+                }`}
               >
                 <LayoutGrid size={14} />
               </button>
               <button
                 onClick={() => setViewMode('list')}
                 aria-label="List view"
-                className={`p-2 transition-colors border-l border-border ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                className={`p-2 transition-colors border-l border-[rgba(139,31,42,0.25)] ${
+                  viewMode === 'list'
+                    ? 'bg-[#8B1F2A] text-white'
+                    : 'hover:bg-[rgba(139,31,42,0.08)] text-[#5a0f18]'
+                }`}
               >
                 <List size={14} />
               </button>

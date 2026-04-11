@@ -233,5 +233,5 @@ export default function CategoryGrid() {
 }
 
 function pillColors(pill: string) {
-  return pillColours[pill] ?? "bg-ivory/90 text-maroon";
+  return pillcolours[pill] ?? "bg-ivory/90 text-maroon";
 }

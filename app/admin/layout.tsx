@@ -20,6 +20,7 @@ import {
   Boxes,
   FileUp,
   ScrollText,
+  Sliders,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { label: "Inventory", path: "/admin/inventory", icon: <Boxes className="w-5 h-5" /> },
   { label: "Import", path: "/admin/products/import", icon: <FileUp className="w-5 h-5" /> },
   { label: "Audit Log", path: "/admin/audit", icon: <ScrollText className="w-5 h-5" /> },
+  { label: "Feature Controls", path: "/admin/settings/features", icon: <Sliders className="w-5 h-5" /> },
   { label: "Settings", path: "/admin/settings", icon: <Settings className="w-5 h-5" /> },
 ];
 

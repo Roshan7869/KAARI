@@ -62,9 +62,9 @@ function StarRow({ rating, count }: { rating: number; count: number }) {
               size={13}
               className={
                 isFilled
-                  ? 'fill-amber-400 text-amber-400'
+                  ? 'fill-[#D4AF7F] text-[#D4AF7F]'
                   : isHalf
-                  ? 'fill-amber-200 text-amber-400'
+                  ? 'fill-[#e8d0a0] text-[#D4AF7F]'
                   : 'text-muted-foreground/40'
               }
             />
@@ -144,7 +144,7 @@ export default function ProductCard({ product, index = 0, initialWishlisted = fa
       >
         <Link
           href={`/products/${product.slug}`}
-          className="group glass-card-cream flex flex-col cursor-pointer h-full overflow-hidden rounded-xl"
+          className="group flex flex-col cursor-pointer h-full overflow-hidden rounded-[14px] bg-[#fffbf8] border border-[rgba(139,31,42,0.06)] shadow-sm hover:shadow-md transition-shadow duration-300"
         >
           {/* Image area */}
           <div className="aspect-[4/5] overflow-hidden relative flex-shrink-0">
@@ -189,7 +189,7 @@ export default function ProductCard({ product, index = 0, initialWishlisted = fa
 
           {/* Info */}
           <div className="p-4 flex flex-col gap-1.5 flex-1">
-            <p className="font-heritage text-accent text-[10px] tracking-[0.25em] uppercase">
+            <p className="font-body text-[9px] tracking-[0.12em] uppercase text-[#8B1F2A]/65">
               {product.category}
             </p>
             <h3 className="font-display text-base text-foreground leading-snug">
@@ -238,7 +238,7 @@ export default function ProductCard({ product, index = 0, initialWishlisted = fa
     >
       <Link
         href={`/products/${staticProduct.slug}`}
-        className="group glass-card-cream flex flex-col cursor-pointer h-full overflow-hidden rounded-xl"
+        className="group flex flex-col cursor-pointer h-full overflow-hidden rounded-[14px] bg-[#fffbf8] border border-[rgba(139,31,42,0.06)] shadow-sm hover:shadow-md transition-shadow duration-300"
       >
         <div className="aspect-[4/5] overflow-hidden relative flex-shrink-0">
           <Image
@@ -269,7 +269,7 @@ export default function ProductCard({ product, index = 0, initialWishlisted = fa
         </div>
 
         <div className="p-4 flex flex-col gap-1.5 flex-1">
-          <p className="font-heritage text-accent text-[10px] tracking-[0.25em] uppercase">
+          <p className="font-body text-[9px] tracking-[0.12em] uppercase text-[#8B1F2A]/65">
             {staticProduct.category}
           </p>
           <h3 className="font-display text-base text-foreground leading-snug">

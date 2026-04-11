@@ -23,10 +23,10 @@ export default function RelatedProducts({ currentSlug }: RelatedProductsProps) {
             You May Also Like
           </p>
           <h2 className="font-display text-3xl text-foreground">
-            Related Creations
+            You May Also Love
           </h2>
         </motion.div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 md:gap-6">
           {related.map((p, i) => (
             <ProductCard key={p.slug} product={p} index={i} />
           ))}
