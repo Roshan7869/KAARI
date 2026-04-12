@@ -10,10 +10,10 @@ interface SearchModalProps {
 }
 
 const SEARCH_HINTS = [
-  { label: "Wearables", href: "/category/wearables" },
-  { label: "Crochet Bouquets", href: "/category/bouquets" },
-  { label: "Hair Clips", href: "/category/hair-accessories" },
-  { label: "Custom Orders", href: "/custom" },
+  { label: "Handbags", href: "/products?cat=Crochet Handbags" },
+  { label: "Crochet Bouquets", href: "/products?cat=Crochet Bouquet" },
+  { label: "Hair Accessories", href: "/products?cat=Crochet Hair Accessories" },
+  { label: "Keychains", href: "/products?cat=Crochet Keychains" },
 ];
 
 export default function SearchModal({ open, onClose }: SearchModalProps) {

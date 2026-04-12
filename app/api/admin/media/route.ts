@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/admin/media
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const result = await cld.api.resources(options);
     return NextResponse.json(result);
   } catch (err) {
-    console.error('[Cloudinary] List resources error:', err);
+    logger.error('[Cloudinary] List resources error:', { error: err });
     return NextResponse.json({ error: 'Failed to list Cloudinary resources' }, { status: 500 });
   }
 }

@@ -785,7 +785,7 @@ export default function ProductDetail() {
       </div>
 
       {/* ── Related Products ─────────────────────────────────────────────── */}
-      {flags['product_related_section'] && <RelatedProducts currentSlug={product.slug} />}
+      {flags['product_related_section'] && <RelatedProducts currentProductId={product.id} category={product.category ?? ''} />}
 
       {/* ── Zoom lightbox ────────────────────────────────────────────────── */}
       {zoomOpen && primaryImage && (

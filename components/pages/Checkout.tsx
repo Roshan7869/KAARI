@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase/client';
 import { z } from 'zod';
 import { sanitizeTextInput, validatePhone } from '@/lib/sanitization';
-import { generateCsrfToken, validateCsrfToken } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from '@/lib/csrf-server';
 import { TrustBadges } from '@/components/TrustBadges';
 
 // ── Courier Options ─────────────────────────────────────────────────────
@@ -71,7 +71,12 @@ export default function Checkout() {
   const [shippingProvider, setShippingProvider] = useState<CourierKey>('INDIA_POST');
   const [shippingProviderLabel, setShippingProviderLabel] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const [csrfToken] = useState(() => generateCsrfToken());
+  const [csrfToken] = useState(() => {
+    // Read CSRF token from HTTP-only cookie set by server
+    const cookies = document.cookie.split(';');
+    const csrfCookie = cookies.find(c => c.trim().startsWith(CSRF_COOKIE_NAME + '='));
+    return csrfCookie ? csrfCookie.split('=')[1] : '';
+  });
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [saveAddress, setSaveAddress] = useState(false);
@@ -215,12 +220,8 @@ export default function Checkout() {
     }
 
     if (!user || items.length === 0) return;
-    const form = e.currentTarget as HTMLFormElement;
-    const submittedCsrfToken = new FormData(form).get('csrf_token') as string | null;
-    if (!validateCsrfToken(submittedCsrfToken ?? '')) {
-      setFormError('Session validation failed. Please refresh and try again.');
-      return;
-    }
+    // CSRF token is now validated server-side via cookie + header comparison
+    // The HTTP-only cookie is set by middleware, and the header is sent in the fetch call
 
     setLoading(true);
     setIsSubmitting(true);
@@ -294,6 +295,7 @@ export default function Checkout() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
         },
         body: JSON.stringify({
           cart_id: cart.cartId,

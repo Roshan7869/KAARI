@@ -1,5 +1,9 @@
 import { logger } from '@/lib/logger';
 /**
+ * @deprecated Use lib/csrf-server.ts instead.
+ * This module provides client-side CSRF which is NOT effective for server-side validation.
+ * Server-side CSRF protection using HTTP-only cookies is now in lib/csrf-server.ts.
+ *
  * CSRF (Cross-Site Request Forgery) Protection Utilities
  * Client-side CSRF token generation and validation
  *

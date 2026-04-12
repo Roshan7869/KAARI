@@ -7,13 +7,15 @@ import { useQuery } from '@tanstack/react-query';
 import ProductCard, { type GridProduct } from './ProductCard';
 import FilterDrawer, { type FilterState } from './FilterDrawer';
 import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
-import { categories, getProductsByCategory, type Category, type Product } from '@/data/products';
 import { supabase } from '@/lib/supabase/client';
 import { resolveProductImageUrl } from '@/lib/product-media';
 import Image from 'next/image';
 
+type Category = 'All' | 'Crochet Handbags' | 'Crochet Hair Accessories' | 'Crochet Dolls' | 'Crochet Keychains' | 'Crochet Bouquet';
 type SortOption = 'featured' | 'newest' | 'most_popular' | 'best_rated' | 'price_low_high' | 'price_high_low' | 'name_az';
 type ViewMode = 'grid' | 'list';
+
+const DB_CATEGORIES: Category[] = ['All', 'Crochet Handbags', 'Crochet Hair Accessories', 'Crochet Dolls', 'Crochet Keychains', 'Crochet Bouquet'];
 
 interface DatabaseProduct extends GridProduct {
   compare_at_price?: number | null;
@@ -57,7 +59,7 @@ export default function ProductGrid() {
   // Initialise state from URL params
   const [active, setActive] = useState<Category>(() => {
     const cat = searchParams.get('cat');
-    return (categories.includes(cat as Category) ? cat : 'All') as Category;
+    return (DB_CATEGORIES.includes(cat as Category) ? cat : 'All') as Category;
   });
   const [sortBy, setSortBy] = useState<SortOption>(
     () => (searchParams.get('sort') as SortOption) ?? 'featured'
@@ -67,7 +69,6 @@ export default function ProductGrid() {
   const [drawerFilters, setDrawerFilters] = useState<FilterState>(DEFAULT_DRAWER_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(DEFAULT_DRAWER_FILTERS);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [useDatabase, setUseDatabase] = useState(false);
   const search = searchParams.get('search') ?? '';
   const pageSize = 9;
 
@@ -82,24 +83,9 @@ export default function ProductGrid() {
     router.replace(qs ? `/products?${qs}` : '/products', { scroll: false });
   }, [active, search, sortBy, page, router]);
 
-  useEffect(() => {
-    const checkDatabase = async () => {
-      try {
-        const { count } = await supabase
-          .from('products')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true);
-        setUseDatabase((count || 0) > 0);
-      } catch {
-        setUseDatabase(false);
-      }
-    };
-    checkDatabase();
-  }, []);
-
-  const { data: dbProducts = [], isLoading: dbLoading } = useQuery<DatabaseProduct[]>({
+  const { data: dbProducts = [], isLoading } = useQuery<DatabaseProduct[]>({
     queryKey: ['products', active],
-    enabled: useDatabase,
+    enabled: true,
     queryFn: async () => {
       let query = supabase
         .from('products')
@@ -135,7 +121,7 @@ export default function ProductGrid() {
         const createdDaysAgo = (Date.now() - new Date(p.created_at).getTime()) / 86400000;
         const badge: GridProduct['badge'] =
           (p.sold_count ?? 0) === 0 && !p.is_active ? 'sold_out'
-          : p.product_type === 'custom_request' ? 'custom'
+          : p.product_type === 'customized' ? 'custom'
           : createdDaysAgo < 30 ? 'new'
           : null;
         return {
@@ -157,23 +143,7 @@ export default function ProductGrid() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const staticFiltered = getProductsByCategory(active);
-  const staticProducts: DisplayProduct[] = useMemo(
-    () =>
-      staticFiltered.map((product: Product) => ({
-        slug: product.slug,
-        title: product.name,
-        price: product.price,
-        image: product.images[0],
-        category: product.category,
-        average_rating: product.rating,
-        review_count: product.reviewCount,
-      })),
-    [staticFiltered],
-  );
-
-  const products: DisplayProduct[] = useDatabase ? dbProducts : staticProducts;
-  const isLoading = useDatabase && dbLoading;
+  const products: DisplayProduct[] = dbProducts;
 
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products;
@@ -242,7 +212,7 @@ export default function ProductGrid() {
           setDrawerFilters(DEFAULT_DRAWER_FILTERS);
           setAppliedFilters(DEFAULT_DRAWER_FILTERS);
         }}
-        allCategories={categories.filter((c) => c !== 'All')}
+        allCategories={DB_CATEGORIES.filter((c) => c !== 'All')}
       />
 
       {/* Shop Hero Banner */}
@@ -317,7 +287,7 @@ export default function ProductGrid() {
 
             {/* Scrollable category pills — centre flex-1 */}
             <div className="flex items-center gap-2 overflow-x-auto flex-1 scrollbar-hide">
-              {categories.map((cat) => (
+              {DB_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActive(cat as Category)}

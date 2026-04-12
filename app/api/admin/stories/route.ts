@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/logger';
 
 // ── Auth helper ─────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ story }, { status: 201 });
 
   } catch (err: unknown) {
-    console.error('[Stories] Upload failed:', err);
+    logger.error('[Stories] Upload failed:', { error: err });
     return NextResponse.json(
       { error: 'Upload failed. Please try again.' },
       { status: 500 }
@@ -194,7 +195,7 @@ export async function DELETE(request: NextRequest) {
 
   // Delete from Cloudinary (non-fatal if it fails)
   await deleteCloudinaryAsset((story as { public_id: string }).public_id).catch((err: unknown) => {
-    console.warn('[Stories] Cloudinary delete warning:', err);
+    logger.warn('[Stories] Cloudinary delete warning:', { error: err });
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

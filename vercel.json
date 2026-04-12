@@ -24,11 +24,11 @@
   "crons": [
     {
       "path": "/api/cron/send-emails",
-      "schedule": "* * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/cleanup-orders",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

@@ -29,7 +29,7 @@ export default function AnnouncementBar() {
           <span className="font-semibold text-gold">Free Shipping ₹999+ &nbsp;·&nbsp;</span>
           Custom Orders Welcome —{' '}
           <Link
-            href="https://wa.me/919999999999"
+            href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''}`}
             target="_blank"
             rel="noopener noreferrer"
             className="underline underline-offset-2 text-gold hover:text-gold-light transition-colors"

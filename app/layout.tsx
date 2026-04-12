@@ -111,7 +111,9 @@ const siteStructuredData = {
   },
   contactPoint: {
     "@type": "ContactPoint",
-    telephone: "+91-9999999999",
+    telephone: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER
+      ? `+91-${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER.replace(/^91/, '')}`
+      : '',
     contactType: "Customer Service",
     areaServed: "IN",
     availableLanguage: ["English", "Hindi"],

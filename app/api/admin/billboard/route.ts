@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/logger';
 
 // ── GET: list all billboard slots (admin view — includes inactive) ─
 export async function GET(req: NextRequest) {
@@ -74,7 +75,7 @@ export async function PUT(req: NextRequest) {
   );
 
   if (rpcError) {
-    console.error('[Billboard] Atomic save failed:', rpcError);
+    logger.error('[Billboard] Atomic save failed:', { error: rpcError });
     return NextResponse.json(
       {
         error: 'Billboard save failed — your live homepage is unchanged. Please try again.',

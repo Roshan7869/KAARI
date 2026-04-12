@@ -1,6 +1,6 @@
 'use client';
 
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '919999999999';
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
 const WHATSAPP_MSG = encodeURIComponent('Hi! I have a question about Kaari 🌸');
 
 export function WhatsAppButton() {

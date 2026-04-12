@@ -10,7 +10,7 @@ interface WhatsAppFloatProps {
   message?: string;
 }
 
-const DEFAULT_PHONE = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '919999999999';
+const DEFAULT_PHONE = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
 const DEFAULT_MESSAGE = 'Hi! I came from your shop and have a question 🌸';
 
 export default function WhatsAppFloat({

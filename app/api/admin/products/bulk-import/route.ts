@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 const ProductRowSchema = z.object({
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
     .select('id, title, slug');
 
   if (error) {
-    console.error('Bulk import error:', error);
+    logger.error('Bulk import error:', { error });
     return NextResponse.json({ error: 'Database insert failed', details: error.message }, { status: 500 });
   }
 

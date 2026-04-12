@@ -61,10 +61,10 @@ export function trackEvent(
     window.gtag?.('event', eventName, eventData);
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Event tracked:', { eventName, eventData });
+      logger.debug('Event tracked:', { eventName, eventData });
     }
   } catch (error) {
-    console.error('GTM tracking error:', error);
+    logger.error('GTM tracking error:', { error });
   }
 }
 
@@ -100,7 +100,7 @@ export function trackPurchase(
   trackEvent('purchase', itemsData);
 
   if (process.env.NODE_ENV === 'development') {
-    console.log('💳 Purchase tracked:', { transactionId, value, itemCount: items.length });
+    logger.debug('Purchase tracked:', { transactionId, value, itemCount: items.length });
   }
 }
 
@@ -127,6 +127,6 @@ export function setUserProperties(
       ...properties,
     });
   } catch (error) {
-    console.error('GTM user properties error:', error);
+    logger.error('GTM user properties error:', { error });
   }
 }

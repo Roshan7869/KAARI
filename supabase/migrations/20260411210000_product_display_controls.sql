@@ -38,4 +38,4 @@ ALTER TABLE public.products
 -- Index for related products UUID array lookups
 CREATE INDEX IF NOT EXISTS idx_products_related_ids
   ON public.products USING gin(related_product_ids)
-  WHERE deleted_at IS NULL;
+  WHERE is_active = true;

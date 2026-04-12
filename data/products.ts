@@ -3,7 +3,7 @@
  * In Next.js, images are served from the public directory
  */
 
-export type Category = 'All' | 'Crochet Handbags' | 'Crochet Gajra' | 'Crochet Dolls' | 'Crochet Keychains' | 'Crochet Accessories';
+export type Category = 'All' | 'Crochet Handbags' | 'Crochet Hair Accessories' | 'Crochet Dolls' | 'Crochet Keychains' | 'Crochet Bouquet';
 
 export interface ProductReview {
   name: string;
@@ -29,10 +29,10 @@ export interface Product {
 export const categories: Category[] = [
   'All',
   'Crochet Handbags',
-  'Crochet Gajra',
+  'Crochet Hair Accessories',
   'Crochet Dolls',
   'Crochet Keychains',
-  'Crochet Accessories',
+  'Crochet Bouquet',
 ];
 
 // In Next.js, static assets are served from public/
@@ -42,7 +42,7 @@ export const products: Product[] = [
     slug: 'boho-sunburst-handbag',
     name: 'Boho Sunburst Handbag',
     category: 'Crochet Handbags',
-    price: 1499,
+    price: 1999,
     rating: 4.8,
     reviewCount: 24,
     description: 'A stunning handmade crochet handbag featuring a radiant sunburst pattern in warm earth tones. Each stitch is carefully crafted by our skilled artisans using premium cotton yarn that is both durable and soft to the touch.',
@@ -59,7 +59,7 @@ export const products: Product[] = [
     slug: 'floral-tote-bag',
     name: 'Floral Crochet Tote',
     category: 'Crochet Handbags',
-    price: 1899,
+    price: 1999,
     rating: 4.9,
     reviewCount: 18,
     description: 'A spacious tote bag adorned with intricate floral crochet patterns in cream and brown. Perfect for daily use or as a statement fashion piece. Lined with soft cotton fabric for added durability.',
@@ -74,8 +74,8 @@ export const products: Product[] = [
   {
     slug: 'orange-bloom-gajra',
     name: 'Orange Bloom Gajra',
-    category: 'Crochet Gajra',
-    price: 399,
+    category: 'Crochet Hair Accessories',
+    price: 299,
     rating: 4.7,
     reviewCount: 42,
     description: 'A vibrant crochet gajra featuring bright orange blooms with delicate white lace detailing. Perfect for festivals, weddings, and special occasions. Unlike fresh flowers, this gajra lasts forever.',
@@ -91,8 +91,8 @@ export const products: Product[] = [
   {
     slug: 'bridal-red-gajra',
     name: 'Bridal Red Gajra',
-    category: 'Crochet Gajra',
-    price: 599,
+    category: 'Crochet Hair Accessories',
+    price: 299,
     rating: 4.9,
     reviewCount: 31,
     description: 'An elegant bridal gajra in deep red and pristine white, handcrafted with fine crochet work. Each flower is individually crafted and assembled on a flexible thread for comfortable wearing.',
@@ -107,7 +107,7 @@ export const products: Product[] = [
     slug: 'pastel-bunny-doll',
     name: 'Pastel Bunny Doll',
     category: 'Crochet Dolls',
-    price: 799,
+    price: 999,
     rating: 4.6,
     reviewCount: 15,
     description: 'An adorable handmade amigurumi bunny doll in soft pastel pink and cream. Made with hypoallergenic cotton yarn, safe for children. Each doll is stuffed with premium polyester fiberfill.',
@@ -138,7 +138,7 @@ export const products: Product[] = [
     slug: 'unicorn-keychain',
     name: 'Unicorn Yarn Keychain',
     category: 'Crochet Keychains',
-    price: 249,
+    price: 299,
     rating: 4.5,
     reviewCount: 56,
     description: 'A colourful miniature crochet unicorn keychain with rainbow yarn tassel. A fun and unique accessory for your keys or bag. Handmade with attention to every tiny detail.',
@@ -154,7 +154,7 @@ export const products: Product[] = [
     slug: 'rainbow-flower-keychain',
     name: 'Rainbow Flower Keychain',
     category: 'Crochet Keychains',
-    price: 199,
+    price: 299,
     rating: 4.7,
     reviewCount: 38,
     description: 'A vibrant crochet flower keychain in rainbow colours with a gold-plated ring. Each petal is carefully formed to create a beautiful, long-lasting accessory.',
@@ -168,8 +168,8 @@ export const products: Product[] = [
   {
     slug: 'boho-scrunchie',
     name: 'Boho Crochet Scrunchie',
-    category: 'Crochet Accessories',
-    price: 149,
+    category: 'Crochet Hair Accessories',
+    price: 299,
     rating: 4.4,
     reviewCount: 67,
     description: 'A soft and stretchy crochet scrunchie in warm earth tones. Gentle on hair and adds a boho-chic touch to any hairstyle. Made with soft cotton-blend yarn.',

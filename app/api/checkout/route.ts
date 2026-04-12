@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
 import { applyRateLimit, applyCheckoutRateLimits } from '@/lib/server-rate-limit';
+import { validateCsrfToken } from '@/lib/csrf-server';
 
 /**
  * POST /api/checkout
@@ -31,10 +32,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // ── 0. CSRF validation (server-side) ───────────────────────────────
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
+
     const admin = createAdminClient();
 
     // ── 1. Auth ──────────────────────────────────────────────────────
-    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
@@ -72,6 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // tax_amount,
       shipping_provider,
       shipping_provider_label,
+      coupon_code,
     } = result.data;
 
     // SECURITY: Never trust client-provided amounts - always compute from cart
@@ -97,7 +104,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Compute subtotal from cart items (used for checkout_session and totals response)
     const { data: cartItems } = await admin
       .from('cart_items')
-      .select('unit_price, quantity, line_total, product_id')
+      .select('unit_price, quantity, line_total, product_id, variant_id')
       .eq('cart_id', cart_id);
 
     const subtotal: number = (cartItems || []).reduce(
@@ -110,6 +117,52 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'Cart is empty' }, { status: 400 });
     }
 
+    // ── FIX-C5: Server-side coupon validation ───────────────────────────
+    // SECURITY: Never trust client-provided discount amounts.
+    // If a coupon_code is provided, revalidate on the server and apply discount.
+    let couponDiscount = 0;
+    let validatedCouponId: string | null = null;
+
+    if (coupon_code) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: coupon, error: couponError } = await (admin as any)
+        .from('coupons')
+        .select('id, code, type, value, min_order_amount, max_discount_amount, usage_limit, usage_count, valid_from, valid_until, is_active')
+        .eq('code', coupon_code.toUpperCase().trim())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (couponError || !coupon) {
+        return NextResponse.json({ success: false, error: 'Invalid or expired coupon code' }, { status: 400 });
+      }
+
+      const now = new Date();
+      if (new Date(coupon.valid_from) > now) {
+        return NextResponse.json({ success: false, error: 'Coupon is not yet active' }, { status: 400 });
+      }
+      if (coupon.valid_until && new Date(coupon.valid_until) < now) {
+        return NextResponse.json({ success: false, error: 'Coupon has expired' }, { status: 400 });
+      }
+      if (coupon.usage_limit !== null && coupon.usage_count >= coupon.usage_limit) {
+        return NextResponse.json({ success: false, error: 'Coupon has been fully redeemed' }, { status: 400 });
+      }
+      if (subtotal < coupon.min_order_amount) {
+        return NextResponse.json({ success: false, error: `Minimum order of ₹${coupon.min_order_amount.toLocaleString('en-IN')} required for this coupon` }, { status: 400 });
+      }
+
+      // Calculate discount server-side
+      if (coupon.type === 'percentage') {
+        couponDiscount = (subtotal * coupon.value) / 100;
+        if (coupon.max_discount_amount !== null) {
+          couponDiscount = Math.min(couponDiscount, coupon.max_discount_amount);
+        }
+      } else {
+        couponDiscount = Math.min(coupon.value, subtotal);
+      }
+      couponDiscount = Math.round(couponDiscount * 100) / 100;
+      validatedCouponId = coupon.id;
+    }
+
     // SECURITY: Calculate shipping and tax from cart, NEVER from client-provided values
     // Even though we extracted shipping_amount and tax_amount from the request above,
     // we deliberately ignore them to prevent manipulation
@@ -118,7 +171,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Calculate shipping: Free for orders over ₹500, otherwise ₹99
     const shipping = subtotal > 500 ? 0 : 99;
     const tax = 0; // No tax for handmade goods in India
-    const grandTotal = subtotal + shipping + tax;
+    const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
+    const grandTotal = discountedSubtotal + shipping + tax;
 
     // ── 3.1 Validate order amount ─────────────────────────────────────
     // SECURITY: Validate minimum and maximum order amounts to prevent abuse
@@ -207,6 +261,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         tax_amount: tax,
         subtotal,
         total_amount: grandTotal,
+        coupon_id: validatedCouponId,
+        discount_amount: couponDiscount || 0,
       })
       .select('id')
       .single();
@@ -220,67 +276,99 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // SECURITY: Validate that item prices haven't been tampered with client-side
-    // ── 4. Validate individual item prices ─────────────────────────────
+    // ── 4. Validate individual item prices (including variants) ──────────
     const adminClient = createAdminClient();
     for (const item of (cartItems || [])) {
-      // Get the latest price for this item directly from the database
+      // If the cart item has a variant_id, validate against variant price
+      // Otherwise validate against product base_price
       try {
-        const { data: productData, error: productError } = await adminClient
-          .from('products')
-          .select('base_price')
-          .eq('id', item.product_id)
-          .maybeSingle();
+        let expectedPrice: number;
 
-        if (productError) {
-          logger.error('Failed to fetch product price', {
-            productId: item.product_id,
-            error: productError.message
-          });
-          continue; // Skip validation for this item if we can't fetch it
+        if (item.variant_id) {
+          // FIX-C2: Validate variant price from product_variants table
+          const { data: variantData, error: variantError } = await adminClient
+            .from('product_variants')
+            .select('price, product_id')
+            .eq('id', item.variant_id)
+            .maybeSingle();
+
+          if (variantError) {
+            logger.error('Failed to fetch variant price', {
+              variantId: item.variant_id,
+              error: variantError.message
+            });
+            continue;
+          }
+
+          if (variantData && variantData.price != null) {
+            expectedPrice = variantData.price;
+          } else {
+            // Variant not found — fall back to product base_price
+            const { data: productData } = await adminClient
+              .from('products')
+              .select('base_price')
+              .eq('id', item.product_id)
+              .maybeSingle();
+            expectedPrice = productData?.base_price ?? item.unit_price;
+          }
+        } else {
+          // No variant — validate against product base_price
+          const { data: productData, error: productError } = await adminClient
+            .from('products')
+            .select('base_price')
+            .eq('id', item.product_id)
+            .maybeSingle();
+
+          if (productError) {
+            logger.error('Failed to fetch product price', {
+              productId: item.product_id,
+              error: productError.message
+            });
+            continue;
+          }
+
+          expectedPrice = productData?.base_price ?? item.unit_price;
         }
 
-        if (productData) {
-          // For products without variants, check base_price
-          const expectedPrice = productData.base_price;
-          const actualPrice = item.unit_price;
+        const actualPrice = item.unit_price;
 
-          // Allow 1 paisa (0.01) rounding difference tolerance
-          if (Math.abs(actualPrice - expectedPrice) > 0.01) {
-            logger.warn('Security Alert: Item price mismatch', {
+        // Allow 1 paisa (0.01) rounding difference tolerance
+        if (Math.abs(actualPrice - expectedPrice) > 0.01) {
+          logger.warn('Security Alert: Item price mismatch', {
+            userId,
+            cartId: cart_id,
+            productId: item.product_id,
+            variantId: item.variant_id || null,
+            expectedPrice,
+            actualPrice,
+            difference: Math.abs(actualPrice - expectedPrice)
+          });
+
+          // Check for suspicious patterns - extremely low-value orders with many items
+          if (grandTotal <= 1.00 && (cartItems || []).length > 5) {
+            logger.warn('Security Alert: Suspicious low-value order with multiple items', {
               userId,
               cartId: cart_id,
-              productId: item.product_id,
-              expectedPrice,
-              actualPrice,
-              difference: Math.abs(actualPrice - expectedPrice)
+              totalAmount: grandTotal,
+              itemCount: (cartItems || []).length
             });
-
-            // Check for suspicious patterns - extremely low-value orders with many items
-            if (grandTotal <= 1.00 && (cartItems || []).length > 5) {
-              logger.warn('Security Alert: Suspicious low-value order with multiple items', {
-                userId,
-                cartId: cart_id,
-                totalAmount: grandTotal,
-                itemCount: (cartItems || []).length
-              });
-
-              return NextResponse.json(
-                {
-                  success: false,
-                  error: 'Your order appears suspicious. Please contact support.'
-                },
-                { status: 400 }
-              );
-            }
 
             return NextResponse.json(
               {
                 success: false,
-                error: `Price changed for an item in your cart. Please review your cart.`
+                error: 'Your order appears suspicious. Please contact support.'
               },
               { status: 400 }
             );
           }
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Price changed for an item in your cart. Please review your cart.`
+            },
+            { status: 400 }
+          );
         }
       } catch (priceError) {
         logger.error('Error validating item price', {
@@ -387,6 +475,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         orderNumber,
         totals: {
           subtotal,
+          discount: couponDiscount || 0,
           shipping,
           tax,
           grandTotal,

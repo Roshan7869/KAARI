@@ -5,13 +5,25 @@
  * Target coverage: 95%
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  validateWebhookSignature,
-  processPaymentWebhook,
-  schedulePaymentRetry,
-  getOrderPaymentStatus,
-  type WebhookProcessResult,
-} from '@/lib/webhook-utils';
+import { verifyCashfreeWebhookSignatureNode } from '@/lib/cashfree';
+
+// Alias for backward compat with tests written against the old webhook-utils API
+async function validateWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string,
+  _encoding?: string  // ignored — verifyCashfreeWebhookSignatureNode always uses base64
+): Promise<boolean> {
+  return verifyCashfreeWebhookSignatureNode(payload, signature, secret);
+}
+
+// Minimal type used in test assertions only
+type WebhookProcessResult = {
+  success: boolean;
+  orderId?: string;
+  paymentStatus?: string;
+  message?: string;
+};
 
 // Mock the logger
 vi.mock('@/lib/logger', () => ({

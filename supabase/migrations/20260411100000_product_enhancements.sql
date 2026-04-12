@@ -12,9 +12,9 @@ ALTER TABLE public.products
 -- Index for sorting by sold_count (Most Popular sort option)
 CREATE INDEX IF NOT EXISTS idx_products_sold_count
   ON public.products(sold_count DESC)
-  WHERE is_active = true AND deleted_at IS NULL;
+  WHERE is_active = true;
 
 -- Index for sorting by average_rating (Best Rated sort option)
 CREATE INDEX IF NOT EXISTS idx_products_average_rating
   ON public.products(average_rating DESC NULLS LAST)
-  WHERE is_active = true AND deleted_at IS NULL;
+  WHERE is_active = true;

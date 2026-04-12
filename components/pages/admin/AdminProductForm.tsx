@@ -512,10 +512,13 @@ export default function AdminProductForm() {
   const isLoading = isLoadingProduct && isEditing;
   const isPending = isSubmitting || createProductMutation.isPending || updateProductMutation.isPending;
 
-  // Resolve image URL — supports Cloudinary public IDs and Supabase storage paths
+  // Resolve image URL — supports local /images/ paths, Cloudinary public IDs, and Supabase storage paths
   const resolveImageUrl = (filePath: string) => {
     if (!filePath) return '';
     if (filePath.startsWith('http')) return filePath;
+    // Local static assets — return as-is for Next.js Image optimization
+    if (filePath.startsWith('/images/')) return filePath;
+    if (filePath.startsWith('/') && !filePath.startsWith('/storage')) return filePath;
     // Cloudinary public IDs don't have a leading slash and usually contain a folder prefix
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     if (cloudName && !filePath.includes('/storage/v1/')) {

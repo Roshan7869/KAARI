@@ -1,6 +1,8 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const CSRF_COOKIE_NAME = '__Host-csrf'
+
 // Route matchers
 const isProtectedRoute = createRouteMatcher([
   '/checkout',
@@ -11,6 +13,8 @@ const isProtectedRoute = createRouteMatcher([
   '/order-confirmation(.*)',
   '/orders',
   '/orders/(.*)',
+  '/wishlist',
+  '/wishlist/(.*)',
 ])
 const isAdminRoute = createRouteMatcher(['/admin', '/admin/(.*)'])
 const isAuthPage = createRouteMatcher(['/login', '/signup'])
@@ -31,8 +35,12 @@ function isSafeRedirectPath(path: string): boolean {
 function buildCsp(nonce: string): string {
   return [
     `default-src 'self'`,
+    // NOTE: 'unsafe-eval' required by Clerk SDK (uses eval internally).
+    // strict-dynamic allows trusted scripts to load further scripts.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev`,
-    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+    // NOTE: 'unsafe-inline' required by Tailwind CSS + Framer Motion dynamic styles.
+    // nonce allows CSP3 browsers to prefer nonce-based styles.
+    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
     `img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://img.clerk.com`,
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://vitals.vercel-insights.com https://*.vercel-analytics.com`,
@@ -134,6 +142,21 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   response.headers.set('Content-Security-Policy', cspHeader)
+
+  // Set CSRF cookie for checkout pages (HTTP-only, SameSite=Strict)
+  if (pathname === '/checkout' || pathname.startsWith('/checkout/')) {
+    // Web Crypto API — Edge Runtime compatible (replaces Node crypto.randomBytes)
+    const csrfBuffer = crypto.getRandomValues(new Uint8Array(32))
+    const csrfToken = Array.from(csrfBuffer, b => b.toString(16).padStart(2, '0')).join('')
+    response.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 3600,
+    })
+  }
+
   return response
 })
 

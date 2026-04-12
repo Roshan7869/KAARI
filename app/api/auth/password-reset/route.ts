@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { EmailResetSchema, PasswordResetSchema } from '@/lib/validations/auth.schema';
 import { logger } from '@/lib/logger';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { config } from '@/lib/config';
 
 /**
  * POST /api/auth/password-reset/request
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Request password reset
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.KAARI_BASE_URL?.trim() || 'http://localhost:3000'}/auth/password-reset`,
+      redirectTo: `${config.appUrl}/auth/password-reset`,
     });
 
     if (error) {

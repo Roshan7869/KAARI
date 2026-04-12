@@ -8,7 +8,7 @@ beforeAll(() => {
   }
 });
 
-import { validateWebhookSignature } from '@/lib/webhook-utils';
+import { verifyCashfreeWebhookSignatureNode as validateWebhookSignature } from '@/lib/cashfree';
 
 async function signPayload(payload: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();

@@ -11,10 +11,10 @@ import SearchModal from '@/components/SearchModal';
 
 const NAV_LINKS = [
   { label: 'Shop All', href: '/products' },
-  { label: 'Wearables', href: '/category/wearables' },
-  { label: 'Bouquets', href: '/category/bouquets' },
-  { label: 'Accessories', href: '/category/hair-accessories' },
-  { label: 'Custom Orders', href: '/custom' },
+  { label: 'Handbags', href: '/products?cat=Crochet Handbags' },
+  { label: 'Hair Accessories', href: '/products?cat=Crochet Hair Accessories' },
+  { label: 'Bouquets', href: '/products?cat=Crochet Bouquet' },
+  { label: 'Keychains', href: '/products?cat=Crochet Keychains' },
 ];
 
 export default function Navbar() {

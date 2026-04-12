@@ -1,7 +1,8 @@
 import { getServerCashfreeConfig } from '@/lib/cashfree-server'
 import { validateCashfreeConfig } from '@/lib/startup-checks'
 import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth/verify-jwt'
+import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -9,13 +10,16 @@ export const revalidate = 0
 /**
  * GET /api/health
  * Health check endpoint for monitoring, CI smoke tests, and deployment verification.
- * Returns 200 when DB is reachable, 503 when degraded.
+ *
+ * - Unauthenticated users: receive only { status, timestamp } (no internals)
+ * - Authenticated admins: receive full integration status details
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const requestStart = Date.now()
+
+  // Always perform DB check regardless of auth level
   let dbStatus: 'ok' | 'error' = 'error'
   let dbLatency = 0
-  let cashfreeConfig: Awaited<ReturnType<typeof getServerCashfreeConfig>> = null
 
   try {
     const supabase = await createClient()
@@ -26,7 +30,6 @@ export async function GET() {
       .limit(1)
       .maybeSingle()
     dbLatency = Date.now() - t0
-    // PGRST116 = "no rows" which is fine — DB is reachable
     if (!error || error.code === 'PGRST116') {
       dbStatus = 'ok'
     }
@@ -34,15 +37,29 @@ export async function GET() {
     dbStatus = 'error'
   }
 
+  const httpStatus = dbStatus === 'ok' ? 200 : 503
+
+  // Minimal response for non-admin users
+  const minimalResponse = {
+    status: dbStatus === 'ok' ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+  }
+
+  // Check if user is an admin
+  const adminCheck = await requireAdmin()
+  if (adminCheck) {
+    // Not an admin — return minimal health info
+    return NextResponse.json(minimalResponse, { status: httpStatus })
+  }
+
+  // Admin user — return full integration details
+  let cashfreeConfig: Awaited<ReturnType<typeof getServerCashfreeConfig>> = null
   try {
     cashfreeConfig = await getServerCashfreeConfig()
   } catch {
     cashfreeConfig = null
   }
 
-  const httpStatus = dbStatus === 'ok' ? 200 : 503
-
-  // Check Cashfree config sync (server/client mode mismatch detection)
   const cashfreeCheck = validateCashfreeConfig()
   if (!cashfreeCheck.passed) {
     console.error('STARTUP CHECK FAILED:', cashfreeCheck.errors)
@@ -50,7 +67,7 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      status: dbStatus === 'ok' ? 'ok' : 'degraded',
+      ...minimalResponse,
       db: dbStatus,
       integrations: {
         supabase_configured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
@@ -72,7 +89,6 @@ export async function GET() {
       },
       db_latency_ms: dbLatency,
       response_ms: Date.now() - requestStart,
-      timestamp: new Date().toISOString(),
       version: process.env.npm_package_version ?? '1.0.0',
       environment: process.env.NODE_ENV ?? 'production',
     },

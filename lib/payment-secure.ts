@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { config } from '@/lib/config';
 /**
  * Secure Payment Service
  * Uses server-side database sessions instead of client-side sessionStorage
@@ -275,7 +276,7 @@ export async function initiatePayment(
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL?.trim() ||
         process.env.KAARI_BASE_URL?.trim() ||
-        (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+        (typeof window !== 'undefined' ? window.location.origin : config.appUrl);
 
       const { data, error } = await supabase.functions.invoke('cashfree-payment', {
         body: {
@@ -284,7 +285,7 @@ export async function initiatePayment(
           amount,
           customerName: session.user.user_metadata?.full_name || session.user.email || 'Kaari Customer',
           customerEmail: session.user.email || 'customer@kaari.in',
-          customerPhone: session.user.user_metadata?.phone || '9999999999',
+          customerPhone: session.user.user_metadata?.phone || '',
           returnUrl: `${appUrl}/payment?session_id=${result.session.sessionId}`,
           notifyUrl: `${appUrl}/api/webhooks/payment`,
         },
@@ -314,7 +315,7 @@ export async function initiatePayment(
           amount,
           customerName: session.user.user_metadata?.full_name || session.user.email || 'Kaari Customer',
           customerEmail: session.user.email || 'customer@kaari.in',
-          customerPhone: session.user.user_metadata?.phone || '9999999999',
+          customerPhone: session.user.user_metadata?.phone || '',
           returnUrl: `${appUrl}/payment?session_id=${result.session.sessionId}`,
           notifyUrl: `${appUrl}/api/webhooks/payment`,
         }),

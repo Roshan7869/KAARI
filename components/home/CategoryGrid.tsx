@@ -15,9 +15,9 @@ interface Category {
 
 const CATEGORIES: Category[] = [
   {
-    slug: "wearables",
-    name: "Wearables",
-    description: "Shrugs, tops & cardigans",
+    slug: "handbags",
+    name: "Crochet Handbags",
+    description: "Stylish handmade bags",
     pill: "Most Loved",
     colSpan: true,
     gradient: "from-maroon-deep/90 via-maroon/70 to-transparent",
@@ -45,8 +45,8 @@ const CATEGORIES: Category[] = [
     ),
   },
   {
-    slug: "bouquets",
-    name: "Bouquets",
+    slug: "bouquet",
+    name: "Crochet Bouquet",
     description: "Forever flowers, no wilting",
     pill: "New",
     gradient: "from-maroon-deep/85 via-maroon/60 to-transparent",
@@ -90,7 +90,7 @@ const CATEGORIES: Category[] = [
   },
   {
     slug: "hair-accessories",
-    name: "Hair Accessories",
+    name: "Crochet Hair Accessories",
     description: "Clips, bands & scrunchies",
     gradient: "from-maroon-deep/80 via-maroon/55 to-transparent",
     svgArt: (
@@ -123,7 +123,7 @@ const CATEGORIES: Category[] = [
   },
   {
     slug: "keychains",
-    name: "Keychains",
+    name: "Crochet Keychains",
     description: "Tiny gifts, big smiles",
     pill: "Custom",
     gradient: "from-maroon-deep/80 via-maroon/55 to-transparent",
@@ -191,7 +191,7 @@ export default function CategoryGrid() {
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
               <Link
-                href={`/category/${cat.slug}`}
+                href={`/products?cat=${encodeURIComponent(cat.name)}`}
                 className="absolute inset-0 z-10"
                 aria-label={`Browse ${cat.name}`}
               />

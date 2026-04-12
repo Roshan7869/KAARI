@@ -138,18 +138,15 @@ async function processWebhookInBackground(params: {
                 });
             }
 
-            // Clear the specific cart that was checked out (not ALL user carts)
+            // Clear the specific cart that was checked out (never delete ALL user carts)
             if (order.cart_id) {
               await supabase
                 .from('cart_items')
                 .delete()
                 .eq('cart_id', order.cart_id);
             } else {
-              // Fallback: if no cart_id on order, clear by user_id
-              await supabase
-                .from('cart_items')
-                .delete()
-                .eq('user_id', order.user_id);
+              // FIX-PY2: No cart_id on order — log warning instead of deleting ALL user carts
+              logger.warn('Cannot clear cart: order has no cart_id', { orderId: order.id, userId: order.user_id });
             }
           }
         }
@@ -380,13 +377,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ── 8. Atomic INSERT for deduplication + event logging ────────────
     // Record webhook receipt BEFORE doing any heavy work.
     // Atomic INSERT catches duplicate key violations (no TOCTOU race).
-    if (cashfreeSessionId && cfPaymentId) {
-      const { data: insertedEvent, error: insertError } = await supabase
+    // FIX-PY1: Process webhook if we have EITHER session ID or payment ID (OR logic, not AND)
+    if (cashfreeSessionId || cfPaymentId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: insertedEvent, error: insertError } = await (supabase as any)
         .from('webhook_events')
         .insert({
-          cf_payment_id: cfPaymentId,
+          cf_payment_id: cfPaymentId || null,
           event_type: event,
-          cashfree_session_id: cashfreeSessionId,
+          order_id: cashfreeSessionId ?? null,
           status: 'RECEIVED',
           received_at: new Date().toISOString(),
         })

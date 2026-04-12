@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateBody } from '@/lib/api-validate';
 import { sanitizeTextInput } from '@/lib/sanitization';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { z } from 'zod';
 
 const SocialChannelEnum = z.enum(['instagram_dm', 'whatsapp', 'copy_link', 'native_share', 'card_share']);
@@ -19,6 +20,10 @@ const SocialOrderIntentSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 10 requests per minute per IP (fail-open to not block legitimate shares)
+  const rateLimitResponse = await applyRateLimit(request, 'auth', false);
+  if (rateLimitResponse) return rateLimitResponse;
+
   const validation = await validateBody(request, SocialOrderIntentSchema);
   if ('error' in validation) return validation.error;
 

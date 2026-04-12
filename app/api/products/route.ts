@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/auth/verify-jwt';
+import { requireAuth, requireAdmin } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger';
 import { ProductListSchema, ProductCreateSchema } from '@/lib/validations/product.schema';
 
@@ -113,7 +113,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAuth();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = await createClient();
     const body = await request.json();

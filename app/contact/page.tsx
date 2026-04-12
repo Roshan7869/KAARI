@@ -40,8 +40,8 @@ export default function ContactPage() {
               <div>
                 <h4 className="font-medium">Phone</h4>
                 <p className="text-muted-foreground">
-                  <a href="tel:+919999999999" className="text-primary">
-                    +91 99999 99999
+                  <a href={`tel:+91${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''}`} className="text-primary">
+                    Contact via WhatsApp
                   </a>
                 </p>
               </div>

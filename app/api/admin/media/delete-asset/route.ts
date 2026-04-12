@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 const schema = z.object({
@@ -55,7 +56,7 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ success: true, result });
   } catch (err) {
-    console.error('[Cloudinary] Bulk delete error:', err);
+    logger.error('[Cloudinary] Bulk delete error:', { error: err });
     return NextResponse.json({ error: 'Failed to delete assets' }, { status: 500 });
   }
 }
