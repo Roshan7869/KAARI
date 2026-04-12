@@ -31,6 +31,7 @@ interface RawBillboardRow {
   id: string;
   display_order: number;
   tag: string | null;
+  custom_image_url: string | null;
   product_id: string;
   products: {
     id: string;
@@ -71,6 +72,7 @@ export async function getBillboardProducts(): Promise<BillboardProduct[]> {
       id,
       display_order,
       tag,
+      custom_image_url,
       product_id,
       products (
         id,
@@ -98,7 +100,9 @@ export async function getBillboardProducts(): Promise<BillboardProduct[]> {
         price: p.price,
         description: p.description ?? '',
         tag: row.tag,
-        imageUrl: resolveProductImageUrl(pickBestImage(p.product_media ?? [])),
+        imageUrl: row.custom_image_url
+          ? resolveProductImageUrl(row.custom_image_url)
+          : resolveProductImageUrl(pickBestImage(p.product_media ?? [])),
         displayOrder: row.display_order,
       };
     });

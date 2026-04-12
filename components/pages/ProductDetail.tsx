@@ -74,6 +74,11 @@ interface ProductVariant {
   is_default: boolean;
 }
 
+interface ColorOption {
+  name: string;
+  hex: string;
+}
+
 interface Product {
   id: string;
   title: string;
@@ -89,6 +94,7 @@ interface Product {
   sold_count: number | null;
   season_tag: string | null;
   product_type: string | null;
+  color_options: ColorOption[] | null;
   created_at: string;
 }
 
@@ -161,7 +167,7 @@ export default function ProductDetail() {
           id, title, slug, description, base_price, compare_at_price,
           category, allow_customization, is_active,
           average_rating, review_count, sold_count,
-          season_tag, product_type, created_at
+          season_tag, product_type, color_options, created_at
         `)
         .eq('slug', slug)
         .single();
@@ -420,7 +426,7 @@ export default function ProductDetail() {
                   ✦ New Arrival
                 </span>
               )}
-              {product.product_type === 'made_to_order' && (
+              {product.product_type === 'customized' && (
                 <span className="px-3 py-1 rounded-full text-xs font-body font-medium bg-amber-50 text-amber-700 border border-amber-200">
                   Made to Order
                 </span>
@@ -534,6 +540,10 @@ export default function ProductDetail() {
                   {uniqueColors.map((color) => {
                     const variantForColor = variants.find((v) => v.color === color);
                     const soldOut = variantForColor ? (variantForColor.stock_qty ?? 0) === 0 : false;
+                    // Use hex value from color_options if available, otherwise fall back to color name
+                    const colorHex = product?.color_options?.find(
+                      (co) => co.name === color
+                    )?.hex;
                     return (
                       <button
                         key={color}
@@ -549,7 +559,7 @@ export default function ProductDetail() {
                             ? 'border-[#8B1F2A] ring-2 ring-[#8B1F2A]/30 scale-110'
                             : 'border-stone-300 hover:border-stone-500 hover:scale-105',
                         )}
-                        style={{ backgroundColor: color }}
+                        style={{ backgroundColor: colorHex || color }}
                       />
                     );
                   })}
@@ -750,10 +760,20 @@ export default function ProductDetail() {
                 )}
               </div>
             ) : (
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               <ReviewList
                 productId={product.id}
-                reviews={sortedReviews as any}
+                reviews={sortedReviews.map((r) => ({
+                  id: r.id,
+                  userId: '',
+                  userName: r.user_name,
+                  userAvatar: r.user_avatar,
+                  rating: r.rating,
+                  title: r.title,
+                  content: r.content,
+                  createdAt: r.created_at,
+                  helpfulCount: r.helpful_count ?? 0,
+                  isVerifiedPurchase: r.is_verified_purchase ?? false,
+                }))}
                 sortBy={reviewSort}
                 onSortChange={setReviewSort}
                 currentUserId={user?.id ?? null}

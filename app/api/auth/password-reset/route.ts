@@ -9,8 +9,8 @@ import { applyRateLimit } from '@/lib/server-rate-limit';
  * Request password reset email
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Rate limit: 10 attempts / 15 min per IP
-  const rateLimitResponse = await applyRateLimit(request, 'auth', false);
+  // Rate limit: 10 attempts / 15 min per IP (fail-closed: block on Redis failure for auth)
+  const rateLimitResponse = await applyRateLimit(request, 'auth', true);
   if (rateLimitResponse) return rateLimitResponse;
 
   try {

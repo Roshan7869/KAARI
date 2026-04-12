@@ -24,7 +24,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
     const { id } = await params;
 
     const body = await request.json();
@@ -109,7 +110,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
     const { id } = await params;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

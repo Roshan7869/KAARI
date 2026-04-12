@@ -75,7 +75,13 @@ export default function CloudinaryMediaLibrary() {
       const data = await res.json();
       const incoming: CloudinaryResource[] = data.resources || [];
 
-      setResources(prev => reset ? incoming : [...prev, ...incoming]);
+      setResources(prev => {
+        if (reset) return incoming;
+        // Deduplicate: filter out resources already in the list
+        const existingIds = new Set(prev.map(r => r.public_id));
+        const newItems = incoming.filter(r => !existingIds.has(r.public_id));
+        return [...prev, ...newItems];
+      });
       setNextCursor(data.next_cursor || null);
     } catch {
       toast.error('Failed to connect to Cloudinary');
@@ -94,7 +100,7 @@ export default function CloudinaryMediaLibrary() {
     if (files.length === 0) return;
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 5 * 1024 * 1024; // 5MB
 
     const valid = files.filter(f => {
       if (!validTypes.includes(f.type)) {
@@ -102,7 +108,7 @@ export default function CloudinaryMediaLibrary() {
         return false;
       }
       if (f.size > maxSize) {
-        toast.error(`${f.name}: exceeds 10MB`);
+        toast.error(`${f.name}: exceeds 5MB`);
         return false;
       }
       return true;

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ── 3. Create checkout_session record ────────────────────────────
     const { data: cart } = await admin
       .from('carts')
-      .select('id, user_id, status, currency, pricing')
+      .select('id, user_id, status, currency')
       .eq('id', cart_id)
       .eq('user_id', userId)
       .single();
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Compute subtotal from cart items (used for checkout_session and totals response)
     const { data: cartItems } = await admin
       .from('cart_items')
-      .select('unit_price, quantity, line_total')
+      .select('unit_price, quantity, line_total, product_id')
       .eq('cart_id', cart_id);
 
     const subtotal: number = (cartItems || []).reduce(

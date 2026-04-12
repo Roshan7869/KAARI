@@ -192,6 +192,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     await admin.from('cashfree_sessions').insert({
       order_id: orderId,
+      user_id: userId,
       cf_order_id: String(responseData.cf_order_id || ''),
       cf_payment_session_id: String(responseData.payment_session_id || ''),
       amount,

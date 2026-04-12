@@ -19,7 +19,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const body = await request.json();
     const validated = UpdateCouponSchema.parse(body);
@@ -45,7 +46,8 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -21,6 +21,7 @@ import {
   FileUp,
   ScrollText,
   Sliders,
+  Instagram,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", path: "/admin", icon: <LayoutDashboard className="w-5 h-5" /> },
   { label: "Billboard", path: "/admin/billboard", icon: <Tv2 className="w-5 h-5" /> },
+  { label: "Stories", path: "/admin/stories", icon: <Instagram className="w-5 h-5" /> },
   { label: "Products", path: "/admin/products", icon: <Package className="w-5 h-5" /> },
   { label: "Media Library", path: "/admin/media", icon: <ImageIcon className="w-5 h-5" /> },
   { label: "Orders", path: "/admin/orders", icon: <ShoppingCart className="w-5 h-5" /> },

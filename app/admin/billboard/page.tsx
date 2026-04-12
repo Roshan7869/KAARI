@@ -288,7 +288,7 @@ export default function AdminBillboardPage() {
       setDirty(false);
       await loadBillboard();
     } catch (err: unknown) {
-      toast.error((err as Error).message ?? 'Failed to save billboard');
+      toast.error((err as Error).message ?? 'Billboard save failed — your live homepage is unchanged. Please try again.');
     } finally {
       setSaving(false);
     }

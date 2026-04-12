@@ -125,7 +125,8 @@ export default function AdminProductForm() {
     description: '',
     basePrice: '',
     category: '',
-    productType: 'physical',
+    seasonTag: '',
+    productType: 'standard' as 'standard' | 'customized',
     allowCustomization: false,
     isActive: true,
   });
@@ -178,7 +179,10 @@ export default function AdminProductForm() {
         description: productData.description || '',
         basePrice: productData.base_price?.toString() || '',
         category: productData.category || '',
-        productType: productData.product_type || 'physical',
+        seasonTag: productData.season_tag || '',
+        productType: (['standard', 'customized'].includes(productData.product_type ?? '')
+          ? productData.product_type
+          : 'standard') as 'standard' | 'customized',
         allowCustomization: productData.allow_customization || false,
         isActive: productData.is_active ?? true,
       });
@@ -292,6 +296,7 @@ export default function AdminProductForm() {
         description: formData.description.trim() || null,
         base_price: parseFloat(formData.basePrice),
         category: formData.category.trim(),
+        season_tag: formData.seasonTag.trim() || null,
         product_type: formData.productType,
         allow_customization: formData.allowCustomization,
         is_active: formData.isActive,
@@ -336,7 +341,7 @@ export default function AdminProductForm() {
   };
 
   // Image upload handlers
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
@@ -361,21 +366,25 @@ export default function AdminProductForm() {
     const currentProductId = isEditing ? productId : savedProductId;
 
     if (currentProductId) {
-      // Upload images for existing product
-      validFiles.forEach(async (file) => {
+      // Sequential upload: only the first upload can become primary image.
+      // Concurrent uploads (forEach async) all see "no primary yet" and all
+      // race to claim primary — the for loop eliminates that race.
+      for (let i = 0; i < validFiles.length; i++) {
+        if (validFiles.length > 1) {
+          toast.info(`Uploading image ${i + 1} of ${validFiles.length}…`);
+        }
         try {
           await uploadMediaMutation.mutateAsync({
             productId: currentProductId,
-            file,
+            file: validFiles[i],
             altText: formData.title,
             productSlug: formData.slug,
             category: formData.category,
           });
-          // Refresh media list would be handled by the mutation invalidating the query
         } catch (error) {
-          logger.error('Error uploading image:', error);
+          logger.error(`Error uploading image ${i + 1}:`, error);
         }
-      });
+      }
     } else {
       // Store files temporarily for upload after product creation
       setPendingFiles(prev => [...prev, ...validFiles]);
@@ -666,6 +675,17 @@ export default function AdminProductForm() {
                   />
                 </div>
                 {errors.category && <p className="text-sm text-destructive">{errors.category}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="seasonTag">Season Tag</Label>
+                <Input
+                  id="seasonTag"
+                  placeholder="e.g. Summer 2026, Festive, Monsoon"
+                  value={formData.seasonTag}
+                  onChange={(e) => handleChange('seasonTag', e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Optional tag shown on the product detail page</p>
               </div>
             </div>
           </CardContent>
@@ -1050,7 +1070,7 @@ export default function AdminProductForm() {
             <div className="flex items-center justify-between border-t pt-5">
               <div>
                 <Label className="font-medium">Show Related Products</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">"You May Also Love" section at page bottom</p>
+                <p className="text-xs text-muted-foreground mt-0.5">&quot;You May Also Love&quot; section at page bottom</p>
               </div>
               <Switch
                 checked={displayOpts.showRelatedProducts}
@@ -1089,6 +1109,23 @@ export default function AdminProductForm() {
             <CardTitle className="font-display">Settings</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+        {/* Product Type */}
+            <div className="space-y-2">
+              <Label htmlFor="productType">Product Type</Label>
+              <Select
+                value={formData.productType}
+                onValueChange={(value: 'standard' | 'customized') => handleChange('productType', value)}
+              >
+                <SelectTrigger id="productType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard — pre-made, ships immediately</SelectItem>
+                  <SelectItem value="customized">Customized — made to order</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Active</Label>

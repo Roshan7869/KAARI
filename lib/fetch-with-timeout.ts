@@ -67,7 +67,7 @@ export async function fetchWithRetry(
         errorMessage.includes('timeout') ||
         errorMessage.includes('network') ||
         errorMessage.includes('fetch') ||
-        (lastError as any).type === 'request-timeout'
+        (lastError as { type?: string }).type === 'request-timeout'
       ) {
         // Exponential backoff: wait baseDelayMs * 2^(attempt-1)
         const delay = baseDelayMs * Math.pow(2, attempt - 1);

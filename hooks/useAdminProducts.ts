@@ -272,7 +272,8 @@ export function useUploadProductMedia() {
       altText,
       productSlug,
       category,
-      isPrimary,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      isPrimary: _isPrimary,
       }: {
         productId: string;
         file: File;
@@ -312,39 +313,15 @@ export function useUploadProductMedia() {
           if (uploadError) throw uploadError;
         }
 
-      // Get current max sort order and check if any primary exists
-      const { data: existingMedia } = await supabase
-        .from('product_media')
-        .select('sort_order, is_primary')
-        .eq('product_id', productId)
-        .order('sort_order', { ascending: false });
-
-      const sortOrder = existingMedia && existingMedia.length > 0 ? existingMedia[0].sort_order + 1 : 0;
-      // First image auto-becomes primary if no primary set yet
-      const hasPrimary = existingMedia?.some(m => m.is_primary);
-      const setAsPrimary = isPrimary ?? !hasPrimary;
-
-      // If setting as primary, unset existing primary first
-      if (setAsPrimary && hasPrimary) {
-        await supabase
-          .from('product_media')
-          .update({ is_primary: false })
-          .eq('product_id', productId)
-          .eq('is_primary', true);
-      }
-
-      // Create media record
-      const { data, error } = await supabase
-        .from('product_media')
-        .insert({
-          product_id: productId,
-          file_path: filePath,
-          alt_text: altText,
-          sort_order: sortOrder,
-          is_primary: setAsPrimary,
-        })
-        .select()
-        .single();
+      // Atomic insert via RPC: uses FOR UPDATE to prevent concurrent uploads
+      // from both seeing "no primary exists" and both claiming primary image.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('insert_product_media_safe', {
+        p_product_id: productId,
+        p_file_path:  filePath,
+        p_alt_text:   altText ?? null,
+        p_sort_order: null,   // RPC auto-computes max sort_order + 1
+      });
 
       if (error) throw error;
       return data;

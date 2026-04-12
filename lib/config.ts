@@ -132,7 +132,7 @@ export const config: EnvConfig = {
   },
 
   get cashfreeTestMode(): boolean {
-    return getEnvVar('NEXT_PUBLIC_CASHFREE_TEST_MODE') === 'true';
+    return getEnvVar('NEXT_PUBLIC_CASHFREE_MODE') !== 'production';
   },
 
   get enableAnalytics(): boolean {

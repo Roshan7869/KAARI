@@ -1,39 +1,42 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Instagram, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { supabase } from '@/lib/supabase/client';
 
-const POSTS = [
-  {
-    src: '/images/products_webp/crochet-handbag-1.webp',
-    alt: 'Crochet handbag',
-  },
-  {
-    src: '/images/products_webp/crochet-handbag-2.webp',
-    alt: 'Crochet handbag detail',
-  },
-  {
-    src: '/images/products_webp/crochet-gajra-1.webp',
-    alt: 'Crochet gajra',
-  },
-  {
-    src: '/images/products_webp/crochet-gajra-2.webp',
-    alt: 'Crochet accessories',
-  },
-  {
-    src: '/images/products_webp/crochet-keychain-1.webp',
-    alt: 'Crochet keychain',
-  },
-  {
-    src: '/images/products_webp/crochet-doll-1.webp',
-    alt: 'Crochet doll',
-  },
-];
+interface Story {
+  id: string;
+  image_url: string;
+  caption: string | null;
+  link_url: string | null;
+}
 
 const INSTAGRAM_URL = 'https://www.instagram.com/kaari.handmade';
 
 export function InstagramFeed() {
+  const [stories, setStories] = useState<Story[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('instagram_stories')
+      .select('id, image_url, caption, link_url')
+      .eq('is_active', true)
+      .order('position', { ascending: true })
+      .limit(6)
+      .then(({ data }: { data: Story[] | null }) => {
+        setStories(data ?? []);
+        setLoaded(true);
+      });
+  }, []);
+
+  // Don't render the section until we know whether there are stories
+  if (!loaded) return null;
+  if (stories.length === 0) return null;
+
   return (
     <section className="py-20 bg-ivory">
       <div className="max-w-7xl mx-auto px-6">
@@ -56,10 +59,10 @@ export function InstagramFeed() {
         </motion.div>
 
         <div className="grid grid-cols-3 md:grid-cols-6 gap-1 mb-8">
-          {POSTS.map((post, i) => (
+          {stories.map((story, i) => (
             <motion.a
-              key={i}
-              href={INSTAGRAM_URL}
+              key={story.id}
+              href={story.link_url || INSTAGRAM_URL}
               target="_blank"
               rel="noopener noreferrer"
               initial={{ opacity: 0, scale: 0.95 }}
@@ -67,11 +70,11 @@ export function InstagramFeed() {
               viewport={{ once: true }}
               transition={{ duration: 0.4, delay: i * 0.06 }}
               className="group relative aspect-square overflow-hidden bg-cream-warm"
-              aria-label={`View ${post.alt} on Instagram`}
+              aria-label={`View ${story.caption || 'story'} on Instagram`}
             >
               <Image
-                src={post.src}
-                alt={post.alt}
+                src={story.image_url}
+                alt={story.caption || 'Instagram story'}
                 fill
                 className="object-cover transition-transform duration-500 group-hover:scale-110"
                 sizes="(max-width: 768px) 33vw, 16vw"

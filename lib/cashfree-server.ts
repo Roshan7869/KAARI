@@ -1,5 +1,6 @@
 import 'server-only'
 
+import crypto from 'crypto'
 import { createAdminClient, hasAdminClientConfig } from '@/lib/supabase/admin'
 import { logger } from '@/lib/logger'
 import { fetchWithRetry } from '@/lib/fetch-with-timeout'
@@ -92,10 +93,8 @@ export function verifyCashfreeWebhookSignature(
   }
 
   try {
-    const cryptoModule = require('crypto');
-
     const signedPayload = timestamp + rawBody;
-    const expected = cryptoModule
+    const expected = crypto
       .createHmac('sha256', secret)
       .update(signedPayload)
       .digest('base64');
@@ -106,7 +105,7 @@ export function verifyCashfreeWebhookSignature(
     // Timing-safe comparison prevents timing attacks
     if (sigBuffer.length !== expectedBuffer.length) return false;
 
-    return cryptoModule.timingSafeEqual(sigBuffer, expectedBuffer);
+    return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
   } catch (error) {
     logger.error('Webhook signature verification failed:', error);
     return false;

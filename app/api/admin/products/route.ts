@@ -1,16 +1,12 @@
 import { z } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger';
 import {
   AdminProductCreateSchema,
-  AdminProductUpdateSchema,
-  AdminProductParamsSchema,
 } from '@/lib/validations/admin.schema';
-import type { Database, TablesInsert } from '@/types/database';
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { TablesInsert } from '@/types/database';
 
 type ProductsInsert = TablesInsert<'products'>;
 
@@ -35,19 +31,14 @@ function insertWithBypass(supabase: any, table: string, data: unknown) {
   return supabase.from(table).insert(data);
 }
 
-// Helper function to bypass strict type checking for Supabase updates
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function updateWithBypass(supabase: any, table: string, data: unknown) {
-  return supabase.from(table).update(data);
-}
-
 /**
  * GET /api/admin/products
  * List all products (admin only)
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
@@ -98,7 +89,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = await createClient();
     const body = await request.json();
@@ -143,131 +135,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       {
         success: false,
         error: err.message || 'Failed to create product',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * PUT /api/admin/products/[id]
- * Update product (admin only)
- */
-export async function PUT(request: NextRequest): Promise<NextResponse> {
-  try {
-    await requireAdmin();
-
-    const supabase = await createClient();
-    const { searchParams, pathname } = new URL(request.url);
-    const id = pathname.split('/').pop();
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Product ID required' },
-        { status: 400 }
-      );
-    }
-
-    // Verify product exists before update
-    const { data: existingProduct, error: productError } = await supabase
-      .from('products')
-      .select('id, slug')
-      .eq('id', id)
-      .single() as unknown as { data: { id: string; slug: string | null } | null; error: Error | null };
-
-    if (productError || !existingProduct) {
-      return NextResponse.json(
-        { success: false, error: 'Product not found' },
-        { status: 404 }
-      );
-    }
-
-    const body = await request.json();
-
-    // Validate request body with Zod
-    const result = AdminProductUpdateSchema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Validation failed',
-          details: result.error.errors,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Type assertion to ensure TypeScript understands the data shape
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updateData = result.data as unknown as Partial<Record<string, any>>;
-    const { error } = await updateWithBypass(supabase, 'products', updateData)
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
-
-    logger.info('Admin product updated', { productId: id });
-
-    // Invalidate ISR cache so updated product is visible immediately
-    revalidatePath('/products');
-    revalidatePath('/');
-    if (existingProduct?.slug) {
-      revalidatePath(`/products/${existingProduct.slug}`);
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    const err = error as Error;
-    logger.error('Failed to update admin product', { message: err.message });
-    return NextResponse.json(
-      {
-        success: false,
-        error: err.message || 'Failed to update product',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * DELETE /api/admin/products/[id]
- * Delete product (admin only)
- */
-export async function DELETE(request: NextRequest): Promise<NextResponse> {
-  try {
-    await requireAdmin();
-
-    const supabase = await createClient();
-    const { searchParams, pathname } = new URL(request.url);
-    const id = pathname.split('/').pop();
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Product ID required' },
-        { status: 400 }
-      );
-    }
-
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
-
-    logger.info('Admin product deleted', { productId: id });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    const err = error as Error;
-    logger.error('Failed to delete admin product', { message: err.message });
-    return NextResponse.json(
-      {
-        success: false,
-        error: err.message || 'Failed to delete product',
       },
       { status: 500 }
     );

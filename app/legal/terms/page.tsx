@@ -1,5 +1,12 @@
 import KaariFooter from "@/components/KaariFooter";
 import Navbar from "@/components/Navbar";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Terms of Service | Kaari',
+  description: 'Read the terms and conditions governing your use of Kaari and purchase of our handmade crochet products.',
+  robots: { index: true, follow: true },
+};
 
 export default function TermsPage() {
   return (

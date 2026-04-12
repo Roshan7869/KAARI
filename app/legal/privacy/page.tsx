@@ -1,5 +1,12 @@
 import KaariFooter from "@/components/KaariFooter";
 import Navbar from "@/components/Navbar";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy | Kaari',
+  description: 'Learn how Kaari collects, uses, and protects your personal information when you shop for handmade crochet products.',
+  robots: { index: true, follow: true },
+};
 
 export default function PrivacyPage() {
   return (

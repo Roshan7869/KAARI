@@ -1,5 +1,12 @@
 import KaariFooter from "@/components/KaariFooter";
 import Navbar from "@/components/Navbar";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Refund Policy | Kaari',
+  description: "Kaari's refund and return policy for handmade crochet products. We stand behind our craftsmanship.",
+  robots: { index: true, follow: true },
+};
 
 export default function RefundPage() {
   return (

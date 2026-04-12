@@ -10,6 +10,7 @@ import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
 import { categories, getProductsByCategory, type Category, type Product } from '@/data/products';
 import { supabase } from '@/lib/supabase/client';
 import { resolveProductImageUrl } from '@/lib/product-media';
+import Image from 'next/image';
 
 type SortOption = 'featured' | 'newest' | 'most_popular' | 'best_rated' | 'price_low_high' | 'price_high_low' | 'name_az';
 type ViewMode = 'grid' | 'list';
@@ -419,9 +420,11 @@ export default function ProductGrid() {
                     className="group flex items-center gap-5 glass-card-cream rounded-xl overflow-hidden hover:shadow-md transition-shadow"
                   >
                     <div className="relative w-[140px] h-[140px] flex-shrink-0 overflow-hidden">
-                      <img
+                      <Image
                         src={product.image || '/placeholder.svg'}
                         alt={product.title}
+                        width={140}
+                        height={140}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     </div>

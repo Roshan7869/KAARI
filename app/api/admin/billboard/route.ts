@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { revalidatePath } from 'next/cache';
 
 // ── GET: list all billboard slots (admin view — includes inactive) ─
 export async function GET(req: NextRequest) {
@@ -57,30 +58,34 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Maximum 6 billboard slots allowed' }, { status: 400 });
   }
 
-  // Atomic replace: delete all + insert new
+  // ✅ SAFE: atomic RPC — if any insert fails, the delete is rolled back
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: delErr } = await (admin as any).from('billboard_products').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+  const { data: rpcResult, error: rpcError } = await (admin as any).rpc(
+    'save_billboard_products',
+    {
+      p_items: body.slots.map((slot, i) => ({
+        product_id:       slot.product_id,
+        display_order:    i,
+        tag:              slot.tag ?? null,
+        is_active:        slot.is_active !== false,
+        custom_image_url: slot.custom_image_url ?? null,
+      })),
+    }
+  );
 
-  if (body.slots.length === 0) {
-    return NextResponse.json({ success: true, count: 0 });
+  if (rpcError) {
+    console.error('[Billboard] Atomic save failed:', rpcError);
+    return NextResponse.json(
+      {
+        error: 'Billboard save failed — your live homepage is unchanged. Please try again.',
+        details: rpcError.message,
+      },
+      { status: 500 }
+    );
   }
 
-  const rows = body.slots.map((slot, i) => ({
-    product_id: slot.product_id,
-    display_order: i,
-    tag: slot.tag ?? null,
-    is_active: slot.is_active !== false,
-    custom_image_url: slot.custom_image_url ?? null,
-  }));
+  revalidatePath('/');
+  revalidatePath('/products');
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: inserted, error: insErr } = await (admin as any)
-    .from('billboard_products')
-    .insert(rows)
-    .select('id');
-
-  if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
-
-  return NextResponse.json({ success: true, count: inserted?.length ?? 0 });
+  return NextResponse.json({ success: true, count: (rpcResult as { count: number })?.count ?? 0 });
 }

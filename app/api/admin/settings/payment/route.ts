@@ -21,7 +21,8 @@ const SavePaymentConfigSchema = z.object({
  */
 export async function GET(): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -69,7 +70,8 @@ export async function GET(): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const body = await request.json();
     const validated = SavePaymentConfigSchema.parse(body);

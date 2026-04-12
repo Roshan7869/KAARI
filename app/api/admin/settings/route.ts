@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/verify-jwt';
+import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET() {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,7 +31,10 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { id: userId } = await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
+
+    const { userId } = await auth();
 
     const body = await request.json();
     const { key, value } = body as { key: string; value: unknown };

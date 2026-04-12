@@ -31,7 +31,7 @@ interface UploadResult {
 
 // File upload constraints
 const UPLOAD_CONSTRAINTS = {
-  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+  MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
   ALLOWED_TYPES: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   ALLOWED_EXTENSIONS: ['.jpg', '.jpeg', '.png', '.webp', '.gif'],
 } as const;
@@ -49,7 +49,7 @@ class CloudinaryService {
   private validateFile(file: File): void {
     if (file.size > UPLOAD_CONSTRAINTS.MAX_FILE_SIZE) {
       throw new Error(
-        `File size exceeds ${UPLOAD_CONSTRAINTS.MAX_FILE_SIZE / 1024 / 1024}MB limit. Max: 10MB`
+        `File size exceeds ${UPLOAD_CONSTRAINTS.MAX_FILE_SIZE / 1024 / 1024}MB limit. Max: 5MB`
       );
     }
 
@@ -115,15 +115,6 @@ class CloudinaryService {
     }
 
     return response.json();
-  }
-
-  /**
-   * Delete an image from Cloudinary
-   */
-  async deleteImage(_publicId: string): Promise<void> {
-    // This should be called from a server-side function
-    // as it requires the API secret
-    throw new Error('Delete must be called from server-side');
   }
 
   /**

@@ -3,11 +3,12 @@ import ProductDetail from "@/components/pages/ProductDetail";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createStaticClient } from "@supabase/supabase-js";
 import { ProductJsonLd } from "@/components/products/ProductJsonLd";
+import { resolveProductImageUrl } from "@/lib/product-media";
 
 // ISR: revalidate product detail pages every 60 seconds
 export const revalidate = 60;
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in';
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in').trim();
 
 export async function generateStaticParams() {
   try {
@@ -50,21 +51,24 @@ export async function generateMetadata({
     );
     const { data: product } = await supabase
       .from('products')
-      .select('title, description, base_price, compare_at_price, average_rating, review_count')
+      .select('id, title, description, base_price, compare_at_price, average_rating, review_count')
       .eq('slug', slug)
       .single();
 
-    // Fetch primary image
+    // Fetch primary image — use resolveProductImageUrl to handle
+    // Cloudinary public IDs and Supabase Storage paths, not just full URLs
     let imageUrl = `${APP_URL}/og-image.jpg`;
     if (product) {
       const { data: media } = await supabase
         .from('product_media')
         .select('file_path')
-        .eq('product_id', (product as { id?: string }).id ?? '')
+        .eq('product_id', product.id)
         .order('sort_order', { ascending: true })
         .limit(1)
         .single();
-      if (media?.file_path?.startsWith('http')) imageUrl = media.file_path;
+      if (media?.file_path) {
+        imageUrl = resolveProductImageUrl(media.file_path);
+      }
     }
 
     const title = (product as { title?: string } | null)?.title

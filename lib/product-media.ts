@@ -19,6 +19,11 @@ export function resolveProductImageUrl(filePath?: string | null): string {
     return filePath.replace(/[\r\n\t\0]+/g, '').trim();
   }
 
+  // Local static assets in /public — return as-is for Next.js Image optimization
+  if (filePath.startsWith('/images/')) {
+    return filePath;
+  }
+
   // Cloudinary public IDs have no file extension; Supabase Storage paths do
   if (!hasFileExtension(filePath)) {
     return getCloudinaryImageUrl(filePath, {

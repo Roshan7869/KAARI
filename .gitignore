@@ -94,6 +94,9 @@ out
 # vercel
 .vercel
 
+# Supabase local temp files (contains project refs and pooler URLs)
+supabase/.temp/
+
 # Claude Code worktrees and local config
 .claude/
 

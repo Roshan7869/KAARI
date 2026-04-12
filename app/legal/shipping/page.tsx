@@ -1,5 +1,12 @@
 import KaariFooter from "@/components/KaariFooter";
 import Navbar from "@/components/Navbar";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Shipping Policy | Kaari',
+  description: 'Kaari shipping information — delivery timelines, couriers, and shipping costs across India.',
+  robots: { index: true, follow: true },
+};
 
 export default function ShippingPage() {
   return (

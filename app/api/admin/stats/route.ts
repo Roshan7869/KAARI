@@ -10,7 +10,8 @@ import { AdminStatsSchema } from '@/lib/validations/admin.schema';
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    await requireAdmin();
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);

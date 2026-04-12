@@ -5,6 +5,17 @@ import CrochetDivider from "@/components/CrochetDivider";
 import KaariFooter from "@/components/KaariFooter";
 import Navbar from "@/components/Navbar";
 import { ProductGridSkeleton } from "@/components/skeletons/BillboardSkeleton";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Shop Handmade Crochet | Kaari',
+  description: "Browse Kaari's full collection of handmade crochet products — tops, bags, hair accessories, and floral bouquets. Each piece is crafted with love.",
+  openGraph: {
+    title: 'Shop Handmade Crochet | Kaari',
+    description: 'Handcrafted crochet products made with love. Shop unique wearables, accessories, and gifts.',
+    type: 'website',
+  },
+};
 
 // ISR: revalidate product listing every 60 seconds
 export const revalidate = 60;
