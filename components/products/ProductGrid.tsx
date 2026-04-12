@@ -78,6 +78,7 @@ export default function ProductGrid() {
     if (active !== 'All') params.set('cat', active);
     if (sortBy !== 'featured') params.set('sort', sortBy);
     if (page > 1) params.set('page', String(page));
+    if (search) params.set('search', search);
 
     const qs = params.toString();
     router.replace(qs ? `/products?${qs}` : '/products', { scroll: false });
@@ -148,6 +149,15 @@ export default function ProductGrid() {
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = products;
 
+    // Search filter (from URL param or SearchModal)
+    if (search) {
+      const term = search.toLowerCase();
+      filtered = filtered.filter((p) =>
+        p.title.toLowerCase().includes(term) ||
+        p.category.toLowerCase().includes(term)
+      );
+    }
+
     // Applied drawer filters
     if (appliedFilters.maxPrice < DEFAULT_MAX_PRICE)
       filtered = filtered.filter((p) => p.price <= appliedFilters.maxPrice);
@@ -171,7 +181,7 @@ export default function ProductGrid() {
     if (sortBy === 'best_rated') return [...filtered].sort((a, b) => (b.average_rating ?? 0) - (a.average_rating ?? 0));
 
     return filtered;
-  }, [products, sortBy, appliedFilters]);
+  }, [products, search, sortBy, appliedFilters]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSortedProducts.length / pageSize));
   const paginatedProducts = filteredAndSortedProducts.slice(

@@ -109,7 +109,7 @@ async function processWebhookInBackground(params: {
         if (orderId) {
           const { data: order } = await supabase
             .from('orders')
-            .select('id, status, user_id, cart_id')
+            .select('id, status, user_id, cart_id, total_amount')
             .eq('order_number', orderId)
             .maybeSingle();
 
@@ -119,6 +119,27 @@ async function processWebhookInBackground(params: {
               .update({ status: 'paid', payment_status: 'paid' })
               .eq('id', order.id);
             eventResult = { newStatus: 'paid', oldStatus: order.status };
+
+            // Insert payment record for financial reconciliation
+            if (cfPaymentId) {
+              const { error: paymentInsertError } = await supabase
+                .from('payments')
+                .insert({
+                  order_id: order.id,
+                  amount: order.total_amount ?? 0,
+                  currency: 'INR',
+                  status: 'completed',
+                  provider: 'cashfree',
+                  external_transaction_id: cfPaymentId,
+                });
+              if (paymentInsertError) {
+                logger.error('Failed to insert payment record on webhook success', {
+                  error: paymentInsertError.message,
+                  orderId: order.id,
+                  cfPaymentId,
+                });
+              }
+            }
 
             // Queue order confirmation email
             const { data: userProfile } = await supabase
@@ -317,15 +338,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ── 4.1 Verify timestamp freshness (prevent replay attacks) ────────
     const timestampNum = parseInt(timestamp, 10);
     const currentTime = Date.now();
-    const timeDiff = Math.abs(currentTime - timestampNum);
 
-    // Reject webhooks older than 5 minutes (300,000 ms)
-    if (isNaN(timestampNum) || timeDiff > 300000) {
+    // Reject webhooks older than 5 minutes (300,000 ms) or from the future
+    if (isNaN(timestampNum) || !timestamp) {
+      logger.warn('Webhook rejected: missing or invalid timestamp', { timestamp });
+      return NextResponse.json({ error: 'Invalid timestamp' }, { status: 400 });
+    }
+    if (timestampNum > currentTime + 30000) {
+      logger.warn('Webhook rejected: future timestamp', { timestamp, currentTime });
+      return NextResponse.json({ error: 'Future timestamp' }, { status: 400 });
+    }
+    if (currentTime - timestampNum > 300000) {
       logger.warn('Webhook rejected: stale timestamp', {
         timestamp,
         currentTime,
-        timeDiffMs: timeDiff,
-        maxAllowedDiff: 300000
+        ageMs: currentTime - timestampNum,
+        maxAllowedAge: 300000
       });
       return NextResponse.json({ error: 'Stale webhook' }, { status: 400 });
     }

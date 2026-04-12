@@ -8,31 +8,43 @@ beforeAll(() => {
   }
 });
 
-import { verifyCashfreeWebhookSignatureNode as validateWebhookSignature } from '@/lib/cashfree';
+// Mock logger to suppress console noise
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
 
-async function signPayload(payload: string, secret: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
-  const payloadData = encoder.encode(payload);
-  const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const signature = await crypto.subtle.sign('HMAC', key, payloadData);
-  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+// Mock admin client to avoid Supabase connection in tests
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => ({})),
+  hasAdminClientConfig: vi.fn(() => false),
+}));
+
+import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
+
+// Cashfree webhook signature: HMAC-SHA256(timestamp + rawBody, secret) in base64
+function signPayload(payload: string, secret: string, timestamp: string): string {
+  const cryptoModule = require('crypto');
+  return cryptoModule
+    .createHmac('sha256', secret)
+    .update(timestamp + payload)
+    .digest('base64');
 }
 
 describe('webhook', () => {
   // --- Basic signature validation ---
 
-  it('validates a correct signature', async () => {
+  it('validates a correct signature', () => {
     const payload = JSON.stringify({ order_id: 'order-1', status: 'completed' });
     const secret = 'test-secret';
-    const signature = await signPayload(payload, secret);
+    const timestamp = String(Date.now());
+    const signature = signPayload(payload, secret, timestamp);
 
-    await expect(validateWebhookSignature(payload, signature, secret)).resolves.toBe(true);
+    expect(verifyCashfreeWebhookSignature(payload, signature, timestamp, secret)).toBe(true);
   });
 
-  it('rejects an invalid signature', async () => {
+  it('rejects an invalid signature', () => {
     const payload = JSON.stringify({ order_id: 'order-2', status: 'completed' });
-    await expect(validateWebhookSignature(payload, 'bad-signature', 'test-secret')).resolves.toBe(false);
+    expect(verifyCashfreeWebhookSignature(payload, 'bad-signature', String(Date.now()), 'test-secret')).toBe(false);
   });
 
   it('validates webhook payload structure', () => {
@@ -50,57 +62,59 @@ describe('webhook', () => {
 
   // --- Idempotency ---
 
-  it('produces the same signature for identical payload + secret', async () => {
+  it('produces the same signature for identical payload + secret + timestamp', () => {
     const payload = JSON.stringify({ order_id: 'order-idem', event: 'payment.success' });
     const secret = 'idem-secret';
+    const timestamp = '1700000000000';
 
-    const sig1 = await signPayload(payload, secret);
-    const sig2 = await signPayload(payload, secret);
+    const sig1 = signPayload(payload, secret, timestamp);
+    const sig2 = signPayload(payload, secret, timestamp);
 
     expect(sig1).toBe(sig2);
-    await expect(validateWebhookSignature(payload, sig1, secret)).resolves.toBe(true);
-    await expect(validateWebhookSignature(payload, sig2, secret)).resolves.toBe(true);
+    expect(verifyCashfreeWebhookSignature(payload, sig1, timestamp, secret)).toBe(true);
+    expect(verifyCashfreeWebhookSignature(payload, sig2, timestamp, secret)).toBe(true);
   });
 
-  it('rejects a duplicate event that was replayed with a tampered payload', async () => {
+  it('rejects a duplicate event that was replayed with a tampered payload', () => {
     const payload = JSON.stringify({ order_id: 'order-4', amount: 999, status: 'completed' });
-    const replayedPayload = JSON.stringify({ order_id: 'order-4', amount: 1, status: 'completed' });
+    const tampered = JSON.stringify({ order_id: 'order-4', amount: 1, status: 'completed' });
     const secret = 'replay-secret';
+    const timestamp = String(Date.now());
 
-    const signature = await signPayload(payload, secret);
-    // Original is valid
-    await expect(validateWebhookSignature(payload, signature, secret)).resolves.toBe(true);
-    // Replayed/tampered body must be rejected even if structurally similar
-    await expect(validateWebhookSignature(replayedPayload, signature, secret)).resolves.toBe(false);
+    const signature = signPayload(payload, secret, timestamp);
+
+    expect(verifyCashfreeWebhookSignature(payload, signature, timestamp, secret)).toBe(true);
+    expect(verifyCashfreeWebhookSignature(tampered, signature, timestamp, secret)).toBe(false);
   });
 
   // --- Timing-safe comparison ---
 
-  it('rejects a signature that is identical except for one character', async () => {
+  it('rejects a signature that differs by one character', () => {
     const payload = JSON.stringify({ order_id: 'order-5', status: 'completed' });
     const secret = 'timing-secret';
-    const signature = await signPayload(payload, secret);
+    const timestamp = String(Date.now());
+    const signature = signPayload(payload, secret, timestamp);
 
-    // Flip the last character
     const tampered = signature.slice(0, -1) + (signature.endsWith('A') ? 'B' : 'A');
-    await expect(validateWebhookSignature(payload, tampered, secret)).resolves.toBe(false);
+    expect(verifyCashfreeWebhookSignature(payload, tampered, timestamp, secret)).toBe(false);
   });
 
-  it('rejects a signature signed with a different secret', async () => {
+  it('rejects a signature signed with a different secret', () => {
     const payload = JSON.stringify({ order_id: 'order-6', status: 'completed' });
-    const correctSig = await signPayload(payload, 'correct-secret');
+    const timestamp = String(Date.now());
+    const correctSig = signPayload(payload, 'correct-secret', timestamp);
 
-    await expect(validateWebhookSignature(payload, correctSig, 'wrong-secret')).resolves.toBe(false);
+    expect(verifyCashfreeWebhookSignature(payload, correctSig, timestamp, 'wrong-secret')).toBe(false);
   });
 
   // --- Edge cases ---
 
-  it('rejects an empty signature string', async () => {
+  it('rejects an empty signature string', () => {
     const payload = JSON.stringify({ order_id: 'order-7', status: 'completed' });
-    await expect(validateWebhookSignature(payload, '', 'test-secret')).resolves.toBe(false);
+    expect(verifyCashfreeWebhookSignature(payload, '', String(Date.now()), 'test-secret')).toBe(false);
   });
 
-  it('validates signature for a large JSON payload without truncation', async () => {
+  it('validates signature for a large JSON payload without truncation', () => {
     const large = JSON.stringify({
       order_id: 'order-large',
       status: 'completed',
@@ -112,18 +126,30 @@ describe('webhook', () => {
       })),
     });
     const secret = 'large-secret';
-    const sig = await signPayload(large, secret);
+    const timestamp = String(Date.now());
+    const sig = signPayload(large, secret, timestamp);
 
-    await expect(validateWebhookSignature(large, sig, secret)).resolves.toBe(true);
+    expect(verifyCashfreeWebhookSignature(large, sig, timestamp, secret)).toBe(true);
   });
 
-  it('rejects validation when payload bytes differ by whitespace normalisation', async () => {
+  it('rejects validation when payload bytes differ by whitespace', () => {
     const compact = JSON.stringify({ order_id: 'order-ws', status: 'completed' });
-    const prettyPrinted = JSON.stringify({ order_id: 'order-ws', status: 'completed' }, null, 2);
+    const pretty = JSON.stringify({ order_id: 'order-ws', status: 'completed' }, null, 2);
     const secret = 'ws-secret';
-    const sig = await signPayload(compact, secret);
+    const timestamp = String(Date.now());
+    const sig = signPayload(compact, secret, timestamp);
 
-    // Pretty-printed version has different bytes — must fail
-    await expect(validateWebhookSignature(prettyPrinted, sig, secret)).resolves.toBe(false);
+    expect(verifyCashfreeWebhookSignature(compact, sig, timestamp, secret)).toBe(true);
+    expect(verifyCashfreeWebhookSignature(pretty, sig, timestamp, secret)).toBe(false);
+  });
+
+  it('rejects when timestamp is missing', () => {
+    const payload = JSON.stringify({ order_id: 'order-ts', status: 'completed' });
+    const secret = 'ts-secret';
+    const timestamp = String(Date.now());
+    const sig = signPayload(payload, secret, timestamp);
+
+    // Without the correct timestamp, signature won't match
+    expect(verifyCashfreeWebhookSignature(payload, sig, '', secret)).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { getCashfreeBaseUrl, getServerCashfreeConfig } from '@/lib/cashfree-serv
 import { logger } from '@/lib/logger'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { validateCashfreeConfig } from '@/lib/startup-checks'
+import { applyRateLimit } from '@/lib/server-rate-limit'
 
 const CreateOrderSchema = z.object({
   orderId: z.string().min(1),
@@ -22,6 +23,10 @@ const CreateOrderSchema = z.object({
 })
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit: max 5 payment orders per 60 seconds per user
+  const rateLimitResponse = await applyRateLimit(request, 'checkout', false)
+  if (rateLimitResponse) return rateLimitResponse
+
   // Validate Cashfree config sync before processing payments
   const configCheck = validateCashfreeConfig()
   if (!configCheck.passed) {

@@ -3,19 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSignUp, useSignIn } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Loader2, Chrome } from 'lucide-react';
-import { checkRateLimit, recordAttempt } from '@/lib/client-rate-limit';
 import { logger } from '@/lib/logger';
 
 export default function Signup() {
   const router = useRouter();
-  const { signInWithGoogle, loading: authLoading } = useAuth();
+  const { isLoaded: clerkLoaded, signUp, isLoaded } = useSignUp();
+  const { signIn } = useSignIn();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -29,47 +28,45 @@ export default function Signup() {
     setError(null);
 
     try {
-      const identifier = email.trim().toLowerCase();
-      const rateLimit = await checkRateLimit('signup', identifier);
-      if (!rateLimit.allowed) {
-        const retryAt = rateLimit.resetAt ? rateLimit.resetAt.toLocaleTimeString() : 'later';
-        throw new Error(`Too many signup attempts. Please try again at ${retryAt}.`);
+      if (!signUp) {
+        throw new Error('Sign up is not available. Please try again.');
       }
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
+      const result = await signUp.create({
+        emailAddress: email,
         password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
+        firstName: fullName.split(' ')[0] || fullName,
+        lastName: fullName.split(' ').slice(1).join(' ') || undefined,
       });
 
-      if (signUpError) {
-        await recordAttempt('signup', identifier);
-        throw signUpError;
-      }
-
-      await recordAttempt('signup', identifier, true);
-
-      if (data.user) {
-        // Keep profile data in sync without failing when trigger already inserted a row.
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            email: data.user.email,
-            full_name: fullName,
-          }, { onConflict: 'id' });
-
-        if (profileError) throw profileError;
-
+      if (result.status === 'complete') {
+        router.push('/');
+        router.refresh();
+      } else if (result.status === 'missing_requirements') {
+        // Clerk requires additional verification (email, phone, etc.)
+        if (result.unverifiedFields.length > 0) {
+          // Prepare email verification if needed
+          if (result.unverifiedFields.includes('email_address')) {
+            await signUp.prepareVerification({ strategy: 'email_code' });
+            router.push('/verify-email?email=' + encodeURIComponent(email));
+            return;
+          }
+        }
+        router.push('/');
+      } else {
+        // 'abandoned' or other statuses
         router.push('/');
       }
     } catch (err) {
       logger.error('Signup error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create account');
+      const message = err instanceof Error ? err.message : 'Failed to create account';
+      // Clerk errors have a `errors` array
+      const clerkErr = err as { errors?: { message: string }[] };
+      if (clerkErr.errors?.length) {
+        setError(clerkErr.errors.map(e => e.message).join(', '));
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -80,10 +77,21 @@ export default function Signup() {
     setError(null);
 
     try {
-      await signInWithGoogle();
-      // The redirect will happen automatically
+      if (!signIn) {
+        throw new Error('Sign in is not available.');
+      }
+      await signIn.authenticateWithRedirect({
+        strategy: 'oauth_google',
+        redirectUrl: '/sso-callback',
+        redirectUrlComplete: '/',
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign up with Google');
+      const clerkErr = err as { errors?: { message: string }[] };
+      if (clerkErr.errors?.length) {
+        setError(clerkErr.errors.map(e => e.message).join(', '));
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to sign up with Google');
+      }
       setGoogleLoading(false);
     }
   };
@@ -164,7 +172,7 @@ export default function Signup() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={loading || authLoading}
+              disabled={loading || !clerkLoaded}
             >
               {loading ? (
                 <>
@@ -191,7 +199,7 @@ export default function Signup() {
               className="w-full"
               size="lg"
               onClick={handleGoogleSignUp}
-              disabled={googleLoading || authLoading}
+              disabled={googleLoading || !clerkLoaded}
               aria-label="Sign up with Google account"
             >
               {googleLoading ? (

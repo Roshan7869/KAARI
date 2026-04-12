@@ -94,6 +94,7 @@ function mapApiItemToCartItem(item: Record<string, any>): CartItem {
           uploads: (customization.customization_uploads || []).map((u: Record<string, string>) => ({
             id: u.id,
             filePath: u.file_path,
+            previewUrl: u.preview_url || (u.file_path?.startsWith('http') ? u.file_path : undefined),
           })),
         }
       : undefined,

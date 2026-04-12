@@ -17,7 +17,6 @@
  * - Not suitable for production without server-side validation
  */
 
-import { supabase } from '@/lib/supabase/client'
 import { logSecurityEvent } from './logger'
 
 // Rate limit configuration

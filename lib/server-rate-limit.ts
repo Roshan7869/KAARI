@@ -13,14 +13,13 @@ import { logger } from '@/lib/logger';
  */
 
 function createRatelimiters() {
-  if (!process.env.UPSTASH_REDIS_REST_URL?.trim() || !process.env.UPSTASH_REDIS_REST_TOKEN?.trim()) {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (!url || !token || !url.startsWith('https://')) {
     return null;
   }
 
-  const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL.trim(),
-    token: process.env.UPSTASH_REDIS_REST_TOKEN.trim(),
-  });
+  const redis = new Redis({ url, token });
 
   return {
     // General API — 60 req / 1 min per IP

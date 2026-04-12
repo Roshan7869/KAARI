@@ -277,7 +277,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // SECURITY: Validate that item prices haven't been tampered with client-side
     // ── 4. Validate individual item prices (including variants) ──────────
-    const adminClient = createAdminClient();
+    // Reuse admin client from line 41 instead of creating a second connection
+    const adminClient = admin;
     for (const item of (cartItems || [])) {
       // If the cart item has a variant_id, validate against variant price
       // Otherwise validate against product base_price

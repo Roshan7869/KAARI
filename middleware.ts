@@ -55,8 +55,9 @@ function buildCsp(nonce: string): string {
 export default clerkMiddleware(async (auth, request: NextRequest) => {
   const { pathname } = request.nextUrl
 
-  // Per-request nonce for CSP
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64').slice(0, 22)
+  // Per-request nonce for CSP — Web Crypto API (Edge Runtime compatible)
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(16))
+  const nonce = btoa(Array.from(nonceBytes).map(b => String.fromCharCode(b)).join('')).slice(0, 22)
   const cspHeader = buildCsp(nonce)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)

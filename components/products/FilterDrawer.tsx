@@ -141,7 +141,7 @@ export default function FilterDrawer({
                   <input
                     type="range"
                     min={0}
-                    max={3000}
+                    max={5000}
                     step={50}
                     value={filters.maxPrice}
                     onChange={(e) => onChange({ ...filters, maxPrice: Number(e.target.value) })}
@@ -153,7 +153,7 @@ export default function FilterDrawer({
                     <span className="text-foreground font-semibold">
                       up to ₹{filters.maxPrice.toLocaleString('en-IN')}
                     </span>
-                    <span>₹3,000</span>
+                    <span>₹5,000</span>
                   </div>
                 </div>
               </section>

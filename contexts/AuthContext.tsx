@@ -9,6 +9,7 @@ import { createContext, useContext, ReactNode } from 'react';
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 /**
  * AuthUser is a simplified user shape that maps Clerk's user
@@ -68,18 +69,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     (clerkUser?.publicMetadata?.role as string | undefined) === 'admin';
 
   const signIn = async (_email: string, _password: string) => {
-    // Handled by Clerk's hosted UI — redirect to login page
+    // Redirect to Clerk-hosted login page where actual auth happens
     router.push('/login');
   };
 
   const signUp = async (_email: string, _password: string, _fullName: string) => {
+    // Redirect to Clerk-hosted signup page where actual auth happens
     router.push('/signup');
   };
 
   const signOut = async () => {
-    await clerkSignOut();
-    toast.success('Signed out successfully');
-    router.push('/');
+    try {
+      await clerkSignOut();
+      toast.success('Signed out successfully');
+      router.push('/');
+    } catch (err) {
+      logger.error('Sign out error:', err);
+      toast.error('Failed to sign out');
+    }
   };
 
   const resetPassword = async (_email: string) => {
@@ -88,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signInWithGoogle = async () => {
-    // Handled by Clerk's sign-in UI (Social Connections)
+    // Redirect to login page where Clerk's Google OAuth is handled
     router.push('/login');
   };
 

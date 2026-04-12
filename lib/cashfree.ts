@@ -6,7 +6,8 @@
  * Currency: INR (Indian Rupees)
  */
 
-import { supabase } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { config as appConfig } from '@/lib/config';
 import { logger } from '@/lib/logger';
 import { fetchWithRetry } from '@/lib/fetch-with-timeout';
 
@@ -225,8 +226,9 @@ export async function createCashfreeOrder(params: {
 
     const data = await response.json();
 
-    // Store session in database
-    await supabase.from('cashfree_sessions').insert({
+    // Store session in database (server-side, use admin client)
+    const admin = createAdminClient();
+    await admin.from('cashfree_sessions').insert({
       order_id: params.orderId,
       cf_order_id: data.cf_order_id,
       cf_payment_session_id: data.payment_session_id,
@@ -250,7 +252,7 @@ export async function createCashfreeOrder(params: {
       order_currency: params.currency || 'INR',
       order_status: 'ACTIVE',
       customer_details: orderPayload.customer_details,
-      payment_link: `${window.location.origin}/pay/${data.payment_session_id}`,
+      payment_link: `${appConfig.appUrl}/pay/${data.payment_session_id}`,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -406,30 +408,6 @@ export function verifyCashfreeWebhookSignature(
 }
 
 /**
- * Sync version for Node.js environments
- * Uses timingSafeEqual to prevent timing attacks
- */
-export async function verifyCashfreeWebhookSignatureNode(
-  payload: string,
-  signature: string,
-  secret: string
-): Promise<boolean> {
-  // Dynamic import for Node.js environments (Edge Functions, etc.)
-  const crypto = await import('crypto');
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('base64');
-
-  const sigBuffer = Buffer.from(signature);
-  const expectedBuffer = Buffer.from(expectedSignature);
-
-  if (sigBuffer.length !== expectedBuffer.length) return false;
-
-  return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
-}
-
-/**
  * Create a dummy session when Cashfree is not configured
  * Used for development/testing
  */
@@ -531,7 +509,6 @@ export default {
   getCashfreePaymentSession,
   getCashfreePaymentDetails,
   verifyCashfreeWebhookSignature,
-  verifyCashfreeWebhookSignatureNode,
   getCashfreeCheckoutUrl,
   getCashfreeCheckoutUrlAsync,
 };

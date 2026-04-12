@@ -96,7 +96,8 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     const items = itemsResult.data || [];
 
     const subtotal = items.reduce((sum, item) => sum + (item.line_total as number), 0);
-    const shipping = subtotal > 0 ? 99 : 0;
+    const FREE_SHPING_THRESHOLD = 999;
+    const shipping = subtotal >= FREE_SHPING_THRESHOLD ? 0 : (subtotal > 0 ? 99 : 0);
     const tax = 0;
     const total = subtotal + shipping + tax;
 
