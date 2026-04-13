@@ -1297,6 +1297,8 @@ export type Database = {
           status: string
           result: Record<string, unknown> | null
           error: string | null
+          retry_count: number
+          next_retry_at: string | null
           received_at: string
           processed_at: string | null
           created_at: string
@@ -1309,6 +1311,8 @@ export type Database = {
           status?: string
           result?: Record<string, unknown> | null
           error?: string | null
+          retry_count?: number
+          next_retry_at?: string | null
           received_at?: string
           processed_at?: string | null
           created_at?: string
@@ -1321,6 +1325,8 @@ export type Database = {
           status?: string
           result?: Record<string, unknown> | null
           error?: string | null
+          retry_count?: number
+          next_retry_at?: string | null
           received_at?: string
           processed_at?: string | null
           created_at?: string

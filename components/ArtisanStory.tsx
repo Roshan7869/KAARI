@@ -31,7 +31,7 @@ export default function ArtisanStory() {
             transition={{ duration: 0.8 }}
             className="relative"
           >
-            <div className="aspect-[4/5] overflow-hidden rounded-lg">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-lg">
               <Image
                 src={artisanSrc}
                 alt="Indian artisan crocheting with colorful yarn"

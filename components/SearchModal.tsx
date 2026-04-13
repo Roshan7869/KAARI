@@ -1,23 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { X, Search } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Search, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useSearchSuggestions, type SearchSuggestion } from "@/hooks/useSearchSuggestions";
 
 interface SearchModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const SEARCH_HINTS = [
+const CATEGORY_HINTS = [
   { label: "Handbags", href: "/products?cat=Crochet Handbags" },
   { label: "Crochet Bouquets", href: "/products?cat=Crochet Bouquet" },
   { label: "Hair Accessories", href: "/products?cat=Crochet Hair Accessories" },
   { label: "Keychains", href: "/products?cat=Crochet Keychains" },
+  { label: "Dolls", href: "/products?cat=Crochet Dolls" },
 ];
 
 export default function SearchModal({ open, onClose }: SearchModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+
+  const { suggestions, isLoading } = useSearchSuggestions(query);
 
   /* Auto-focus input when modal opens */
   useEffect(() => {
@@ -45,7 +50,14 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
     };
   }, [open]);
 
+  /* Reset query when modal closes */
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   if (!open) return null;
+
+  const hasSuggestions = suggestions.length > 0;
 
   return (
     <div
@@ -72,11 +84,17 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
 
         {/* Search box */}
         <div className="relative flex items-center bg-ivory rounded-xl shadow-2xl ring-2 ring-gold/25 overflow-hidden">
-          <Search size={18} className="absolute left-4 text-maroon/50 pointer-events-none" />
+          {isLoading ? (
+            <Loader2 size={18} className="absolute left-4 text-maroon/50 pointer-events-none animate-spin" />
+          ) : (
+            <Search size={18} className="absolute left-4 text-maroon/50 pointer-events-none" />
+          )}
           <input
             ref={inputRef}
             type="search"
-            placeholder="Search for wearables, bouquets…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search for wearables, bouquets..."
             className="w-full bg-transparent py-4 pl-11 pr-12 text-maroon-deep placeholder:text-maroon/40 text-[15px] outline-none font-dm-sans"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -90,24 +108,57 @@ export default function SearchModal({ open, onClose }: SearchModalProps) {
           />
         </div>
 
-        {/* Hints */}
-        <div className="mt-5">
-          <p className="text-[11px] uppercase tracking-[.18em] text-gold/60 mb-2.5">
-            Popular searches
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SEARCH_HINTS.map((hint) => (
-              <Link
-                key={hint.href}
-                href={hint.href}
-                onClick={onClose}
-                className="px-3.5 py-1.5 rounded-full border border-gold/30 text-[13px] text-gold-light hover:bg-maroon/60 hover:border-gold/60 transition-colors"
-              >
-                {hint.label}
-              </Link>
-            ))}
+        {/* Dynamic suggestions from useSearchSuggestions */}
+        {hasSuggestions && (
+          <div className="mt-5">
+            <p className="text-[11px] uppercase tracking-[.18em] text-gold/60 mb-2.5">
+              Suggestions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((s: SearchSuggestion) => (
+                <Link
+                  key={s.id}
+                  href={s.type === 'category'
+                    ? `/products?cat=${encodeURIComponent(s.category)}`
+                    : `/products/${s.slug}`
+                  }
+                  onClick={onClose}
+                  className="px-3.5 py-1.5 rounded-full border border-gold/30 text-[13px] text-gold-light hover:bg-maroon/60 hover:border-gold/60 transition-colors"
+                >
+                  {s.title}
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Fallback category hints (shown when no suggestions) */}
+        {!hasSuggestions && !isLoading && (
+          <div className="mt-5">
+            <p className="text-[11px] uppercase tracking-[.18em] text-gold/60 mb-2.5">
+              Popular searches
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_HINTS.map((hint) => (
+                <Link
+                  key={hint.href}
+                  href={hint.href}
+                  onClick={onClose}
+                  className="px-3.5 py-1.5 rounded-full border border-gold/30 text-[13px] text-gold-light hover:bg-maroon/60 hover:border-gold/60 transition-colors"
+                >
+                  {hint.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="mt-4 text-center">
+            <p className="text-gold/50 text-xs font-dm-sans animate-pulse">Searching...</p>
+          </div>
+        )}
       </div>
     </div>
   );

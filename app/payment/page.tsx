@@ -2,12 +2,14 @@
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import * as Sentry from '@sentry/nextjs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Smartphone, CheckCircle2, XCircle, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { getSecurePaymentSession, processSecurePayment } from '@/lib/payment-secure';
 import { loadCashfreeSDK, UPI_APPS, type UPIApp, redirectUPIApp, getPaymentStatusWithBackoff } from '@/lib/cashfree-sdk';
-import { getCashfreeCheckoutUrlAsync } from '@/lib/cashfree';
+// Server-only module — do NOT import lib/cashfree in client components.
+// Checkout URL is fetched via API to avoid leaking secretKey to the client bundle.
 import { toast } from 'sonner';
 import Image from 'next/image';
 
@@ -21,6 +23,23 @@ interface PaymentSession {
   status: string;
   paymentMethod: string;
   expiresAt: string;
+}
+
+/**
+ * Fetch the Cashfree checkout URL from the server API.
+ * This avoids importing lib/cashfree (which contains secretKey) in the client bundle.
+ */
+async function fetchCheckoutUrl(sessionId: string, returnUrl?: string): Promise<string> {
+  const params = new URLSearchParams({ session_id: sessionId });
+  if (returnUrl) params.set('return_url', returnUrl);
+
+  const res = await fetch(`/api/payment/checkout-url?${params.toString()}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: 'Failed to fetch checkout URL' }));
+    throw new Error(data.error || 'Failed to fetch checkout URL');
+  }
+  const data = await res.json();
+  return data.url;
 }
 
 function PaymentContent() {
@@ -44,7 +63,7 @@ function PaymentContent() {
       setIsCashfreeMode(true);
       const redirect = async () => {
         try {
-          const url = await getCashfreeCheckoutUrlAsync(cfSessionId);
+          const url = await fetchCheckoutUrl(cfSessionId);
           window.location.href = url;
         } catch {
           setError('Failed to redirect to payment gateway.');
@@ -461,16 +480,30 @@ function PaymentContent() {
   );
 }
 
-export default function PaymentPage() {
+function PaymentPageInner() {
   return (
-    <div className="min-h-screen bg-background">
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    <Sentry.ErrorBoundary
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="text-center">
+            <h2 className="font-display text-2xl mb-2">Payment Error</h2>
+            <p className="font-body text-muted-foreground mb-4">An error occurred during payment. Our team has been notified.</p>
+            <a href="/cart" className="text-primary underline">Return to Cart</a>
+          </div>
         </div>
-      }>
-        <PaymentContent />
-      </Suspense>
-    </div>
+      }
+    >
+      <div className="min-h-screen bg-background">
+        <Suspense fallback={
+          <div className="min-h-screen flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }>
+          <PaymentContent />
+        </Suspense>
+      </div>
+    </Sentry.ErrorBoundary>
   );
 }
+
+export default PaymentPageInner;

@@ -23,12 +23,13 @@ const RETURN_WINDOW_DAYS = 7;
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    const { id: orderId } = await params;
     const supabase = createAdminClient();
     const { data: order, error } = await supabase
       .from('orders')
@@ -38,7 +39,7 @@ export async function GET(
           product:product_id(title, slug)),
         order_status_events(new_status, created_at)
       `)
-      .eq('id', params.orderId)
+      .eq('id', orderId)
       .single() as unknown as { data: OrderRow | null; error: Error | null };
 
     if (error || !order) {
@@ -77,7 +78,7 @@ export async function GET(
     const { data: existing } = await (supabase as any)
       .from('return_requests')
       .select('id, status')
-      .eq('order_id', params.orderId)
+      .eq('order_id', orderId)
       .maybeSingle();
 
     if (existing) {
@@ -110,11 +111,13 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { orderId: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { id: orderId } = await params;
 
     const body = await request.json() as {
       items: { order_item_id: string; quantity: number; reason: string }[];
@@ -133,7 +136,7 @@ export async function POST(
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, user_id, status, order_status_events(new_status, created_at)')
-      .eq('id', params.orderId)
+      .eq('id', orderId)
       .single() as unknown as { data: { id: string; user_id: string; status: string; order_status_events: { new_status: string; created_at: string }[] } | null; error: Error | null };
 
     if (orderError || !order) {
@@ -164,7 +167,7 @@ export async function POST(
     const { data: returnRequest, error: insertError } = await (supabase as any)
       .from('return_requests')
       .insert({
-        order_id: params.orderId,
+        order_id: orderId,
         user_id: userId,
         items: body.items,
         reason: body.reason,

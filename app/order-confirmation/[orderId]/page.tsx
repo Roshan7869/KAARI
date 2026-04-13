@@ -6,15 +6,16 @@ import { APP_URL } from "@/lib/metadata";
 export async function generateMetadata({
   params,
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }>;
 }): Promise<Metadata> {
+  const { orderId } = await params;
   return {
-    title: `Order ${params.orderId} - Confirmation | Kaari`,
+    title: `Order ${orderId} - Confirmation | Kaari`,
     description: "Thank you for your handmade crochet order",
     openGraph: {
       type: "website",
-      url: `${APP_URL}/order-confirmation/${params.orderId}`,
-      title: `Order ${params.orderId} - Confirmation | Kaari`,
+      url: `${APP_URL}/order-confirmation/${orderId}`,
+      title: `Order ${orderId} - Confirmation | Kaari`,
       description: "Your order has been placed successfully",
     },
   };
@@ -23,7 +24,7 @@ export async function generateMetadata({
 export default function OrderConfirmationPage({
   params,
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }>;
 }) {
   return (
     <ProtectedRoute>

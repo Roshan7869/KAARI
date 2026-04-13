@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
 import { applyRateLimit, applyCheckoutRateLimits } from '@/lib/server-rate-limit';
 import { validateCsrfToken } from '@/lib/csrf-server';
+import { calculateGST } from '@/lib/tax';
 
 /**
  * POST /api/checkout
@@ -43,6 +44,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // ── 1. Auth ──────────────────────────────────────────────────────
     if (!userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ── 1.1 Email verification check ──────────────────────────────────
+    const { sessionClaims } = await auth();
+    if (!sessionClaims?.email_verified) {
+      return NextResponse.json(
+        { success: false, error: 'Please verify your email before checkout.' },
+        { status: 403 }
+      );
     }
 
     // ── 2. Validate request body ────────────────────────────────────
@@ -170,7 +180,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get cart-level pricing information from the database (SECURE)
     // Calculate shipping: Free for orders over ₹500, otherwise ₹99
     const shipping = subtotal > 500 ? 0 : 99;
-    const tax = 0; // No tax for handmade goods in India
+    const { gstAmount: tax, cgst, sgst } = calculateGST(subtotal);
     const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
     const grandTotal = discountedSubtotal + shipping + tax;
 
@@ -294,11 +304,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .maybeSingle();
 
           if (variantError) {
-            logger.error('Failed to fetch variant price', {
-              variantId: item.variant_id,
-              error: variantError.message
-            });
-            continue;
+            logger.error('Price validation DB error', { variantError, variantId: item.variant_id });
+            return NextResponse.json({ error: 'Price validation failed. Please try again.' }, { status: 500 });
           }
 
           if (variantData && variantData.price != null) {
@@ -321,11 +328,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .maybeSingle();
 
           if (productError) {
-            logger.error('Failed to fetch product price', {
-              productId: item.product_id,
-              error: productError.message
-            });
-            continue;
+            logger.error('Price validation DB error', { productError, productId: item.product_id });
+            return NextResponse.json({ error: 'Price validation failed. Please try again.' }, { status: 500 });
           }
 
           expectedPrice = productData?.base_price ?? item.unit_price;
@@ -372,11 +376,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           );
         }
       } catch (priceError) {
-        logger.error('Error validating item price', {
+        logger.error('Price validation failed', {
           productId: item.product_id,
           error: (priceError as Error).message
         });
-        // Don't fail checkout for price validation errors, proceed with caution
+        return NextResponse.json({ error: 'Price validation failed. Please try again.' }, { status: 500 });
       }
     }
 
@@ -479,6 +483,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           discount: couponDiscount || 0,
           shipping,
           tax,
+          cgst,
+          sgst,
           grandTotal,
         },
       },

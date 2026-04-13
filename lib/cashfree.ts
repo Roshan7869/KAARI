@@ -4,7 +4,14 @@
  *
  * Supports: UPI, Cards, NetBanking, Wallets, EMI, Pay Later
  * Currency: INR (Indian Rupees)
+ *
+ * SECURITY: This module MUST only be imported in server-side code.
+ * It contains API credentials (appId, secretKey, webhookSecret)
+ * that must NEVER be exposed to the client bundle.
+ * The 'server-only' import ensures a build-time error if imported client-side.
  */
+
+import 'server-only';
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { config as appConfig } from '@/lib/config';
@@ -366,46 +373,10 @@ export async function getCashfreePaymentDetails(
 }
 
 /**
- * Verify Cashfree webhook signature (Node.js version - use in API routes)
- * CRITICAL: Validates HMAC-SHA256 signature with timing-safe comparison
- *
- * Cashfree signs: x-webhook-timestamp + rawBody
- * See: https://docs.cashfree.com/docs/webhooks/verify-signature
+ * NOTE: Webhook signature verification has been moved to lib/cashfree-server.ts
+ * which uses the 'server-only' guard and Node.js crypto module directly.
+ * Use `verifyCashfreeWebhookSignature` from '@/lib/cashfree-server' in API routes.
  */
-export function verifyCashfreeWebhookSignature(
-  rawBody: string,
-  signature: string,
-  timestamp: string,
-  secret: string
-): boolean {
-  if (!secret || !signature) {
-    logger.warn('WEBHOOK: Missing secret or signature');
-    return false;
-  }
-
-  try {
-    // Import Node.js crypto at runtime (works in Next.js Edge functions and API routes)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const cryptoModule = require('crypto');
-
-    const signedPayload = timestamp + rawBody;
-    const expected = cryptoModule
-      .createHmac('sha256', secret)
-      .update(signedPayload)
-      .digest('base64');
-
-    const sigBuffer      = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expected);
-
-    // Timing-safe comparison prevents timing attacks
-    if (sigBuffer.length !== expectedBuffer.length) return false;
-
-    return cryptoModule.timingSafeEqual(sigBuffer, expectedBuffer);
-  } catch (error) {
-    logger.error('Webhook signature verification failed:', error);
-    return false;
-  }
-}
 
 /**
  * Create a dummy session when Cashfree is not configured
@@ -508,7 +479,6 @@ export default {
   createCashfreeOrder,
   getCashfreePaymentSession,
   getCashfreePaymentDetails,
-  verifyCashfreeWebhookSignature,
   getCashfreeCheckoutUrl,
   getCashfreeCheckoutUrlAsync,
 };

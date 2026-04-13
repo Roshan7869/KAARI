@@ -1,6 +1,5 @@
 import { Metadata } from "next";
 import Cart from "@/components/pages/Cart";
-import ProtectedRoute from "@/app/components/ProtectedRoute";
 import { APP_URL } from "@/lib/metadata";
 
 export const metadata: Metadata = {
@@ -15,9 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function CartPage() {
-  return (
-    <ProtectedRoute>
-      <Cart />
-    </ProtectedRoute>
-  );
+  return <Cart />;
 }

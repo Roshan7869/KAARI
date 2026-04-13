@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { sanitizeSearchQuery } from '@/lib/sanitization';
+import { sanitizeSearchQuery, sanitizeFilePath } from '@/lib/sanitization';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 import { cloudinary } from '@/lib/cloudinary';
 
@@ -315,10 +315,12 @@ export function useUploadProductMedia() {
 
       // Atomic insert via RPC: uses FOR UPDATE to prevent concurrent uploads
       // from both seeing "no primary exists" and both claiming primary image.
+      // Sanitize file_path to prevent CRLF injection before DB insert.
+      const sanitizedFilePath = sanitizeFilePath(filePath);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc('insert_product_media_safe', {
         p_product_id: productId,
-        p_file_path:  filePath,
+        p_file_path:  sanitizedFilePath,
         p_alt_text:   altText ?? null,
         p_sort_order: null,   // RPC auto-computes max sort_order + 1
       });

@@ -3,11 +3,19 @@ import { sanitizeFilePath } from '@/lib/sanitization';
 
 const STORAGE_BUCKET = 'product-media';
 
+export type ImageSize = 'thumbnail' | 'medium' | 'large';
+
+const SIZE_MAP: Record<ImageSize, { width: number; height: number }> = {
+  thumbnail: { width: 200, height: 200 },
+  medium: { width: 600, height: 600 },
+  large: { width: 1200, height: 1200 },
+};
+
 function hasFileExtension(path: string) {
   return /\.[a-z0-9]+$/i.test(path);
 }
 
-export function resolveProductImageUrl(filePath?: string | null): string {
+export function resolveProductImageUrl(filePath?: string | null, size: ImageSize = 'large'): string {
   if (!filePath) return '/placeholder.svg';
 
   // Strip CRLF, null bytes, and leading/trailing whitespace
@@ -26,9 +34,10 @@ export function resolveProductImageUrl(filePath?: string | null): string {
 
   // Cloudinary public IDs have no file extension; Supabase Storage paths do
   if (!hasFileExtension(filePath)) {
+    const { width, height } = SIZE_MAP[size];
     return getCloudinaryImageUrl(filePath, {
-      width: 1200,
-      height: 1200,
+      width,
+      height,
       quality: 'auto',
       format: 'auto',
     });

@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 
 const CloudinaryMediaLibrary = dynamic(
   () => import('@/components/pages/admin/CloudinaryMediaLibrary'),
-  { loading: () => <MediaLibrarySkeleton />, ssr: false }
+  { loading: () => <MediaLibrarySkeleton /> }
 );
 
 export default function AdminMediaPage() {

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { pin: string } }
+  { params }: { params: Promise<{ pin: string }> }
 ) {
-  const { pin } = params
+  const { pin } = await params
 
   if (!/^\d{6}$/.test(pin)) {
     return NextResponse.json(

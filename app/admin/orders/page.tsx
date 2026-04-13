@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 
 const AdminOrders = dynamic(
   () => import("@/components/pages/admin/AdminOrders"),
-  { loading: () => <AdminOrdersSkeleton />, ssr: false }
+  { loading: () => <AdminOrdersSkeleton /> }
 );
 
 export default function AdminOrdersPage() {

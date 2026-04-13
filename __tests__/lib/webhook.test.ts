@@ -8,6 +8,9 @@ beforeAll(() => {
   }
 });
 
+// Mock server-only (it throws in non-React-server environments)
+vi.mock('server-only', () => ({}));
+
 // Mock logger to suppress console noise
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -19,7 +22,12 @@ vi.mock('@/lib/supabase/admin', () => ({
   hasAdminClientConfig: vi.fn(() => false),
 }));
 
-import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
+// Mock fetch-with-timeout (imported by cashfree-server)
+vi.mock('@/lib/fetch-with-timeout', () => ({
+  fetchWithRetry: vi.fn(),
+}));
+
+import { verifyCashfreeWebhookSignature } from '@/lib/cashfree-server';
 
 // Cashfree webhook signature: HMAC-SHA256(timestamp + rawBody, secret) in base64
 function signPayload(payload: string, secret: string, timestamp: string): string {

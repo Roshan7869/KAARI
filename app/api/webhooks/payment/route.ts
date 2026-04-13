@@ -290,16 +290,60 @@ async function processWebhookInBackground(params: {
       cfPaymentId
     });
 
-    // Update webhook event status to FAILED
+    // Update webhook event status to FAILED and schedule retry
     if (webhookEventId) {
-      await supabase
+      // Exponential backoff: 1min (1st), 5min (2nd), 15min (3rd)
+      const BACKOFF_MS = [60_000, 300_000, 900_000];
+
+      // Read current retry_count
+      const { data: currentEvent } = await supabase
         .from('webhook_events')
-        .update({
-          status: 'FAILED',
-          error: err.message,
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', webhookEventId);
+        .select('retry_count')
+        .eq('id', webhookEventId)
+        .maybeSingle();
+
+      const currentRetryCount = currentEvent?.retry_count ?? 0;
+      const nextRetryCount = currentRetryCount + 1;
+
+      if (nextRetryCount >= 3) {
+        // Max retries reached — move to DEAD_LETTER
+        await supabase
+          .from('webhook_events')
+          .update({
+            status: 'DEAD_LETTER',
+            retry_count: nextRetryCount,
+            next_retry_at: null,
+            error: `DEAD_LETTER after 3 retries: ${err.message}`,
+            processed_at: new Date().toISOString(),
+          })
+          .eq('id', webhookEventId);
+
+        logger.error('Webhook event moved to DEAD_LETTER', {
+          eventId: webhookEventId,
+          retryCount: nextRetryCount,
+        });
+      } else {
+        // Schedule retry with exponential backoff
+        const backoff = BACKOFF_MS[nextRetryCount - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1];
+        const nextRetryAt = new Date(Date.now() + backoff).toISOString();
+
+        await supabase
+          .from('webhook_events')
+          .update({
+            status: 'FAILED',
+            retry_count: nextRetryCount,
+            next_retry_at: nextRetryAt,
+            error: err.message,
+            processed_at: new Date().toISOString(),
+          })
+          .eq('id', webhookEventId);
+
+        logger.warn('Webhook event failed, retry scheduled', {
+          eventId: webhookEventId,
+          retryCount: nextRetryCount,
+          nextRetryAt,
+        });
+      }
     }
   }
 }

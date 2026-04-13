@@ -6,6 +6,9 @@
  */
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 
+// Mock server-only (it throws in non-React-server environments)
+vi.mock('server-only', () => ({}));
+
 // Mock logger to suppress console noise
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -22,6 +25,11 @@ vi.mock('@/lib/supabase/admin', () => ({
   hasAdminClientConfig: vi.fn(() => false),
 }));
 
+// Mock fetch-with-timeout (imported by cashfree-server)
+vi.mock('@/lib/fetch-with-timeout', () => ({
+  fetchWithRetry: vi.fn(),
+}));
+
 // Mock config to avoid env var issues
 vi.mock('@/lib/config', () => ({
   config: {
@@ -29,7 +37,7 @@ vi.mock('@/lib/config', () => ({
   },
 }));
 
-import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
+import { verifyCashfreeWebhookSignature } from '@/lib/cashfree-server';
 
 // Generate HMAC-SHA256 signature matching Cashfree's format: timestamp + rawBody
 async function generateSignature(payload: string, secret: string, timestamp: string): Promise<string> {

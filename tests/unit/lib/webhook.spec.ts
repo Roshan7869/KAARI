@@ -4,6 +4,9 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 
+// Mock server-only (it throws in non-React-server environments)
+vi.mock('server-only', () => ({}));
+
 // Mock dependencies
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -12,11 +15,14 @@ vi.mock('@/lib/supabase/admin', () => ({
   createAdminClient: vi.fn(() => ({})),
   hasAdminClientConfig: vi.fn(() => false),
 }));
+vi.mock('@/lib/fetch-with-timeout', () => ({
+  fetchWithRetry: vi.fn(),
+}));
 vi.mock('@/lib/config', () => ({
   config: { appUrl: 'http://localhost:3000' },
 }));
 
-import { verifyCashfreeWebhookSignature } from '@/lib/cashfree';
+import { verifyCashfreeWebhookSignature } from '@/lib/cashfree-server';
 
 async function signPayload(payload: string, secret: string, timestamp: string): Promise<string> {
   const encoder = new TextEncoder();

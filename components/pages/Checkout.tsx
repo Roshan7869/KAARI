@@ -2,6 +2,7 @@
 
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -51,10 +52,13 @@ interface SavedAddress {
 
 export default function Checkout() {
   const { user } = useAuth();
+  const { user: clerkUser } = useUser();
   const { cart, refreshCart } = useCart();
   const items = cart?.items ?? [];
   const total = cart?.pricing.total ?? 0;
   const router = useRouter();
+
+  const isEmailUnverified = !!clerkUser && !clerkUser.primaryEmailAddress?.verification?.status?.startsWith('verified');
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -71,12 +75,7 @@ export default function Checkout() {
   const [shippingProvider, setShippingProvider] = useState<CourierKey>('INDIA_POST');
   const [shippingProviderLabel, setShippingProviderLabel] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const [csrfToken] = useState(() => {
-    // Read CSRF token from HTTP-only cookie set by server
-    const cookies = document.cookie.split(';');
-    const csrfCookie = cookies.find(c => c.trim().startsWith(CSRF_COOKIE_NAME + '='));
-    return csrfCookie ? csrfCookie.split('=')[1] : '';
-  });
+  const [csrfToken, setCsrfToken] = useState('');
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [saveAddress, setSaveAddress] = useState(false);
@@ -84,6 +83,13 @@ export default function Checkout() {
   const [pincodeLookupLoading, setPincodeLookupLoading] = useState(false);
   const [pincodeLookupDone, setPincodeLookupDone] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState(1); // 1: Cart Review, 2: Shipping, 3: Payment, 4: Confirmation
+
+  // Fix: Read CSRF token in useEffect to avoid SSR/client hydration mismatch
+  useEffect(() => {
+    const cookies = document.cookie.split(';');
+    const csrfCookie = cookies.find(c => c.trim().startsWith(CSRF_COOKIE_NAME + '='));
+    setCsrfToken(csrfCookie ? csrfCookie.split('=')[1] : '');
+  }, []);
 
   // Coupon state
   const [couponInput, setCouponInput] = useState('');
@@ -220,6 +226,12 @@ export default function Checkout() {
     }
 
     if (!user || items.length === 0) return;
+
+    // Block checkout if email is not verified
+    if (isEmailUnverified) {
+      setFormError('Please verify your email address before placing an order.');
+      return;
+    }
     // CSRF token is now validated server-side via cookie + header comparison
     // The HTTP-only cookie is set by middleware, and the header is sent in the fetch call
 
@@ -423,6 +435,19 @@ export default function Checkout() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="font-display text-3xl mb-8">Checkout</h1>
+      {isEmailUnverified && (
+        <div
+          className="mb-4 rounded-sm border border-amber-300 bg-amber-50 px-4 py-3 font-body text-sm text-amber-800"
+          role="alert"
+          aria-live="polite"
+        >
+          <strong>Please verify your email address before placing an order.</strong>
+          {' '}Check your inbox for a verification email.{' '}
+          <a href="/account" className="underline font-medium hover:text-amber-900">
+            Manage your email settings
+          </a>.
+        </div>
+      )}
       {formError ? (
         <p
           id="checkout-error"

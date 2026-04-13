@@ -6,7 +6,7 @@
  * so all consuming components work without changes.
  */
 import { createContext, useContext, ReactNode } from 'react';
-import { useUser, useClerk } from '@clerk/nextjs';
+import { useUser, useClerk, useSession } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { logger } from '@/lib/logger';
@@ -27,7 +27,7 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  session: null;
+  session: ReturnType<typeof useSession>['session'] | null;
   loading: boolean;
   isLoaded: boolean;
   isAdmin: boolean;
@@ -51,6 +51,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { user: clerkUser, isLoaded } = useUser();
   const { signOut: clerkSignOut } = useClerk();
+  const { session } = useSession();
   const router = useRouter();
 
   const user: AuthUser | null = clerkUser
@@ -103,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider
       value={{
         user,
-        session: null,
+        session,
         loading: !isLoaded,
         isLoaded,
         isAdmin,

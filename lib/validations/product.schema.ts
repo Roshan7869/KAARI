@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+/**
+ * Strip CRLF, null bytes, and excess whitespace from file paths.
+ * Prevents CRLF injection and directory traversal in product_media.file_path.
+ */
+function sanitizeFilePath(raw: string): string {
+  return raw
+    .replace(/[\r\n\t\0]+/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\/+/g, '/')
+    .trim();
+}
+
 export const ProductListSchema = z.object({
   category: z.string().optional(),
   search: z.string().optional(),
@@ -65,7 +77,7 @@ export const VariantUpdateSchema = z.object({
 
 export const MediaCreateSchema = z.object({
   product_id: z.string().uuid(),
-  file_path: z.string().min(1).max(500),
+  file_path: z.string().min(1).max(500).transform(sanitizeFilePath),
   alt_text: z.string().max(200).optional(),
   sort_order: z.coerce.number().int().min(0).optional(),
 });

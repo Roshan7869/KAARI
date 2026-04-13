@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { label: 'Shop All', href: '/products' },
   { label: 'Handbags', href: '/products?cat=Crochet Handbags' },
   { label: 'Hair Accessories', href: '/products?cat=Crochet Hair Accessories' },
+  { label: 'Dolls', href: '/products?cat=Crochet Dolls' },
   { label: 'Bouquets', href: '/products?cat=Crochet Bouquet' },
   { label: 'Keychains', href: '/products?cat=Crochet Keychains' },
 ];

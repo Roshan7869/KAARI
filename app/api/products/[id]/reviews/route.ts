@@ -205,12 +205,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Check if user purchased this product — compute server-side, never trust client
+    // Join orders table to verify the order was completed (not just placed)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: orderItem } = await (supabase as any)
       .from('order_items')
-      .select('id')
+      .select('id, orders!inner(status)')
       .eq('product_id', result.data.id)
       .eq('user_id', userId)
+      .in('orders.status', ['delivered', 'paid', 'shipped'])
       .maybeSingle() as { data: { id: string } | null; error: Error | null };
 
     const isVerifiedPurchase = !!orderItem;

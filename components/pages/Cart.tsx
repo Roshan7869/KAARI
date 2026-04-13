@@ -1,14 +1,17 @@
 'use client';
 
 import { useCart } from '@/contexts/CartContext';
+import { useUser } from '@clerk/nextjs';
+import { SignInButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Minus, Plus, Trash2 } from 'lucide-react';
+import { Minus, Plus, Trash2, LogIn } from 'lucide-react';
 import { CartSkeleton } from '@/components/ui/skeleton-loader';
 
 export default function Cart() {
   const { cart, loading, updateQuantity, removeItem } = useCart();
+  const { isSignedIn } = useUser();
   const router = useRouter();
   const items = cart?.items ?? [];
   const pricing = cart?.pricing ?? { subtotal: 0, shipping: 0, tax: 0, total: 0 };
@@ -55,11 +58,29 @@ export default function Cart() {
           {items.map((item) => (
             <div key={item.cartItemId} className="glass-card-cream rounded-xl p-5">
               <div className="flex flex-col sm:flex-row gap-4">
+                {/* Product Image */}
+                {item.image && (
+                  <div className="flex-shrink-0">
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      className="w-20 h-20 object-cover rounded-sm"
+                    />
+                  </div>
+                )}
                 <div className="flex-1">
                   <h3 className="font-display text-lg text-foreground">{item.title}</h3>
                   <p className="font-body text-sm text-muted-foreground capitalize mt-0.5">
                     {item.itemType === 'customized' ? 'Customized' : 'Standard'}
                   </p>
+                  {/* Variant Details */}
+                  {(item.variantSize || item.variantColor || item.variantMaterial) && (
+                    <p className="font-body text-xs text-muted-foreground mt-0.5">
+                      {[item.variantSize, item.variantColor, item.variantMaterial]
+                        .filter(Boolean)
+                        .join(' / ')}
+                    </p>
+                  )}
                   {item.customization && (
                     <p className="font-body text-xs text-muted-foreground mt-1">
                       Quote Status: {item.customization.quoteStatus}
@@ -132,9 +153,19 @@ export default function Cart() {
                 <span className="text-foreground">{pricing.shipping > 0 ? `₹${pricing.shipping.toLocaleString('en-IN')}` : 'Free'}</span>
               </div>
               {pricing.tax > 0 && (
-                <div className="flex justify-between" aria-label={`Tax: ₹${pricing.tax.toLocaleString('en-IN')}`}>
-                  <span className="text-muted-foreground">Tax</span>
-                  <span className="text-foreground">₹{pricing.tax.toLocaleString('en-IN')}</span>
+                <div>
+                  <div className="flex justify-between" aria-label={`Tax: ₹${pricing.tax.toLocaleString('en-IN')}`}>
+                    <span className="text-muted-foreground">GST (18%)</span>
+                    <span className="text-foreground">₹{pricing.tax.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground ml-3">
+                    <span>CGST</span>
+                    <span>₹{((pricing.tax as number) / 2).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground ml-3">
+                    <span>SGST</span>
+                    <span>₹{((pricing.tax as number) / 2).toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -146,14 +177,27 @@ export default function Cart() {
               </div>
             </div>
 
-            <Button
-              className="w-full mt-6"
-              size="lg"
-              onClick={() => router.push('/checkout')}
-              aria-label={`Proceed to checkout with ${items.length} item(s) totaling ₹${pricing.total.toLocaleString('en-IN')}`}
-            >
-              Proceed to Checkout
-            </Button>
+            {isSignedIn ? (
+              <Button
+                className="w-full mt-6"
+                size="lg"
+                onClick={() => router.push('/checkout')}
+                aria-label={`Proceed to checkout with ${items.length} item(s) totaling ₹${pricing.total.toLocaleString('en-IN')}`}
+              >
+                Proceed to Checkout
+              </Button>
+            ) : (
+              <SignInButton mode="modal">
+                <Button
+                  className="w-full mt-6"
+                  size="lg"
+                  aria-label="Sign in to checkout"
+                >
+                  <LogIn className="mr-2 h-4 w-4" />
+                  Sign in to Checkout
+                </Button>
+              </SignInButton>
+            )}
 
             <Link href="/products" className="block mt-3">
               <Button variant="outline" className="w-full">

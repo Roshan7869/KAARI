@@ -71,6 +71,8 @@ export default function ProductGrid() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const search = searchParams.get('search') ?? '';
   const pageSize = 9;
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadMoreCount, setLoadMoreCount] = useState(0);
 
   // Sync state → URL (replace, no scroll)
   useEffect(() => {
@@ -84,10 +86,26 @@ export default function ProductGrid() {
     router.replace(qs ? `/products?${qs}` : '/products', { scroll: false });
   }, [active, search, sortBy, page, router]);
 
+  // Fetch products with server-side pagination (Load More pattern)
   const { data: dbProducts = [], isLoading } = useQuery<DatabaseProduct[]>({
-    queryKey: ['products', active],
+    queryKey: ['products', active, loadMoreCount],
     enabled: true,
     queryFn: async () => {
+      // Fetch from offset 0 up to the current accumulated count
+      const fetchLimit = loadMoreCount + pageSize;
+
+      let countQuery = supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (active !== 'All') {
+        countQuery = countQuery.eq('category', active);
+      }
+
+      const { count } = await countQuery;
+      setTotalCount(count ?? 0);
+
       let query = supabase
         .from('products')
         .select(`
@@ -112,7 +130,10 @@ export default function ProductGrid() {
         query = query.eq('category', active);
       }
 
-      const { data, error } = await query.limit(120);
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .range(0, fetchLimit - 1);
+
       if (error) {
         console.error('Error fetching products:', error);
         return [];
@@ -189,7 +210,7 @@ export default function ProductGrid() {
     page * pageSize
   );
 
-  useEffect(() => { setPage(1); }, [active, sortBy, appliedFilters]);
+  useEffect(() => { setPage(1); setLoadMoreCount(0); }, [active, sortBy, appliedFilters]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const drawerActiveCount = [
@@ -207,6 +228,11 @@ export default function ProductGrid() {
     setDrawerFilters(DEFAULT_DRAWER_FILTERS);
     setAppliedFilters(DEFAULT_DRAWER_FILTERS);
     setPage(1);
+    setLoadMoreCount(0);
+  }, []);
+
+  const handleLoadMore = useCallback(() => {
+    setLoadMoreCount((prev) => prev + pageSize);
   }, []);
 
   return (
@@ -363,7 +389,7 @@ export default function ProductGrid() {
           {/* Result count */}
           {!isLoading && (
             <p className="font-body text-xs text-muted-foreground mb-6">
-              Showing <strong>{filteredAndSortedProducts.length}</strong> product{filteredAndSortedProducts.length !== 1 ? 's' : ''}
+              Showing <strong>{filteredAndSortedProducts.length}</strong> of <strong>{totalCount}</strong> product{totalCount !== 1 ? 's' : ''}
             </p>
           )}
 
@@ -463,6 +489,18 @@ export default function ProductGrid() {
                 aria-label="Next page"
               >
                 ›
+              </button>
+            </div>
+          )}
+
+          {/* Load More button */}
+          {dbProducts.length > 0 && totalCount > (loadMoreCount + pageSize) && (
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={handleLoadMore}
+                className="px-8 py-3 bg-[#8B1F2A] text-white font-body text-sm tracking-[0.1em] uppercase rounded-md hover:bg-[#6e1820] transition-colors"
+              >
+                Load More Products
               </button>
             </div>
           )}

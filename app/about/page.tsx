@@ -7,21 +7,17 @@ import { APP_URL } from "@/lib/metadata";
 
 const CraftProcess = dynamic(() => import("@/components/CraftProcess"), {
   loading: () => <SectionSkeleton height="h-64" className="py-16" />,
-  ssr: false,
 });
 
 const InstagramFeature = dynamic(() => import("@/components/InstagramFeature"), {
   loading: () => <SectionSkeleton height="h-48" className="py-16" />,
-  ssr: false,
 });
 
 const CustomDesignForm = dynamic(() => import("@/components/CustomDesignForm"), {
   loading: () => <SectionSkeleton height="h-64" className="py-16" />,
-  ssr: false,
 });
 
 const KaariFooter = dynamic(() => import("@/components/KaariFooter"), {
-  ssr: false,
   loading: () => <SectionSkeleton height="h-40" />,
 });
 

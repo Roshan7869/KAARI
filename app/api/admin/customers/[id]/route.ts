@@ -20,14 +20,14 @@ const customerUpdateSchema = z.object({
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { userId, sessionClaims } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const customerId = params.id;
+  const { id: customerId } = await params;
   if (!customerId) return NextResponse.json({ error: 'Missing customer ID' }, { status: 400 });
 
   let body: unknown;
@@ -104,18 +104,20 @@ export async function PATCH(
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { userId, sessionClaims } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
   if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
+  const { id: customerId } = await params;
+
   const supabase = createAdminClient();
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', customerId)
     .single();
 
   if (error || !profile) return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
@@ -123,14 +125,14 @@ export async function GET(
   const { data: address } = await supabase
     .from('addresses')
     .select('*')
-    .eq('user_id', params.id)
+    .eq('user_id', customerId)
     .eq('is_default', true)
     .maybeSingle();
 
   const { data: orders } = await supabase
     .from('orders')
     .select('id, status, total_amount, created_at')
-    .eq('user_id', params.id)
+    .eq('user_id', customerId)
     .order('created_at', { ascending: false })
     .limit(10);
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Package, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -34,7 +34,8 @@ type EligibilityResponse = {
   };
 };
 
-export default function ReturnPortalPage({ params }: { params: { orderId: string } }) {
+export default function ReturnPortalPage({ params }: { params: Promise<{ orderId: string }> }) {
+  const { orderId } = use(params);
   const router = useRouter();
   const [eligibility, setEligibility] = useState<EligibilityResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +48,7 @@ export default function ReturnPortalPage({ params }: { params: { orderId: string
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch(`/api/orders/${params.orderId}/return`)
+    fetch(`/api/orders/${orderId}/return`)
       .then((r) => r.json())
       .then((data: EligibilityResponse) => {
         setEligibility(data);
@@ -62,7 +63,7 @@ export default function ReturnPortalPage({ params }: { params: { orderId: string
       })
       .catch(() => setError('Failed to load order details'))
       .finally(() => setLoading(false));
-  }, [params.orderId]);
+  }, [orderId]);
 
   const handleSubmit = async () => {
     if (!reason) {
@@ -83,7 +84,7 @@ export default function ReturnPortalPage({ params }: { params: { orderId: string
     setError(null);
 
     try {
-      const res = await fetch(`/api/orders/${params.orderId}/return`, {
+      const res = await fetch(`/api/orders/${orderId}/return`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items: returnItems, reason, description }),
@@ -164,7 +165,7 @@ export default function ReturnPortalPage({ params }: { params: { orderId: string
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-4 py-12">
         <Link
-          href={`/orders/${params.orderId}/track`}
+          href={`/orders/${orderId}/track`}
           className="inline-flex items-center gap-1.5 font-body text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -68,19 +68,20 @@ function getEventForStep(
 export default async function TrackOrderPage({
   params,
 }: {
-  params: { orderId: string };
+  params: Promise<{ orderId: string }>;
 }) {
+  const { orderId } = await params;
   const { userId } = await auth();
-  if (!userId) redirect(`/login?redirect_url=/orders/${params.orderId}/track`);
+  if (!userId) redirect(`/login?redirect_url=/orders/${orderId}/track`);
 
   let supabase;
   try {
     supabase = await createUserClient();
   } catch (authError) {
     // JWT template not configured or auth session expired
-    redirect(`/login?reason=session-expired&returnTo=/orders/${params.orderId}/track`);
+    redirect(`/login?reason=session-expired&returnTo=/orders/${orderId}/track`);
   }
-  if (!supabase) redirect(`/login?redirect_url=/orders/${params.orderId}/track`);
+  if (!supabase) redirect(`/login?redirect_url=/orders/${orderId}/track`);
 
   const { data: order, error } = await supabase
     .from('orders')
@@ -89,7 +90,7 @@ export default async function TrackOrderPage({
       tracking_number, tracking_url, shipping_provider_label,
       order_status_events(id, new_status, created_at, note)
     `)
-    .eq('id', params.orderId)
+    .eq('id', orderId)
     .single() as unknown as { data: OrderWithEvents | null; error: Error | null };
 
   if (error || !order) return notFound();

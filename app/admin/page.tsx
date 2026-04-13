@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 const AdminDashboard = dynamic(
   () => import("@/components/pages/admin/AdminDashboard"),
-  { loading: () => <AdminDashboardSkeleton />, ssr: false }
+  { loading: () => <AdminDashboardSkeleton /> }
 );
 
 export default function AdminDashboardPage() {

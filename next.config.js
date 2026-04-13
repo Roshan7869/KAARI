@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 
+const withSentryConfig = require('@sentry/nextjs').withSentryConfig;
+
 // Only load bundle analyzer when ANALYZE=true (avoids requiring uninstalled pkg)
 const withBundleAnalyzer = process.env.ANALYZE === 'true'
   ? require('@next/bundle-analyzer')({ enabled: true })
@@ -43,7 +45,15 @@ const nextConfig = {
 
   // Production optimizations
   productionBrowserSourceMaps: false,
-  swcMinify: true,
+
+  // Experimental features for better performance
+  experimental: {
+    optimizePackageImports: [
+      '@radix-ui/react-icons',
+      'lucide-react',
+      '@radix-ui',
+    ],
+  },
 
   // Redirects
   async redirects() {
@@ -155,15 +165,15 @@ const nextConfig = {
 
   // React strict mode for development
   reactStrictMode: process.env.NODE_ENV === 'development',
-
-  // Experimental features for better performance
-  experimental: {
-    optimizePackageImports: [
-      '@radix-ui/react-icons',
-      'lucide-react',
-      '@radix-ui',
-    ],
-  },
 };
 
-module.exports = withBundleAnalyzer(nextConfig);
+// Sentry webpack plugin options — only active when SENTRY_AUTH_TOKEN is set
+const sentryWebpackPluginOptions = {
+  silent: true, // Suppresses all logs
+  hideSourceMaps: true, // Don't upload source maps to public directory
+};
+
+// Wrap config with bundle analyzer, then Sentry
+const wrappedConfig = withBundleAnalyzer(nextConfig);
+
+module.exports = withSentryConfig(wrappedConfig, sentryWebpackPluginOptions);

@@ -108,15 +108,26 @@ export async function generateMetadata({
 export default async function ProductDetailPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
+  const { slug } = await params;
   // Minimal fetch for JSON-LD (ProductDetail fetches full data client-side)
   const supabase = await createClient();
   const { data: product } = await supabase
     .from('products')
-    .select('id, title, description, base_price, slug, is_active')
-    .eq('slug', params.slug)
-    .single() as unknown as { data: { id: string; title: string; description: string | null; base_price: number; slug: string; is_active: boolean | null } | null };
+    .select('id, title, description, base_price, slug, is_active, product_media(file_path, is_primary)')
+    .eq('slug', slug)
+    .single() as unknown as { data: { id: string; title: string; description: string | null; base_price: number; slug: string; is_active: boolean | null; product_media: Array<{ file_path: string | null; is_primary: boolean | null }> } | null };
+
+  // Use the primary or first product image for JSON-LD, fallback to og-image
+  let productImageUrl = `${APP_URL}/og-image.jpg`;
+  if (product) {
+    const media = product.product_media;
+    const primaryMedia = media?.find((m: { is_primary: boolean | null }) => m.is_primary) || media?.[0];
+    if (primaryMedia?.file_path) {
+      productImageUrl = resolveProductImageUrl(primaryMedia.file_path);
+    }
+  }
 
   return (
     <>
@@ -125,7 +136,7 @@ export default async function ProductDetailPage({
           name={product.title}
           description={product.description ?? ''}
           price={product.base_price}
-          image={`${APP_URL}/og-image.jpg`}
+          image={productImageUrl}
           slug={product.slug}
           isActive={product.is_active ?? true}
         />

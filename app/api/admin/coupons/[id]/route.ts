@@ -16,12 +16,13 @@ const UpdateCouponSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const adminErr = await requireAdmin();
     if (adminErr) return adminErr;
 
+    const { id } = await params;
     const body = await request.json();
     const validated = UpdateCouponSchema.parse(body);
 
@@ -30,7 +31,7 @@ export async function PATCH(
     const { data, error } = await (supabase as any)
       .from('coupons')
       .update(validated)
-      .eq('id', params.id)
+      .eq('id', id)
       .select('*')
       .single();
 
@@ -43,18 +44,19 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const adminErr = await requireAdmin();
     if (adminErr) return adminErr;
 
+    const { id } = await params;
     const supabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from('coupons')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) throw error;
     return NextResponse.json({ success: true });

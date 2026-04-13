@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { validateBody } from '@/lib/api-validate';
+import { calculateGST } from '@/lib/tax';
 import { z } from 'zod';
 import type { Database } from '@/types/database';
 
@@ -83,7 +84,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
         unit_price,
         line_total,
         item_type,
-        products:product_id (id, title, slug, base_price, is_active, allow_customization),
+        products:product_id (id, title, slug, base_price, is_active, allow_customization, product_media(file_path, is_primary)),
         variants:variant_id (id, sku, size, color, material, price, stock_qty),
         cart_item_customizations (
           *,
@@ -98,14 +99,14 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     const subtotal = items.reduce((sum, item) => sum + (item.line_total as number), 0);
     const FREE_SHPING_THRESHOLD = 999;
     const shipping = subtotal >= FREE_SHPING_THRESHOLD ? 0 : (subtotal > 0 ? 99 : 0);
-    const tax = 0;
+    const { gstAmount: tax, cgst, sgst } = calculateGST(subtotal);
     const total = subtotal + shipping + tax;
 
     logger.debug('Got cart', { cartId: cart.id, item_count: items.length });
 
     return NextResponse.json({
       success: true,
-      data: { cart, items, total, subtotal, shipping, tax },
+      data: { cart, items, total, subtotal, shipping, tax, cgst, sgst },
     });
   } catch (error) {
     const err = error as Error;
@@ -156,8 +157,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .select()
         .single() as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
 
-      if (newCartResult.error) throw newCartResult.error;
-      cartId = (newCartResult.data as Database['public']['Tables']['carts']['Row']).id;
+      if (newCartResult.error) {
+        // Handle race condition: another request may have created the cart concurrently
+        if (newCartResult.error.code === '23505') {
+          const { data: existingCart, error: fetchError } = await supabase
+            .from('carts')
+            .select('id, user_id')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (fetchError || !existingCart) {
+            throw fetchError || new Error('Cart creation conflict and fallback fetch failed');
+          }
+          cartId = (existingCart as Database['public']['Tables']['carts']['Row']).id;
+        } else {
+          throw newCartResult.error;
+        }
+      } else {
+        cartId = (newCartResult.data as Database['public']['Tables']['carts']['Row']).id;
+      }
     } else {
       cartId = (cartResult.data as Database['public']['Tables']['carts']['Row']).id;
     }
