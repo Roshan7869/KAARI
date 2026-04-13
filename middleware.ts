@@ -36,15 +36,19 @@ function buildCsp(nonce: string): string {
   return [
     `default-src 'self'`,
     // NOTE: 'unsafe-eval' required by Clerk SDK (uses eval internally).
-    // strict-dynamic allows trusted scripts to load further scripts.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev`,
+    // 'strict-dynamic' removed: with 'unsafe-eval' present it provides minimal
+    // security benefit, and it disables host-based allowlisting which blocks
+    // Clerk's dynamically-loaded browser scripts.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://va.vercel-scripts.com`,
     // NOTE: 'unsafe-inline' required by Tailwind CSS + Framer Motion dynamic styles.
-    // nonce allows CSP3 browsers to prefer nonce-based styles.
-    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://fonts.googleapis.com`,
+    // In CSP3, nonce presence causes browsers to ignore 'unsafe-inline', so we
+    // must NOT include the nonce here — only 'unsafe-inline' allows dynamic styles.
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
     `img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://img.clerk.com`,
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://vitals.vercel-insights.com https://*.vercel-analytics.com`,
-    `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev`,
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk-telemetry.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://vitals.vercel-insights.com https://*.vercel-analytics.com`,
+    `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com`,
+    `worker-src 'self' blob:`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self' https://*.clerk.accounts.dev`,
