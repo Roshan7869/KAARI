@@ -32,7 +32,7 @@
     },
     {
       "path": "/api/cron/retry-webhooks",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
