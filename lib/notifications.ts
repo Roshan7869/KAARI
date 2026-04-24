@@ -84,7 +84,11 @@ export async function updateEmailPreferences(
     const supabase = await getSupabaseClient();
 
     // Build update object with only provided fields
-    const updateData: Record<string, boolean> = {};
+    const updateData: {
+      email_notifications_enabled?: boolean;
+      sms_notifications_enabled?: boolean;
+      marketing_emails_enabled?: boolean;
+    } = {};
     if (
       'transactionalEmailsEnabled' in preferences &&
       preferences.transactionalEmailsEnabled !== undefined
