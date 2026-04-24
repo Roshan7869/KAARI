@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { sanitizeTextInput } from '@/lib/sanitization';
 import type { Database } from '@/types/database';
 
@@ -42,7 +42,7 @@ export async function PATCH(
       );
     }
     const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
-    const adminSupabase = createAdminClient();
+    const supabase = await createClient();
 
     // Validate review ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,12 +55,12 @@ export async function PATCH(
 
     // Get the existing review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingReview, error: fetchError } = await (adminSupabase as any)
+    const { data: existingReview, error: fetchError } = await (supabase as any)
       .from('product_reviews')
       .select('*')
       .eq('id', id)
       .is('deleted_at', null)
-      .single() as { data: Review | null; error: Error | null };
+      .single();
 
     if (fetchError || !existingReview) {
       return NextResponse.json(
@@ -159,12 +159,12 @@ export async function PATCH(
 
     // Update the review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: updatedReview, error: updateError } = await (adminSupabase as any)
+    const { data: updatedReview, error: updateError } = await (supabase as any)
       .from('product_reviews')
       .update(updateData as ReviewUpdate)
       .eq('id', id)
       .select()
-      .single() as SupabaseResponse<Review>;
+      .single();
 
     if (updateError) {
       throw updateError;
@@ -207,7 +207,7 @@ export async function DELETE(
       );
     }
     const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
-    const adminSupabase = createAdminClient();
+    const supabase = await createClient();
 
     // Validate review ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -220,12 +220,12 @@ export async function DELETE(
 
     // Get the existing review
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: existingReview, error: fetchError } = await (adminSupabase as any)
+    const { data: existingReview, error: fetchError } = await (supabase as any)
       .from('product_reviews')
       .select('*')
       .eq('id', id)
       .is('deleted_at', null)
-      .single() as { data: Review | null; error: Error | null };
+      .single();
 
     if (fetchError || !existingReview) {
       return NextResponse.json(
@@ -244,10 +244,10 @@ export async function DELETE(
 
     // Soft delete by setting deleted_at
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: deleteError } = await (adminSupabase as any)
+    const { error: deleteError } = await (supabase as any)
       .from('product_reviews')
       .update({ deleted_at: new Date().toISOString() } as ReviewUpdate)
-      .eq('id', id) as { error: Error | null };
+      .eq('id', id);
 
     if (deleteError) {
       throw deleteError;
@@ -278,7 +278,7 @@ export async function GET(
 ): Promise<NextResponse<ApiResponse<Review>>> {
   try {
     const { id } = await params;
-    const adminSupabase = createAdminClient();
+    const supabase = await createClient();
 
     // Validate review ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -295,7 +295,7 @@ export async function GET(
 
     // Get the review with user info
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: review, error: fetchError } = await (adminSupabase as any)
+    const { data: review, error: fetchError } = await (supabase as any)
       .from('product_reviews')
       .select(`
         *,
@@ -306,7 +306,7 @@ export async function GET(
       `)
       .eq('id', id)
       .is('deleted_at', null)
-      .single() as { data: Review & { user: { id: string; full_name: string | null } | null } | null; error: Error | null };
+      .single();
 
     if (fetchError || !review) {
       return NextResponse.json(

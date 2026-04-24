@@ -4,122 +4,142 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Kaari Marketplace** - A handmade crochet products e-commerce platform built with Next.js 14 App Router, TypeScript, Clerk authentication, and Supabase database. Features include product browsing, cart management, checkout flow, product customization, reviews, and admin dashboard. Currency: **INR (Indian Rupees)**.
+**Kaari Marketplace** — A handmade crochet products e-commerce platform built with Next.js 15 App Router, React 19, TypeScript 5.8+, Clerk authentication, and Supabase database. Features include product browsing, cart management, checkout flow, product customization, reviews, and admin dashboard. Currency: **INR (Indian Rupees)**.
 
 ## Common Commands
 
 ```bash
-npm run dev          # Start development server (port 3000)
-npm run build        # Production build
-npm run lint         # Run ESLint
-npm run type-check   # TypeScript check (tsc --noEmit)
-npm run test         # Run Vitest tests
-npm run test:watch   # Run tests in watch mode
-npm run e2e          # Run Playwright E2E tests
-npm run e2e:ui       # Run E2E tests with UI
-npm run format       # Format with Prettier
-npm run analyze      # Bundle analysis (ANALYZE=true next build)
+npm run dev             # Start development server (port 3000)
+npm run build           # Production build
+npm run lint            # Run ESLint
+npm run type-check      # TypeScript check (tsc --noEmit)
+npm run test            # Run all Vitest tests
+npx vitest run <pattern> # Run a single test file
+npm run test:watch      # Run tests in watch mode
+npm run e2e             # Run Playwright E2E tests
+npm run e2e:ui          # Run E2E tests with UI
+npm run format          # Format with Prettier
+npm run format:check    # Check formatting without writing
+npm run analyze         # Bundle analysis (ANALYZE=true next build)
+npm run email:preview   # React Email preview server on port 3001
+npm run seed:catalog    # Upload catalog via scripts/upload-catalog.js
+npm run seed:catalog:dry # Dry-run catalog upload
 ```
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
-- **Auth**: Clerk (with publicMetadata.role for admin role)
-- **Database**: Supabase (PostgreSQL with RLS policies)
+- **Framework**: Next.js 15 (App Router), React 19, TypeScript 5.8+
+- **Auth**: Clerk (`@clerk/nextjs`) with `publicMetadata.role === 'admin'` for admin access
+- **Database**: Supabase (PostgreSQL + RLS policies)
 - **Storage**: Supabase Storage + Cloudinary (product images)
 - **Payments**: Cashfree (UPI, cards, net banking)
-- **Email**: Resend (transactional emails)
-- **Rate Limiting**: Upstash Redis (server-side)
-- **UI**: Tailwind CSS, shadcn/ui (Radix primitives), Framer Motion
-- **State**: React Context (AuthContext, CartContext) + TanStack Query
-- **Fonts**: Playfair Display, Cormorant Garamond, Inter (Google Fonts)
+- **Email**: Resend + React Email (`@react-email/components`)
+- **Rate Limiting**: Upstash Redis
+- **UI**: Tailwind CSS 3.4, shadcn/ui (Radix primitives), Framer Motion
+- **State**: TanStack Query for server state, React Context for client global state (auth, cart)
+- **Analytics**: Sentry, PostHog, Vercel Analytics + Speed Insights
+- **Query State**: nuqs (URL state management)
+- **Fonts**: Playfair Display, Cormorant Garamond, Inter, DM Sans, Noto Serif Devanagari (Google Fonts)
 
 ## Architecture
 
-### App Router Structure
+### Directory Structure
 
 ```
 app/
-├── layout.tsx          # Root layout (ClerkProvider, Providers, fonts)
-├── providers.tsx       # QueryClient, Auth, Cart, Tooltip providers
+├── layout.tsx          # Root layout (ClerkProvider, fonts, metadata, CSP nonce)
+├── providers.tsx       # QueryClient, AuthProvider, CartProvider, TooltipProvider
 ├── page.tsx            # Home page
 ├── (routes)/           # Route groups
-├── admin/              # Admin routes (protected by middleware)
-├── api/                # API routes (server-side logic)
+├── admin/              # Admin dashboard (role-protected)
+├── api/                # API routes (checkout, payments, webhooks, admin, etc.)
 ├── checkout/           # Checkout flow (protected)
 ├── products/[slug]/    # Dynamic product pages
+├── cart/               # Cart page (protected)
+├── orders/             # Order history (protected)
+├── wishlist/           # Wishlist (protected)
+├── login/              # Clerk login redirect
+├── signup/             # Clerk signup redirect
 └── ...
+components/
+├── ui/                 # shadcn/ui base components
+├── admin/              # Admin-specific components
+├── checkout/           # Checkout-specific components
+├── products/           # Product-specific components
+└── ...
+lib/
+├── supabase/           # Client + server Supabase clients
+├── validation/         # Zod schemas
+├── email-templates/    # Email templates
+└── ...
+contexts/               # AuthContext, CartContext
+hooks/                  # Custom React hooks
+types/                  # Global TypeScript types
+tests/                  # E2E tests
+emails/                 # React Email JSX templates
 ```
 
-### Provider Hierarchy
+### Provider Hierarchy (Critical)
 
 ```
 ClerkProvider (root layout)
-  └── QueryClientProvider
-        └── AuthProvider (Clerk-backed, maintains useAuth() API)
-              └── CartProvider (requires user ID from auth)
-                    └── TooltipProvider
-                          └── Toaster/Sonner
+  └── SentryUserSync
+  └── Suspense
+    └── PostHogProvider
+      └── NuqsAdapter
+        └── ErrorBoundary
+          └── Providers
+            └── QueryClientProvider
+                  └── AuthProvider (Clerk-backed, maintains useAuth() API)
+                        └── CartProvider (requires user ID from auth)
+                              └── TooltipProvider
+                                    └── Toaster/Sonner
 ```
 
-**Critical**: Auth must initialize before Cart because cart operations require `user.id`.
+Auth must initialize before Cart because cart operations require `user.id`. `profileReady` in AuthContext includes a 500ms delay after Clerk loads for authenticated users, giving the Clerk webhook time to create the Supabase profile before CartContext fetches the cart.
 
-### Authentication (Clerk)
+### Supabase Client Patterns
 
-- `middleware.ts` handles route protection with `clerkMiddleware`
-- Protected routes: `/checkout`, `/cart`, `/payment`, `/order-confirmation`
-- Admin routes: `/admin/*` (requires `publicMetadata.role === 'admin'`)
-- Auth pages redirect logged-in users to home
-- CSP headers built per-request with unique nonce
+There are four distinct Supabase clients; picking the wrong one causes auth or RLS failures:
+
+- **Client components**: `import { supabase } from '@/lib/supabase/client'` (browser client via `@supabase/ssr`)
+- **Server components / API routes (cookie auth)**: `import { createClient } from '@/lib/supabase/server'` then `const supabase = await createClient()` — uses cookies, works for most server-side DB reads
+- **API routes (user-specific authenticated access)**: `import { createUserClient } from '@/lib/supabase/auth-client'` then `const supabase = await createUserClient()` — passes Clerk's session token to Supabase for RLS policies via `auth.jwt()`. Returns `null` if user is not authenticated.
+- **Admin/service role (server-only)**: `import { createAdminClient } from '@/lib/supabase/admin'` — bypasses RLS, requires `SUPABASE_SERVICE_ROLE_KEY`. Guarded by `import 'server-only'`.
+
+### Authentication Checks
 
 ```typescript
-// Check admin role (client component)
+// Client component
 const isAdmin = (clerkUser?.publicMetadata?.role as string) === 'admin';
 
-// Check admin role (server component/API)
+// Server component / API
 import { auth } from '@clerk/nextjs/server';
 const { sessionClaims } = await auth();
 const isAdmin = sessionClaims?.metadata?.role === 'admin';
 ```
 
-### Supabase Client Pattern
+### Route Protection (`middleware.ts`)
 
-```typescript
-// Client components
-import { supabase } from '@/lib/supabase/client';
-// Or create fresh instance
-import { createClient } from '@/lib/supabase/client';
+- Protected routes: `/cart`, `/payment`, `/order-confirmation`, `/orders`, `/wishlist`
+- Admin routes: `/admin/*` (requires `publicMetadata.role === 'admin'`)
+- Auth pages redirect logged-in users to home
+- CSP headers built per-request with unique nonce
+- Admin API routes (`/api/admin/*`) enforce admin role at middleware level (returns 403 for non-admins)
 
-// Server components / API routes
-import { createClient } from '@/lib/supabase/server';
-const supabase = await createClient();
-```
+### Cart & Guest Cart
 
-### Database Tables & Relationships
+- Authenticated carts are stored in Supabase (`carts` → `cart_items` → `cart_item_customizations`)
+- Guest carts use `localStorage`; on first login detection, `CartProvider` merges guest items to the server via `mergeGuestCartToServer()` and then refetches
+- `cart_items.item_type`: `'standard' | 'customized'`
+- `cart_item_customizations.quote_status`: `'not_needed' | 'pending' | 'approved' | 'rejected'`
 
-```
-profiles ← user_roles (admin access)
-    ↓
-carts → cart_items → cart_item_customizations → customization_uploads
-    ↓
-checkout_sessions
-    ↓
-orders → order_items → order_status_events
-    ↓
-payments
+### Database Key Fields
 
-products → product_variants (stock, pricing, SKU)
-         → product_media (images with sort_order)
-         → reviews (customer reviews with admin approval)
-```
+- `orders.status`: `'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'`
+- `reviews.status`: `'pending' | 'approved' | 'rejected'`
 
-**Key Fields**:
-- `cart_items.item_type`: 'standard' | 'customized'
-- `cart_item_customizations.quote_status`: 'not_needed' | 'pending' | 'approved' | 'rejected'
-- `orders.status`: 'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
-- `reviews.status`: 'pending' | 'approved' | 'rejected'
-
-### API Routes
+## API Routes
 
 | Path | Method | Purpose |
 |------|--------|---------|
@@ -128,17 +148,6 @@ products → product_variants (stock, pricing, SKU)
 | `/api/webhooks/*` | POST | Payment webhooks |
 | `/api/admin/*` | - | Admin operations (requires admin role) |
 | `/api/reviews` | GET/POST | Product reviews CRUD |
-
-### Route Protection (middleware.ts)
-
-```typescript
-const isProtectedRoute = createRouteMatcher([
-  '/checkout', '/checkout/(.*)', '/cart', '/cart/(.*)',
-  '/payment(.*)', '/order-confirmation(.*)'
-]);
-const isAdminRoute = createRouteMatcher(['/admin', '/admin/(.*)']);
-const isAuthPage = createRouteMatcher(['/login', '/signup']);
-```
 
 ## Import Patterns
 
@@ -156,6 +165,8 @@ import { useAdminProducts } from '@/hooks/useAdminProducts';
 // Supabase (from lib/supabase/)
 import { supabase } from '@/lib/supabase/client';
 import { createClient } from '@/lib/supabase/server';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 // Types (from types/)
 import type { Database } from '@/types/database';
@@ -195,21 +206,15 @@ Content-Security-Policy built per-request with unique nonce:
 function buildCsp(nonce: string): string {
   return [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.cashfree.com...`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://js.cashfree.com...`,
     // ... see middleware.ts for full config
   ].join('; ')
 }
 ```
 
-### Clerk JWT Template (REQUIRED for order pages to work)
-1. Go to Clerk Dashboard → JWT Templates
-2. Click "New Template" → Choose "Supabase"
-3. Set template name: `supabase` (exactly this, case-sensitive)
-4. Audience (aud): `authenticated`
-5. Subject (sub): `{{user.id}}`
-6. Save template
+### Clerk + Supabase Integration
 
-**WITHOUT THIS STEP**: All authenticated users see empty orders page with no error message. The `createUserClient()` function in `lib/supabase/auth-client.ts` will throw if this template is missing.
+`createUserClient()` in `lib/supabase/auth-client.ts` uses Clerk's native Supabase integration (passes Clerk session token directly). No JWT template is required — Clerk automatically validates the session against Supabase RLS policies.
 
 ### Environment Variables
 
@@ -221,6 +226,7 @@ NEXT_PUBLIC_APP_URL
 # Clerk (auto-injected by Clerk)
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY
+CLERK_WEBHOOK_SECRET
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL
@@ -231,6 +237,28 @@ SUPABASE_SERVICE_ROLE_KEY (server-side only)
 CASHFREE_APP_ID
 CASHFREE_SECRET_KEY
 CASHFREE_WEBHOOK_SECRET
+
+# Cloudinary (image uploads)
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+NEXT_PUBLIC_CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET
+
+# Resend (emails)
+RESEND_API_KEY
+
+# Upstash Redis (rate limiting)
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+
+# PostHog
+POSTHOG_KEY
+
+# Sentry (optional)
+SENTRY_AUTH_TOKEN
+SENTRY_DSN
+
+# Misc
+NEXT_PUBLIC_WHATSAPP_NUMBER
 ```
 
 ### Input Sanitization
@@ -248,15 +276,15 @@ Use utilities from `lib/sanitization.ts` and `lib/sanitize.ts`:
 ## Payment Flow
 
 1. Checkout collects shipping/payment info
-2. `/api/checkout` creates order via RPC `create_order_from_cart`
-3. Cashfree payment session created (server-side)
+2. `POST /api/checkout` creates order via RPC `create_order_from_cart`
+3. Cashfree payment session created server-side
 4. Webhook at `/api/webhooks/cashfree` updates payment status
 5. Order confirmation at `/order-confirmation/[orderId]`
 
 ## Admin Dashboard
 
 - Route: `/admin/*` (protected by role check in middleware)
-- Features: Products, Orders, Customers, Reviews, Media, Billboards
+- Features: Products, Orders, Customers, Reviews, Media, Billboards, Coupons, Analytics, Audit Logs, Inventory
 - Admin role set via Clerk: `user.publicMetadata.role = 'admin'`
 
 ## Deployment
@@ -270,13 +298,15 @@ Use utilities from `lib/sanitization.ts` and `lib/sanitize.ts`:
 
 | File | Purpose |
 |------|---------|
-| `middleware.ts` | Route protection, CSP headers, nonce generation |
-| `app/layout.tsx` | Root layout, fonts, metadata, ClerkProvider |
-| `app/providers.tsx` | Client-side providers (Query, Auth, Cart) |
+| `middleware.ts` | Route protection, CSP headers, nonce generation, CSRF tokens |
+| `app/layout.tsx` | Root layout, fonts, metadata, ClerkProvider, structured data |
+| `app/providers.tsx` | Client-side providers (Query, Auth, Cart, Tooltip, Toaster) |
 | `contexts/AuthContext.tsx` | Clerk-backed auth wrapper (useAuth API) |
-| `contexts/CartContext.tsx` | Cart state with Supabase sync |
+| `contexts/CartContext.tsx` | Cart state with Supabase sync + guest cart merge |
 | `lib/supabase/client.ts` | Browser Supabase client |
 | `lib/supabase/server.ts` | Server Supabase client (cookies) |
+| `lib/supabase/auth-client.ts` | Clerk-authenticated Supabase client for user-specific API routes |
+| `lib/supabase/admin.ts` | Service-role client — RLS bypass, high privilege |
 | `lib/cashfree.ts` | Cashfree SDK integration |
 | `types/database.ts` | Auto-generated Supabase types |
 

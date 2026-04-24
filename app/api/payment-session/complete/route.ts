@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCashfreePaymentDetailsServer } from '@/lib/cashfree-server';
 import { logger } from '@/lib/logger-server';
@@ -27,10 +28,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
+  const supabase = await createClient();
 
   // Step 1: Verify session ownership — this session must belong to the requesting user
-  const { data: session, error: sessionError } = await admin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: session, error: sessionError } = await (supabase as any)
     .from('cashfree_sessions')
     .select('id, user_id, status, cf_order_id')
     .eq('cf_payment_session_id', sessionId)
@@ -89,7 +91,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Step 3: Complete the session with verified status
-  const { data, error } = await admin.rpc('complete_payment_session', {
+  // RPC requires elevated privileges — use admin client only for the RPC call
+  const adminSupabase = createAdminClient();
+  const { data, error } = await adminSupabase.rpc('complete_payment_session', {
     p_session_id: sessionId,
     p_transaction_id: transactionId,
     p_status: verifiedStatus,

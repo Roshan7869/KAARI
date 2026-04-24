@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/payment-session?session_id=xxx
@@ -19,8 +19,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, error: 'session_id is required' }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { data, error } = await admin
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('payment_sessions')
     .select('*')
     .eq('session_id', sessionId)

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 
 type CouponRow = {
   id: string;
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createAdminClient();
+    const supabase = await createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: coupon, error } = await (supabase as any)
       .from('coupons')
