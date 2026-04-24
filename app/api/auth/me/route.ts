@@ -3,6 +3,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger-server';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { INDIAN_PHONE_REGEX } from '@/lib/validation/phone';
 import { z } from 'zod';
 
 // Whitelist of fields users can update on their own profile
@@ -15,7 +16,7 @@ const UpdateProfileSchema = z.object({
     .transform(val => val.trim())
     .optional(),
   phone: z.string()
-    .regex(/^[6-9]\d{9}$/, 'Invalid Indian phone number')
+    .regex(INDIAN_PHONE_REGEX, 'Invalid Indian phone number')
     .optional()
     .nullable(),
   email_notifications_enabled: z.boolean().optional(),

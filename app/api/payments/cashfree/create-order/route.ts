@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger-server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { validateCashfreeConfig } from '@/lib/startup-checks'
 import { applyRateLimit } from '@/lib/server-rate-limit'
+import { INDIAN_PHONE_REGEX } from '@/lib/validation/phone'
 
 const CreateOrderSchema = z.object({
   orderId: z.string().min(1),
@@ -15,7 +16,7 @@ const CreateOrderSchema = z.object({
   customerPhone: z
     .string({ required_error: 'Phone number required for payment' })
     .regex(
-      /^[6-9]\d{9}$/,
+      INDIAN_PHONE_REGEX,
       'Enter a valid 10-digit Indian mobile number'
     ),
   returnUrl: z.string().url(),

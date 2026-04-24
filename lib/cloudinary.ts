@@ -8,7 +8,6 @@
 interface CloudinaryConfig {
   cloudName: string;
   apiKey: string;
-  apiSecret: string;
 }
 
 interface UploadOptions {
@@ -182,7 +181,6 @@ class CloudinaryService {
 export const cloudinary = new CloudinaryService({
   cloudName: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() || '',
   apiKey: process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY?.trim() || '',
-  apiSecret: process.env.CLOUDINARY_API_SECRET?.trim() || '',
 });
 
 // Helper function to get image URL from public_id
