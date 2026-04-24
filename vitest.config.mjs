@@ -14,7 +14,7 @@ export default defineConfig({
     environment: 'jsdom',
 
     // Global test setup file
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./tests/setup.ts', './mocks/setup.ts'],
 
     // Include test patterns
     include: ['tests/**/*.test.{ts,tsx}', 'tests/**/*.spec.{ts,tsx}'],

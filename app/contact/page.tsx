@@ -1,5 +1,4 @@
 import { Metadata } from "next";
-import Navbar from "@/components/Navbar";
 import KaariFooter from "@/components/KaariFooter";
 import { APP_URL } from "@/lib/metadata";
 
@@ -18,7 +17,6 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <main className="min-h-screen bg-background">
-      <Navbar />
       <div className="max-w-3xl mx-auto px-4 py-16">
         <h1 className="text-4xl font-display font-bold mb-2 text-center">Contact Us</h1>
         <p className="text-center text-muted-foreground mb-12">
@@ -64,11 +62,14 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <form className="space-y-4 max-w-xl mx-auto">
+        <form className="space-y-4 max-w-xl mx-auto" action="/api/contact" method="POST">
           <div>
             <label className="block text-sm font-medium mb-1">Name</label>
             <input
               type="text"
+              name="name"
+              autoComplete="name"
+              required
               className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Your name"
             />
@@ -77,6 +78,9 @@ export default function ContactPage() {
             <label className="block text-sm font-medium mb-1">Email</label>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
+              required
               className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="your.email@example.com"
             />
@@ -84,6 +88,8 @@ export default function ContactPage() {
           <div>
             <label className="block text-sm font-medium mb-1">Message</label>
             <textarea
+              name="message"
+              required
               rows={4}
               className="w-full px-4 py-2 rounded-md border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="How can we help you?"

@@ -2,7 +2,7 @@ import 'server-only'
 
 import crypto from 'crypto'
 import { createAdminClient, hasAdminClientConfig } from '@/lib/supabase/admin'
-import { logger } from '@/lib/logger'
+import { logger } from '@/lib/logger-server'
 import { fetchWithRetry } from '@/lib/fetch-with-timeout'
 
 export interface ServerCashfreeConfig {
@@ -20,11 +20,35 @@ type PaymentGatewayRow = {
 }
 
 function getEnvCashfreeConfig(): ServerCashfreeConfig {
+  const mode = (process.env.CASHFREE_MODE || 'sandbox').trim().toLowerCase()
+  const isProduction = mode === 'production'
+
+  if (isProduction) {
+    const appId = (process.env.CASHFREE_APP_ID_PROD || '').trim()
+    const secretKey = (process.env.CASHFREE_SECRET_KEY_PROD || '').trim()
+
+    if (!appId || !secretKey) {
+      throw new Error(
+        'CASHFREE_APP_ID_PROD and CASHFREE_SECRET_KEY_PROD must be set when CASHFREE_MODE=production. ' +
+        'Using sandbox credentials in production is a security violation.'
+      )
+    }
+
+    return {
+      appId,
+      secretKey,
+      isTestMode: false,
+      webhookSecret: (process.env.CASHFREE_WEBHOOK_SECRET || '').trim(),
+    }
+  }
+
+  const appId = (process.env.CASHFREE_APP_ID || '').trim()
+  const secretKey = (process.env.CASHFREE_SECRET_KEY || '').trim()
+
   return {
-    appId: (process.env.CASHFREE_APP_ID || '').trim(),
-    secretKey: (process.env.CASHFREE_SECRET_KEY || '').trim(),
-    isTestMode:
-      ((process.env.CASHFREE_TEST_MODE || 'true').trim()) !== 'false',
+    appId,
+    secretKey,
+    isTestMode: true,
     webhookSecret: (process.env.CASHFREE_WEBHOOK_SECRET || '').trim(),
   }
 }
@@ -156,4 +180,40 @@ export async function getCashfreePaymentDetailsServer(
     logger.error('Failed to get Cashfree payment details (server):', { error: errorMessage, cfOrderId });
     return null;
   }
+}
+
+// ── Checkout URL helpers ────────────────────────────────────────────
+
+export function getCashfreeCheckoutUrl(
+  paymentSessionId: string,
+  returnUrl?: string,
+  isTestMode: boolean = true
+): string {
+  if (paymentSessionId.startsWith('dummy_')) {
+    let url = `/dummy-payment?session_id=${paymentSessionId}`;
+    if (returnUrl) {
+      url += `&return_url=${encodeURIComponent(returnUrl)}`;
+    }
+    return url;
+  }
+
+  const baseUrl = isTestMode
+    ? 'https://sandbox.cashfree.com/pg'
+    : 'https://api.cashfree.com/pg';
+
+  return `${baseUrl}/checkout?payment_session_id=${paymentSessionId}`;
+}
+
+export async function getCashfreeCheckoutUrlAsync(
+  paymentSessionId: string,
+  returnUrl?: string
+): Promise<string> {
+  if (paymentSessionId.startsWith('dummy_')) {
+    return getCashfreeCheckoutUrl(paymentSessionId, returnUrl);
+  }
+
+  const config = await getServerCashfreeConfig();
+  const isTestMode = config?.isTestMode ?? true;
+
+  return getCashfreeCheckoutUrl(paymentSessionId, returnUrl, isTestMode);
 }

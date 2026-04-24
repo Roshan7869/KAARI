@@ -3,7 +3,7 @@
  * Production-ready GTM integration with Next.js
  */
 
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 declare global {
   interface Window {

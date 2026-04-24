@@ -1,5 +1,6 @@
 import { getServerCashfreeConfig } from '@/lib/cashfree-server'
 import { validateCashfreeConfig } from '@/lib/startup-checks'
+import { logger } from '@/lib/logger-server'
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth/verify-jwt'
 import { NextRequest, NextResponse } from 'next/server'
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
 
   const cashfreeCheck = validateCashfreeConfig()
   if (!cashfreeCheck.passed) {
-    console.error('STARTUP CHECK FAILED:', cashfreeCheck.errors)
+    logger.error('STARTUP CHECK FAILED', cashfreeCheck.errors, { context: 'cashfree-config' })
   }
 
   return NextResponse.json(
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
         cashfree_configured: Boolean(cashfreeConfig?.appId && cashfreeConfig?.secretKey),
         cashfree_webhook_configured: Boolean(cashfreeConfig?.webhookSecret),
         cashfree: {
-          mode: process.env.CASHFREE_TEST_MODE !== 'false' ? 'sandbox' : 'production',
+          mode: (process.env.CASHFREE_MODE?.trim().toLowerCase() ?? 'sandbox'),
           warnings: cashfreeCheck.warnings,
           errors: cashfreeCheck.errors,
         },
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
           process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY?.trim() &&
           process.env.CLOUDINARY_API_SECRET?.trim()
         ),
+        cloudinary_webhook_configured: Boolean(process.env.CLOUDINARY_WEBHOOK_SECRET?.trim()),
         upstash_configured: Boolean(process.env.UPSTASH_REDIS_REST_URL?.trim() && process.env.UPSTASH_REDIS_REST_TOKEN?.trim()),
         resend_configured: Boolean(process.env.RESEND_API_KEY?.trim() && process.env.NOTIFICATIONS_FROM_EMAIL?.trim()),
         app_url_configured: Boolean(process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.KAARI_BASE_URL?.trim()),

@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { revalidatePath } from 'next/cache';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 // ── GET: list all billboard slots (admin view — includes inactive) ─
 export async function GET(req: NextRequest) {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,15 +22,18 @@ export async function GET(req: NextRequest) {
       product_id,
       products (
         id,
-        name,
+        title,
         slug,
-        price,
+        base_price,
         product_media ( file_path, is_primary, sort_order )
       )
     `)
     .order('display_order', { ascending: true });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logger.error('[Billboard] GET failed', { error }, { route: 'admin/billboard' });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
   return NextResponse.json({ data });
 }
 
@@ -40,10 +41,8 @@ export async function GET(req: NextRequest) {
 // Body: { slots: Array<{ product_id, tag, is_active }> }
 // Slots are ordered — index 0 = display_order 0.
 export async function PUT(req: NextRequest) {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const admin = createAdminClient();
 
@@ -79,7 +78,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json(
       {
         error: 'Billboard save failed — your live homepage is unchanged. Please try again.',
-        details: rpcError.message,
       },
       { status: 500 }
     );

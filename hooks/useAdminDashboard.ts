@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 export type TimePeriod = 'today' | 'week' | 'month' | 'all';
 

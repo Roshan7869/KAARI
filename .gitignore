@@ -114,3 +114,27 @@ supabase/.temp/
 audit-output.txt
 kaari-audit-report.json
 kaari-audit.mjs
+.gstack/
+
+# Temporary / scratch files
+scratch-*.js
+scratch-*.ts
+*.scratch
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Claude Code / Codex temp
+.codex/
+.rtk/
+
+# Misc temp files
+1
+KAARI_*.md
+page-audit-results.json
+playwright-inspection-report*.md
+playwright-inspection-report.json
+playwright-screenshots/
+graph-visualization.png
+homepage-*.png
+cashfree-mcp/

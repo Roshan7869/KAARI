@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { EmailResetSchema, PasswordResetSchema } from '@/lib/validations/auth.schema';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import { applyRateLimit } from '@/lib/server-rate-limit';
 import { config } from '@/lib/config';
 

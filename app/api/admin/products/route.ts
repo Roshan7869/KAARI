@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/verify-jwt';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import {
   AdminProductCreateSchema,
 } from '@/lib/validations/admin.schema';

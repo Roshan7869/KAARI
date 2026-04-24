@@ -1,13 +1,13 @@
 'use client';
 
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, CreditCard, Wallet, Smartphone, Building2, CheckCircle2, XCircle, ShieldCheck, AlertTriangle } from 'lucide-react';
-import { getSecurePaymentSession, processSecurePayment } from '@/lib/payment-secure';
+import { getSecurePaymentSession, processSecurePayment } from '@/lib/payment';
 import { toast } from 'sonner';
 
 type PaymentMethod = 'upi' | 'card' | 'netbanking' | 'wallet';

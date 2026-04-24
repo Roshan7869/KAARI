@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { SignInButton } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Minus, Plus, Trash2, LogIn } from 'lucide-react';
 import { CartSkeleton } from '@/components/ui/skeleton-loader';
@@ -61,9 +62,11 @@ export default function Cart() {
                 {/* Product Image */}
                 {item.image && (
                   <div className="flex-shrink-0">
-                    <img
+                    <Image
                       src={item.image}
                       alt={item.title}
+                      width={80}
+                      height={80}
                       className="w-20 h-20 object-cover rounded-sm"
                     />
                   </div>

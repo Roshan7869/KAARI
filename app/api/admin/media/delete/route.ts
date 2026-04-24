@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { deleteCloudinaryAsset } from '@/lib/cloudinary';
+import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const schema = z.object({
@@ -15,13 +16,10 @@ const schema = z.object({
  * Admin-only — checks user role before proceeding.
  */
 export async function DELETE(req: NextRequest): Promise<NextResponse> {
-  const supabase = createAdminClient();
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
-  // ── Auth: admin only ──────────────────────────────────────────────────
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const supabase = createAdminClient();
 
   // ── Parse request body ────────────────────────────────────────────────
   let body: unknown;
@@ -70,7 +68,8 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
     .eq('id', mediaId);
 
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    logger.error('Admin media delete failed', { mediaId, error: deleteError.message });
+    return NextResponse.json({ error: 'Failed to delete media record' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, cloudinaryDeleted });

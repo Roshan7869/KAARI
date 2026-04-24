@@ -5,8 +5,6 @@ const CSRF_COOKIE_NAME = '__Host-csrf'
 
 // Route matchers
 const isProtectedRoute = createRouteMatcher([
-  '/checkout',
-  '/checkout/(.*)',
   '/cart',
   '/cart/(.*)',
   '/payment(.*)',
@@ -36,17 +34,17 @@ function buildCsp(nonce: string): string {
   return [
     `default-src 'self'`,
     // NOTE: 'unsafe-eval' required by Clerk SDK (uses eval internally).
-    // 'strict-dynamic' removed: with 'unsafe-eval' present it provides minimal
-    // security benefit, and it disables host-based allowlisting which blocks
-    // Clerk's dynamically-loaded browser scripts.
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://va.vercel-scripts.com`,
+    // 'unsafe-inline' is a CSP2 fallback — in CSP3 it's ignored when a nonce is
+    // present.  It allows Next.js dev-mode HMR scripts and third-party libs
+    // (PostHog, Sentry) that inject inline scripts without the nonce.
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://va.vercel-scripts.com https://*.sentry.io https://browser.sentry-cdn.com https://app.posthog.com`,
     // NOTE: 'unsafe-inline' required by Tailwind CSS + Framer Motion dynamic styles.
     // In CSP3, nonce presence causes browsers to ignore 'unsafe-inline', so we
     // must NOT include the nonce here — only 'unsafe-inline' allows dynamic styles.
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src 'self' https://fonts.gstatic.com data:`,
     `img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://img.clerk.com`,
-    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk-telemetry.com https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://vitals.vercel-insights.com https://*.vercel-analytics.com`,
+    `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk-telemetry.com https://challenges.cloudflare.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://vitals.vercel-insights.com https://*.vercel-analytics.com https://app.posthog.com https://*.posthog.com`,
     `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com`,
     `worker-src 'self' blob:`,
     `object-src 'none'`,
@@ -148,8 +146,15 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   response.headers.set('Content-Security-Policy', cspHeader)
 
-  // Set CSRF cookie for checkout pages (HTTP-only, SameSite=Strict)
-  if (pathname === '/checkout' || pathname.startsWith('/checkout/')) {
+  // Prevent search engines from indexing admin pages
+  if (pathname.startsWith('/admin')) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+  }
+
+  // Set CSRF cookie for authenticated pages (HTTP-only, SameSite=Strict)
+  if (pathname === '/checkout' || pathname.startsWith('/checkout/') ||
+      pathname === '/cart' || pathname.startsWith('/cart/') ||
+      pathname.startsWith('/payment')) {
     // Web Crypto API — Edge Runtime compatible (replaces Node crypto.randomBytes)
     const csrfBuffer = crypto.getRandomValues(new Uint8Array(32))
     const csrfToken = Array.from(csrfBuffer, b => b.toString(16).padStart(2, '0')).join('')

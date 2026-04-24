@@ -6,8 +6,14 @@ import { Providers } from "./providers";
 import { WhatsAppButton } from "@/components/ui/WhatsAppButton";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import Navbar from "@/components/Navbar";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
+import { SentryUserSync } from "@/components/SentryUserSync";
+import { PostHogProvider } from "@/providers/PostHogProvider";
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
+import { Suspense } from "react";
+import { headers } from "next/headers";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -50,7 +56,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in'
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | Kaari - Handmade Crochet Marketplace",
+    template: "%s | Kaari",
     default: "Kaari - Handmade Crochet Marketplace",
   },
   description:
@@ -124,20 +130,25 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get('x-nonce') ?? '';
   return (
     <html lang="en" className={`${playfair.variable} ${cormorant.variable} ${inter.variable} ${dmSans.variable} ${notoDevanagari.variable}`}>
       <head>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="canonical" href={APP_URL} />
         <link rel="alternate" href={`${APP_URL}/sitemap.xml`} type="application/xml" title="Sitemap" />
         {/* PWA */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#8B1F2A" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Kaari" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon-192x192.svg" />
         <script
           type="application/ld+json"
+          nonce={nonce}
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(siteStructuredData, null, 2),
@@ -146,11 +157,20 @@ export default async function RootLayout({
       </head>
       <body className={`${inter.className} antialiased`}>
         <ClerkProvider>
-          <Providers>
-            <AnnouncementBar />
-            <Navbar />
-            {children}
-          </Providers>
+          <SentryUserSync />
+          <Suspense fallback={null}>
+            <PostHogProvider>
+              <NuqsAdapter>
+                <ErrorBoundary componentName="App">
+                  <Providers>
+                    <AnnouncementBar />
+                    <Navbar />
+                    {children}
+                  </Providers>
+                </ErrorBoundary>
+              </NuqsAdapter>
+            </PostHogProvider>
+          </Suspense>
           <WhatsAppButton />
         </ClerkProvider>
         <SpeedInsights />

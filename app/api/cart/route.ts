@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 import { validateBody } from '@/lib/api-validate';
-import { calculateGST } from '@/lib/tax';
+import { calculateShipping } from '@/lib/shipping';
 import { z } from 'zod';
 import type { Database } from '@/types/database';
 
@@ -34,33 +37,43 @@ type SupabaseResponse<T> = { data: T | null; error: SupabaseError | null };
  */
 export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createAdminClient();
+    // Auto-provision the Supabase profile if it doesn't exist yet.
+    // requireSupabaseUserId looks up by clerk_id; on miss it calls the Clerk API
+    // to create the profile row, eliminating the "profile not found" 500 on first login.
+    const userId = await requireSupabaseUserId(clerkUserId);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cartResult = await (supabase as any)
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: cartData, error: cartError } = await supabase
       .from('carts')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle() as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
+      .maybeSingle();
+
+    const cartResult = { data: cartData, error: cartError } as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
 
     if (cartResult.error) throw cartResult.error;
     let cart = cartResult.data as Database['public']['Tables']['carts']['Row'] | null;
 
     if (!cart) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newCartResult = await (supabase as any)
+      const { data: newCartData, error: newCartError } = await supabase
         .from('carts')
         .insert({ user_id: userId, status: 'active', currency: 'INR' })
         .select()
-        .single() as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
+        .single();
+
+      const newCartResult = { data: newCartData, error: newCartError } as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
 
       if (newCartResult.error) throw newCartResult.error;
       cart = newCartResult.data as Database['public']['Tables']['carts']['Row'];
@@ -73,8 +86,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const itemsResult = await (supabase as any)
+    const { data: itemsData, error: itemsError } = await supabase
       .from('cart_items')
       .select(`
         id,
@@ -91,22 +103,22 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
           customization_uploads (*)
         )
       `)
-      .eq('cart_id', cart.id) as SupabaseResponse<Array<Record<string, unknown>>>;
+      .eq('cart_id', cart.id);
+
+    const itemsResult = { data: itemsData, error: itemsError } as SupabaseResponse<Array<Record<string, unknown>>>;
 
     if (itemsResult.error) throw itemsResult.error;
     const items = itemsResult.data || [];
 
     const subtotal = items.reduce((sum, item) => sum + (item.line_total as number), 0);
-    const FREE_SHPING_THRESHOLD = 999;
-    const shipping = subtotal >= FREE_SHPING_THRESHOLD ? 0 : (subtotal > 0 ? 99 : 0);
-    const { gstAmount: tax, cgst, sgst } = calculateGST(subtotal);
-    const total = subtotal + shipping + tax;
+    const shipping = calculateShipping(subtotal);
+    const total = subtotal + shipping;
 
     logger.debug('Got cart', { cartId: cart.id, item_count: items.length });
 
     return NextResponse.json({
       success: true,
-      data: { cart, items, total, subtotal, shipping, tax, cgst, sgst },
+      data: { cart, items, total, subtotal, shipping },
     });
   } catch (error) {
     const err = error as Error;
@@ -123,39 +135,55 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
  * Add item to cart
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Resolve Clerk ID to Supabase UUID
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const validation = await validateBody(request, AddToCartSchema);
     if ('error' in validation) return validation.error;
     const { product_id, variant_id, quantity = 1, customization } = validation.data;
 
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Get or create active cart
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cartResult = await (supabase as any)
+    const { data: cartData, error: cartError } = await supabase
       .from('carts')
       .select('id, user_id')
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle() as SupabaseResponse<Pick<Database['public']['Tables']['carts']['Row'], 'id' | 'user_id'>>;
+      .maybeSingle();
+
+    const cartResult = { data: cartData, error: cartError } as SupabaseResponse<Pick<Database['public']['Tables']['carts']['Row'], 'id' | 'user_id'>>;
 
     if (cartResult.error) throw cartResult.error;
     let cartId: string;
 
     if (!cartResult.data) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const newCartResult = await (supabase as any)
+      const { data: newCartData, error: newCartError } = await supabase
         .from('carts')
         .insert({ user_id: userId, status: 'active', currency: 'INR' })
         .select()
-        .single() as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
+        .single();
+
+      const newCartResult = { data: newCartData, error: newCartError } as SupabaseResponse<Database['public']['Tables']['carts']['Row']>;
 
       if (newCartResult.error) {
         // Handle race condition: another request may have created the cart concurrently
@@ -307,14 +335,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
  * DELETE /api/cart
  * Clear entire cart
  */
-export async function DELETE(_request: NextRequest): Promise<NextResponse> {
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createAdminClient();
+    // Resolve Clerk ID to Supabase UUID
+    const userId = await requireSupabaseUserId(clerkUserId);
+
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cartResult = await (supabase as any)

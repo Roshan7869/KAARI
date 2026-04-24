@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
+import { createUserClient } from '@/lib/supabase/auth-client';
 import { sanitizeTextInput } from '@/lib/sanitization';
 import { CreateReviewSchema } from '@/lib/validations/review.schema';
 import type { Database } from '@/types/database';
@@ -42,7 +45,7 @@ function isValidSort(value: string): value is SortOption {
  */
 export async function GET(request: NextRequest): Promise<NextResponse<ApiResponse<ReviewWithUser[]>>> {
   try {
-    const supabase = createAdminClient();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
 
     // Validate product_id
@@ -166,6 +169,14 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiRespons
  * Requires authentication
  */
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<Review>>> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse as NextResponse<ApiResponse<Review>>;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -175,7 +186,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       );
     }
 
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
     // Parse and validate request body with Zod
     const body = await request.json();

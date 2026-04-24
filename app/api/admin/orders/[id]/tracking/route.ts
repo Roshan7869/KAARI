@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const schema = z.object({
@@ -16,13 +17,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const supabase = createAdminClient();
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
-  // ── Auth: admin only ──────────────────────────────────────────────────
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const supabase = createAdminClient();
 
   // ── Validate body ─────────────────────────────────────────────────────
   let body: unknown;
@@ -49,7 +47,8 @@ export async function PATCH(
     .eq('id', id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    logger.error('Admin order tracking PATCH failed', { id, error: error.message });
+    return NextResponse.json({ error: 'Failed to update tracking' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

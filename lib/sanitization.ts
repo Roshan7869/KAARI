@@ -2,6 +2,7 @@
  * Input Sanitization Utility
  * Prevents XSS attacks and dangerous input values
  */
+import { INDIAN_PHONE_REGEX } from './validation/phone';
 
 /**
  * Sanitize text input to prevent XSS attacks
@@ -56,14 +57,13 @@ export function validateEmail(email: string): boolean {
 }
 
 /**
- * Validate phone number (basic - Indian format focused)
+ * Validate phone number — strict Indian mobile format.
+ * Accepts only 10-digit numbers starting with 6, 7, 8, or 9.
  * @param phone - Phone number to validate
  * @returns Boolean indicating if phone is valid
  */
 export function validatePhone(phone: string): boolean {
-  // Basic validation for Indian phone numbers and international formats
-  const phoneRegex = /^(\+?\d{1,3}[-.\s]?)?\d{10}$/;
-  return phoneRegex.test(phone.replace(/[\s\-().]/g, ''));
+  return INDIAN_PHONE_REGEX.test(phone);
 }
 
 /**

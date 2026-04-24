@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { X, Star } from 'lucide-react';
 
 export type AvailabilityFilter = 'in_stock' | 'made_to_order' | 'pre_order';
@@ -72,6 +72,8 @@ export default function FilterDrawer({
     onChange({ ...filters, availability: next });
   };
 
+  const shouldReduceMotion = useReducedMotion();
+
   const activeCount = [
     filters.minPrice > 0,
     filters.maxPrice < 3000,
@@ -88,10 +90,10 @@ export default function FilterDrawer({
           {/* Backdrop */}
           <motion.div
             key="backdrop"
-            initial={{ opacity: 0 }}
+            initial={shouldReduceMotion ? undefined : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
             className="fixed inset-0 z-[110] bg-black/50"
             onClick={onClose}
             aria-hidden="true"
@@ -100,10 +102,10 @@ export default function FilterDrawer({
           {/* Drawer */}
           <motion.div
             key="drawer"
-            initial={{ x: '-100%' }}
+            initial={shouldReduceMotion ? undefined : { x: '-100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'tween', ease: [0.32, 0.72, 0, 1], duration: 0.3 }}
+            exit={shouldReduceMotion ? undefined : { x: '-100%' }}
+            transition={{ type: 'tween', ease: [0.32, 0.72, 0, 1], duration: shouldReduceMotion ? 0 : 0.3 }}
             className="fixed top-0 left-0 z-[120] h-full w-[300px] bg-background shadow-2xl flex flex-col"
             role="dialog"
             aria-label="Product filters"
@@ -124,9 +126,9 @@ export default function FilterDrawer({
               <button
                 onClick={onClose}
                 aria-label="Close filters"
-                className="p-1.5 rounded-full hover:bg-muted transition-colors"
+                className="p-2.5 rounded-full hover:bg-muted transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
@@ -166,12 +168,12 @@ export default function FilterDrawer({
                   </p>
                   <div className="space-y-2">
                     {allCategories.map((cat) => (
-                      <label key={cat} className="flex items-center gap-3 cursor-pointer group">
+                      <label key={cat} className="flex items-center gap-3 cursor-pointer group min-h-[44px]">
                         <input
                           type="checkbox"
                           checked={filters.categories.includes(cat)}
                           onChange={() => toggleCategory(cat)}
-                          className="w-4 h-4 rounded accent-primary"
+                          className="w-5 h-5 rounded accent-primary"
                         />
                         <span className="font-body text-sm group-hover:text-foreground transition-colors">
                           {cat}
@@ -189,12 +191,12 @@ export default function FilterDrawer({
                 </p>
                 <div className="space-y-2">
                   {AVAILABILITY_OPTIONS.map(({ value, label }) => (
-                    <label key={value} className="flex items-center gap-3 cursor-pointer group">
+                    <label key={value} className="flex items-center gap-3 cursor-pointer group min-h-[44px]">
                       <input
                         type="checkbox"
                         checked={filters.availability.includes(value)}
                         onChange={() => toggleAvailability(value)}
-                        className="w-4 h-4 rounded accent-primary"
+                        className="w-5 h-5 rounded accent-primary"
                       />
                       <span className="font-body text-sm group-hover:text-foreground transition-colors">
                         {label}
@@ -211,13 +213,13 @@ export default function FilterDrawer({
                 </p>
                 <div className="space-y-2">
                   {RATING_OPTIONS.map(({ value, label }) => (
-                    <label key={value} className="flex items-center gap-3 cursor-pointer group">
+                    <label key={value} className="flex items-center gap-3 cursor-pointer group min-h-[44px]">
                       <input
                         type="radio"
                         name="rating-filter"
                         checked={filters.minRating === value}
                         onChange={() => onChange({ ...filters, minRating: value })}
-                        className="w-4 h-4 accent-primary"
+                        className="w-5 h-5 accent-primary"
                       />
                       <span className="flex items-center gap-1.5">
                         {Array.from({ length: value }).map((_, i) => (
@@ -242,12 +244,12 @@ export default function FilterDrawer({
 
               {/* Customizable Only */}
               <section>
-                <label className="flex items-center gap-3 cursor-pointer group">
+                <label className="flex items-center gap-3 cursor-pointer group min-h-[44px]">
                   <input
                     type="checkbox"
                     checked={filters.customizableOnly}
                     onChange={(e) => onChange({ ...filters, customizableOnly: e.target.checked })}
-                    className="w-4 h-4 rounded accent-primary"
+                    className="w-5 h-5 rounded accent-primary"
                   />
                   <span className="font-body text-sm group-hover:text-foreground transition-colors">
                     Customizable products only
@@ -262,7 +264,7 @@ export default function FilterDrawer({
                 onClick={() => {
                   onReset();
                 }}
-                className="py-2.5 border border-border rounded-lg font-body text-sm hover:bg-muted transition-colors"
+                className="py-3 border border-border rounded-lg font-body text-sm hover:bg-muted transition-colors min-h-[48px]"
               >
                 Reset
               </button>
@@ -271,7 +273,7 @@ export default function FilterDrawer({
                   onApply();
                   onClose();
                 }}
-                className="py-2.5 bg-primary text-primary-foreground rounded-lg font-body text-sm hover:opacity-90 transition-opacity"
+                className="py-3 bg-primary text-primary-foreground rounded-lg font-body text-sm hover:opacity-90 transition-opacity min-h-[48px]"
               >
                 Apply Filters
               </button>

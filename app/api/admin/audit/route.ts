@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const supabase = createAdminClient();
   const { searchParams } = new URL(request.url);
@@ -27,10 +26,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (action) query = query.eq('action', action);
   if (entityType) query = query.eq('entity_type', entityType);
-  if (adminEmail) query = query.ilike('admin_email', `%${adminEmail}%`);
+  if (adminEmail) {
+    const sanitized = adminEmail.replace(/[%_]/g, '\\$&');
+    query = query.ilike('admin_email', `%${sanitized}%`);
+  }
 
   const { data, count, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logger.error('Admin audit query failed', error, { route: 'admin/audit' });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
 
   return NextResponse.json({
     entries: data || [],

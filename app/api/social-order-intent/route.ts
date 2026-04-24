@@ -1,8 +1,9 @@
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateBody } from '@/lib/api-validate';
 import { sanitizeTextInput } from '@/lib/sanitization';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
 const SocialChannelEnum = z.enum(['instagram_dm', 'whatsapp', 'copy_link', 'native_share', 'card_share']);
@@ -20,8 +21,14 @@ const SocialOrderIntentSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  // Rate limit: 10 requests per minute per IP (fail-open to not block legitimate shares)
-  const rateLimitResponse = await applyRateLimit(request, 'auth', false);
+  // Require authentication — order intents must be tied to a user
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  // Rate limit: 10 requests per minute per IP
+  const rateLimitResponse = await applyRateLimit(request, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
   const validation = await validateBody(request, SocialOrderIntentSchema);

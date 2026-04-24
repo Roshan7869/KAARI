@@ -17,7 +17,7 @@ const STATS = [
 
 export default function ArtisanStory() {
   return (
-    <section className="py-24 md:py-32 bg-maroon-deep relative overflow-hidden">
+    <section className="py-24 md:py-32 bg-maroon-deep relative overflow-hidden" suppressHydrationWarning>
       {/* Subtle texture overlay */}
       <div className="absolute inset-0 opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0id2hpdGUiLz48L3N2Zz4=')]" />
 

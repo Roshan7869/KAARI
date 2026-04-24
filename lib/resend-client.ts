@@ -11,7 +11,7 @@
  * @see https://resend.com/docs/api-reference/emails/send-email
  */
 
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 // ============================================
 // Types
@@ -94,7 +94,7 @@ export interface ResendClient {
 // ============================================
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
-const DEFAULT_FROM_EMAIL = 'orders@kaari.shop';
+const DEFAULT_FROM_EMAIL = 'orders@kaari.in';
 const RESEND_KEY_PREFIX = 're_';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SCRIPT_TAG_REGEX = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
@@ -222,10 +222,9 @@ function maskSensitiveData(message: string): string {
  *
  * Uses singleton pattern to reuse the client across calls.
  *
- * @returns ResendClient instance
- * @throws Error if API key is not configured
+ * @returns ResendClient instance, or null if configuration is invalid
  */
-export function createResendClient(): ResendClient {
+export function createResendClient(): ResendClient | null {
   // Return cached instance if available
   if (clientInstance) {
     return clientInstance;
@@ -234,8 +233,8 @@ export function createResendClient(): ResendClient {
   // Validate configuration
   const config = validateResendConfig();
   if (config.isValid === false) {
-    // TypeScript now knows config is ResendConfigInvalid
-    throw new Error(config.error);
+    logger.warn('Resend client not available', { error: config.error });
+    return null;
   }
 
   // TypeScript now knows config is ResendConfigValid

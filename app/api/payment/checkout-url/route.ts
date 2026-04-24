@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCashfreeCheckoutUrlAsync } from '@/lib/cashfree';
-import { logger } from '@/lib/logger';
+import { getCashfreeCheckoutUrlAsync } from '@/lib/cashfree-server';
+import { logger } from '@/lib/logger-server';
+import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
 /**
@@ -19,6 +20,11 @@ const QuerySchema = z.object({
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
 
   const parsed = QuerySchema.safeParse({

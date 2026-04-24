@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmailWithResend } from '@/lib/resend-client';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 /**
  * GET /api/cron/send-emails

@@ -8,7 +8,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 // Get Supabase client
 const getSupabaseClient = () => {

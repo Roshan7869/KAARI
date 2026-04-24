@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Loader2, Chrome } from 'lucide-react';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 export default function Signup() {
   const router = useRouter();

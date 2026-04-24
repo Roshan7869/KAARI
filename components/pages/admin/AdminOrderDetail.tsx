@@ -179,10 +179,10 @@ function OrderSkeleton() {
   );
 }
 
-export default function AdminOrderDetail() {
+export default function AdminOrderDetail({ orderId: routeOrderId }: { orderId?: string }) {
   const params = useParams();
   const router = useRouter();
-  const orderId = params.id as string;
+  const orderId = routeOrderId || (params.id as string | undefined) || '';
 
   const { data: order, isLoading, error } = useAdminOrder(orderId);
   const { data: statusHistory } = useOrderStatusHistory(orderId);

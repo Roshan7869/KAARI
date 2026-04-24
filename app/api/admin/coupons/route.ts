@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
-
-function requireAdmin(sessionClaims: Record<string, unknown> | null) {
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  return role === 'admin';
-}
 
 export async function GET() {
   try {
-    const { userId, sessionClaims } = await auth();
-    if (!userId || !requireAdmin(sessionClaims as Record<string, unknown>)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
+
     const supabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
@@ -29,10 +23,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    if (!userId || !requireAdmin(sessionClaims as Record<string, unknown>)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const adminErr = await requireAdmin();
+    if (adminErr) return adminErr;
 
     const body = await request.json() as {
       code: string;

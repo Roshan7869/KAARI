@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const MergeItemSchema = z.object({
@@ -42,11 +45,21 @@ type SupabaseResponse<T> = { data: T | null; error: SupabaseError | null };
  * Called after login to transfer localStorage items to the database.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const body = await request.json();
     const validation = MergeSchema.safeParse(body);
@@ -58,7 +71,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const { items } = validation.data;
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Get or create the user's active cart
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

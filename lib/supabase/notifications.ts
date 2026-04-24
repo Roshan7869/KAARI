@@ -1,4 +1,4 @@
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import { createClient } from './client';
 import type { Tables } from '@/types/database';
 

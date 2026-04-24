@@ -4,7 +4,8 @@ import { Heart } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
+import { getCsrfHeaders } from '@/lib/csrf-client';
 
 interface WishlistButtonProps {
   productId: string;
@@ -57,7 +58,7 @@ export function WishlistButton({
     try {
       const res = await fetch('/api/wishlist', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getCsrfHeaders() },
         body: JSON.stringify({ productId }),
       });
 

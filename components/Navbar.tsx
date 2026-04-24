@@ -2,35 +2,56 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { ShoppingBag, User, LogOut, ChevronDown, Menu, X, Heart, Search } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import SearchModal from '@/components/SearchModal';
 
 const NAV_LINKS = [
-  { label: 'Shop All', href: '/products' },
-  { label: 'Handbags', href: '/products?cat=Crochet Handbags' },
-  { label: 'Hair Accessories', href: '/products?cat=Crochet Hair Accessories' },
-  { label: 'Dolls', href: '/products?cat=Crochet Dolls' },
-  { label: 'Bouquets', href: '/products?cat=Crochet Bouquet' },
-  { label: 'Keychains', href: '/products?cat=Crochet Keychains' },
+  { label: 'Shop All', href: '/products', categoryParam: null },
+  { label: 'Handbags', href: '/products?cat=Crochet%20Handbags', categoryParam: 'Crochet Handbags' },
+  { label: 'Hair Accessories', href: '/products?cat=Crochet%20Hair%20Accessories', categoryParam: 'Crochet Hair Accessories' },
+  { label: 'Dolls', href: '/products?cat=Crochet%20Dolls', categoryParam: 'Crochet Dolls' },
+  { label: 'Bouquets', href: '/products?cat=Crochet%20Bouquet', categoryParam: 'Crochet Bouquet' },
+  { label: 'Keychains', href: '/products?cat=Crochet%20Keychains', categoryParam: 'Crochet Keychains' },
 ];
+
+function isActiveLink(pathname: string, searchParams: URLSearchParams | null, href: string, categoryParam: string | null): boolean {
+  if (href === '/products' && !categoryParam) {
+    return pathname === '/products' && !searchParams?.get('cat');
+  }
+  if (categoryParam) {
+    return pathname === '/products' && searchParams?.get('cat') === categoryParam;
+  }
+  return pathname === href;
+}
 
 export default function Navbar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user, signOut, loading, isAdmin } = useAuth();
   const { cart } = useCart();
   const [showDropdown, setShowDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const cartCount = cart?.items?.reduce((sum, i) => sum + i.quantity, 0) ?? 0;
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 8);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -96,20 +117,23 @@ export default function Navbar() {
 
           {/* ── Desktop nav links ── */}
           <div className="hidden md:flex items-center gap-6 lg:gap-7">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`font-dm-sans text-[12px] tracking-[0.12em] uppercase transition-colors duration-200 ${
-                  pathname === link.href
-                    ? 'text-maroon font-semibold'
-                    : 'text-maroon-dark/70 hover:text-maroon'
-                }`}
-                aria-current={pathname === link.href ? 'page' : undefined}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {NAV_LINKS.map((link) => {
+              const active = isActiveLink(pathname, searchParams, link.href, link.categoryParam);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`font-dm-sans text-[12px] tracking-[0.12em] uppercase transition-colors duration-200 min-h-[44px] flex items-center ${
+                    active
+                      ? 'text-maroon font-semibold'
+                      : 'text-maroon-dark/70 hover:text-maroon'
+                  }`}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
 
           {/* ── Right icons ── */}
@@ -117,7 +141,7 @@ export default function Navbar() {
             {/* Search */}
             <button
               onClick={() => setSearchOpen(true)}
-              className="w-9 h-9 flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors"
               aria-label="Open search"
             >
               <Search className="w-[17px] h-[17px]" aria-hidden />
@@ -126,7 +150,7 @@ export default function Navbar() {
             {/* Wishlist */}
             <Link
               href="/wishlist"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors"
               aria-label="Wishlist"
             >
               <Heart className="w-[17px] h-[17px]" aria-hidden />
@@ -135,7 +159,7 @@ export default function Navbar() {
             {/* Cart */}
             <Link
               href="/cart"
-              className="relative w-9 h-9 flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors"
+              className="relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors"
               aria-label={cartCount > 0 ? `Cart — ${cartCount} items` : 'Cart — empty'}
             >
               <ShoppingBag className="w-[17px] h-[17px]" aria-hidden />
@@ -162,7 +186,7 @@ export default function Navbar() {
                 <div className="relative hidden md:block">
                   <button
                     onClick={() => setShowDropdown((v) => !v)}
-                    className="flex items-center gap-1 w-9 h-9 rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors justify-center"
+                    className="flex items-center gap-1 min-w-[44px] min-h-[44px] rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors justify-center"
                     aria-expanded={userDropdownExpanded}
                     aria-haspopup="menu"
                     aria-label="Account menu"
@@ -223,7 +247,7 @@ export default function Navbar() {
               aria-expanded={mobileMenuExpanded}
               aria-controls="mobile-menu"
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-              className="md:hidden w-9 h-9 flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors ml-1"
+              className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-maroon-dark/70 hover:text-maroon hover:bg-maroon/8 transition-colors ml-1"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -235,10 +259,10 @@ export default function Navbar() {
           <AnimatePresence>
             {mobileMenuOpen && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
+                initial={shouldReduceMotion ? undefined : { opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
+                exit={shouldReduceMotion ? undefined : { opacity: 0, height: 0 }}
+                transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
                 className="md:hidden border-t overflow-hidden"
                 style={{
                   background: 'hsl(var(--kaari-cream-warm))',
@@ -248,18 +272,21 @@ export default function Navbar() {
                 aria-label="Mobile navigation"
               >
                 <div className="px-5 py-4 space-y-4">
-                  {NAV_LINKS.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`block font-dm-sans text-sm tracking-[0.12em] uppercase transition-colors ${
-                        pathname === link.href ? 'text-maroon font-semibold' : 'text-maroon-dark/70 hover:text-maroon'
-                      }`}
-                      aria-current={pathname === link.href ? 'page' : undefined}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
+                  {NAV_LINKS.map((link) => {
+                    const active = isActiveLink(pathname, searchParams, link.href, link.categoryParam);
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className={`block font-dm-sans text-sm tracking-[0.12em] uppercase transition-colors py-3 min-h-[44px] ${
+                          active ? 'text-maroon font-semibold' : 'text-maroon-dark/70 hover:text-maroon'
+                        }`}
+                        aria-current={active ? 'page' : undefined}
+                      >
+                        {link.label}
+                      </Link>
+                    );
+                  })}
 
                   <div className="border-t pt-4 space-y-3" style={{ borderColor: 'hsl(var(--kaari-gold) / 0.15)' }}>
                     {user ? (

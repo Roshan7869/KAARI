@@ -1,19 +1,15 @@
 /**
- * Production-Safe Structured Logger
+ * Production-Safe Structured Logger with Sentry Integration
  *
  * - debug/info: Development only
- * - warn: Always logged
- * - error: Always logged — JSON format in production for Vercel log drain
+ * - warn: Always logged + Sentry breadcrumb
+ * - error: Always logged + Sentry captureException
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+import * as Sentry from '@sentry/nextjs';
 
-interface Logger {
-  debug: (...args: unknown[]) => void;
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-  error: (...args: unknown[]) => void;
-}
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type LogData = Record<string, unknown>;
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -21,7 +17,7 @@ function formatArgs(level: LogLevel, ...args: unknown[]): unknown[] {
   return args;
 }
 
-export const logger: Logger = {
+export const logger = {
   debug(...args: unknown[]): void {
     if (isDev) {
       console.log('[DEBUG]', ...formatArgs('debug', ...args));
@@ -34,22 +30,24 @@ export const logger: Logger = {
     }
   },
 
-  warn(...args: unknown[]): void {
+  warn(msg: string, data?: LogData): void {
     if (isDev) {
-      console.warn('[WARN]', ...formatArgs('warn', ...args));
+      console.warn('[WARN]', msg, data ?? '');
     } else {
-      // Production: structured JSON for Vercel log drain
-      console.warn(JSON.stringify({ level: 'warn', timestamp: new Date().toISOString(), args }));
+      console.warn(JSON.stringify({ level: 'warn', timestamp: new Date().toISOString(), msg, ...data }));
     }
+    Sentry.addBreadcrumb({ level: 'warning', message: msg, data });
   },
 
-  error(...args: unknown[]): void {
+  error(msg: string, error?: unknown, data?: LogData): void {
     if (isDev) {
-      console.error('[ERROR]', ...formatArgs('error', ...args));
+      console.error('[ERROR]', msg, error ?? '', data ?? '');
     } else {
-      // Production: always log errors — required for debugging payment/webhook issues
-      console.error(JSON.stringify({ level: 'error', timestamp: new Date().toISOString(), args }));
+      console.error(JSON.stringify({ level: 'error', timestamp: new Date().toISOString(), msg, data }));
     }
+    Sentry.captureException(error instanceof Error ? error : new Error(msg), {
+      extra: { msg, ...data },
+    });
   },
 };
 

@@ -1,4 +1,4 @@
-'use server';
+import 'server-only';
 
 /**
  * Server-side Cloudinary asset deletion.

@@ -1,5 +1,4 @@
 import KaariFooter from "@/components/KaariFooter";
-import Navbar from "@/components/Navbar";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
 export default function ShippingPage() {
   return (
     <main className="min-h-screen bg-background">
-      <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="prose dark:prose-invert max-w-none">
           <h1 className="text-3xl md:text-4xl font-display font-bold mb-8">
@@ -60,7 +58,7 @@ export default function ShippingPage() {
                     <tr>
                       <td className="border border-border p-3">Standard Shipping</td>
                       <td className="border border-border p-3">5-7 business days</td>
-                      <td className="border border-border p-3">Free* (above ₹499)</td>
+                      <td className="border border-border p-3">Free* (above ₹999)</td>
                     </tr>
                     <tr>
                       <td className="border border-border p-3">Express Shipping</td>
@@ -76,7 +74,7 @@ export default function ShippingPage() {
                 </table>
               </div>
               <p className="text-muted-foreground text-sm mt-3">
-                *Free standard shipping on orders above ₹499. For orders below ₹499, a flat shipping charge of ₹69 applies.
+                *Free standard shipping on orders above ₹999. For orders below ₹999, a flat shipping charge of ₹99 applies.
               </p>
             </section>
 

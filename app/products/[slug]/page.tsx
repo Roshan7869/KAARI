@@ -8,7 +8,7 @@ import { resolveProductImageUrl } from "@/lib/product-media";
 // ISR: revalidate product detail pages every 60 seconds
 export const revalidate = 60;
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in').trim();
+import { APP_URL } from '@/lib/metadata';
 
 export async function generateStaticParams() {
   try {
@@ -77,7 +77,7 @@ export async function generateMetadata({
       ?? `Handmade crochet ${title}. Unique, artisan-crafted piece made with love.`;
 
     return {
-      title: `${title} | Kaari - Handmade Crochet Marketplace`,
+      title: `${title} | Kaari`,
       description,
       openGraph: {
         type: 'article',
@@ -91,7 +91,7 @@ export async function generateMetadata({
   } catch {
     const productTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     return {
-      title: `${productTitle} | Kaari - Handmade Crochet Marketplace`,
+      title: `${productTitle} | Kaari`,
       description: `Handmade crochet ${productTitle}. Unique, artisan-crafted piece made with love.`,
       openGraph: {
         type: 'article',

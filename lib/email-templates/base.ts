@@ -98,11 +98,11 @@ export function renderBaseTemplate(data: BaseTemplateData): string {
                 <!-- Footer Links -->
                 <tr>
                   <td align="center" style="padding-bottom: 15px;">
-                    <a href="https://kaari.shop" style="color: #8B4513; text-decoration: none; font-size: 14px; margin: 0 15px;">Shop</a>
+                    <a href="https://kaari.in" style="color: #8B4513; text-decoration: none; font-size: 14px; margin: 0 15px;">Shop</a>
                     <span style="color: #d4a574;">|</span>
-                    <a href="https://kaari.shop/products" style="color: #8B4513; text-decoration: none; font-size: 14px; margin: 0 15px;">Products</a>
+                    <a href="https://kaari.in/products" style="color: #8B4513; text-decoration: none; font-size: 14px; margin: 0 15px;">Products</a>
                     <span style="color: #d4a574;">|</span>
-                    <a href="https://kaari.shop/about" style="color: #8B4513; text-decoration: none; font-size: 14px; margin: 0 15px;">About</a>
+                    <a href="https://kaari.in/about" style="color: #8B4513; text-decoration: none; font-size: 14px; margin: 0 15px;">About</a>
                   </td>
                 </tr>
                 <!-- Contact -->
@@ -110,7 +110,7 @@ export function renderBaseTemplate(data: BaseTemplateData): string {
                   <td align="center" style="padding-bottom: 15px;">
                     <p style="margin: 0; color: #8B4513; font-size: 13px;">
                       Questions? Reach out at
-                      <a href="mailto:hello@kaari.shop" style="color: #D2691E; text-decoration: none;">hello@kaari.shop</a>
+                      <a href="mailto:hello@kaari.in" style="color: #D2691E; text-decoration: none;">hello@kaari.in</a>
                     </p>
                   </td>
                 </tr>
@@ -156,10 +156,10 @@ Kaari - Handmade with Love
 ${content}
 
 --------------------------------
-Questions? Reach out at hello@kaari.shop
+Questions? Reach out at hello@kaari.in
 
 (c) ${new Date().getFullYear()} Kaari Handmade. All rights reserved.
-https://kaari.shop
+https://kaari.in
 `;
 }
 

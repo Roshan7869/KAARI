@@ -1,15 +1,23 @@
 /**
  * Shipping configuration helpers.
+ * Single source of truth for all shipping thresholds and costs.
  * Reads from the site_settings table so admin can change without redeploy.
  */
 
-const SHIPPING_DEFAULT = { threshold: 999, enabled: true, base_cost: 79 };
+const SHIPPING_DEFAULT = { threshold: 999, enabled: true, base_cost: 99 };
 
 type ShippingConfig = {
   threshold: number;
   enabled: boolean;
   base_cost: number;
 };
+
+/** Free shipping threshold (₹999+) */
+export const FREE_SHIPPING_THRESHOLD = SHIPPING_DEFAULT.threshold;
+
+/** Base shipping cost (₹99) */
+export const BASE_SHIPPING_COST = SHIPPING_DEFAULT.base_cost;
+
 
 /**
  * Fetch shipping config from the API.
@@ -37,7 +45,7 @@ export function calculateShipping(subtotal: number, config: ShippingConfig = SHI
 
 /**
  * Get display text for shipping cost.
- * e.g. "Free" or "₹79"
+ * e.g. "Free" or "₹99"
  */
 export function shippingDisplayText(subtotal: number, config: ShippingConfig = SHIPPING_DEFAULT): string {
   const cost = calculateShipping(subtotal, config);

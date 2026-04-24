@@ -1,3 +1,19 @@
+
+import { Metadata } from 'next';
+import { APP_URL } from '@/lib/metadata';
+
+export const metadata: Metadata = {
+  title: 'Wishlist | Kaari',
+  description: 'Wishlist page for Kaari Handmade Crochet.',
+  
+  openGraph: {
+    type: 'website',
+    url: `${APP_URL}/`,
+    title: 'Wishlist | Kaari',
+    description: 'Wishlist page for Kaari Handmade Crochet.',
+  },
+};
+
 import { Suspense } from 'react';
 import { WishlistClient } from './WishlistClient';
 

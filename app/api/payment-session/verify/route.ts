@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 /**
  * POST /api/payment-session/verify

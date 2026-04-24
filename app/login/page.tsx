@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { SignIn } from "@clerk/nextjs";
+import LoginClient from "./LoginClient";
 import { APP_URL } from "@/lib/metadata";
 
 export const metadata: Metadata = {
@@ -14,13 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-stone-50 py-12 px-4">
-      <SignIn
-        routing="hash"
-        signUpUrl="/signup"
-        fallbackRedirectUrl="/"
-      />
-    </main>
-  );
+  return <LoginClient />;
 }

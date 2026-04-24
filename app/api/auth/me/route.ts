@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { z } from 'zod';
 
 // Whitelist of fields users can update on their own profile
@@ -45,6 +46,9 @@ function updateWithBypass(supabase: any, table: string, data: unknown) {
  * Get current user's profile
  */
 export async function GET(_request: NextRequest): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(_request, 'auth', true);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const { userId } = await auth();
 
@@ -107,6 +111,9 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
  * Update current user's profile
  */
 export async function PUT(request: NextRequest): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'auth', true);
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const { userId } = await auth();
 

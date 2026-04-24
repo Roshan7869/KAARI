@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const ProductRowSchema = z.object({
@@ -22,10 +22,8 @@ const BodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { sessionClaims } = await auth();
-  if ((sessionClaims?.metadata as { role?: string } | undefined)?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   let body: unknown;
   try {

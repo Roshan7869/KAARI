@@ -933,6 +933,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          clerk_id: string | null
           created_at: string
           deleted_at: string | null
           email: string | null
@@ -946,12 +947,13 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          clerk_id?: string | null
           created_at?: string
           deleted_at?: string | null
           email?: string | null
           email_notifications_enabled?: boolean | null
           full_name?: string | null
-          id: string
+          id?: string
           marketing_emails_enabled?: boolean | null
           phone?: string | null
           sms_notifications_enabled?: boolean | null
@@ -959,6 +961,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          clerk_id?: string | null
           created_at?: string
           deleted_at?: string | null
           email?: string | null

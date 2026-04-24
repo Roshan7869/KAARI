@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, Loader2, Chrome } from 'lucide-react';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 export default function Login() {
   const router = useRouter();

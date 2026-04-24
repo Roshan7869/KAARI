@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 import { OrderStatusUpdateSchema, OrderCancelSchema } from '@/lib/validations/checkout.schema';
 import type { Database } from '@/types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-type AdminClient = ReturnType<typeof createAdminClient>;
+type DbClient = SupabaseClient<Database>;
 
 // Type helper for Supabase query responses
 type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error: Error };
@@ -17,12 +20,17 @@ type SupabaseResponse<T> = { data: T | null; error: null } | { data: null; error
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const admin = createAdminClient();
+    const userId = await requireSupabaseUserId(clerkUserId);
+
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     const { pathname } = new URL(request.url);
 
     // Check if this is a request for a specific order
@@ -31,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (orderId && orderId !== 'orders') {
       // Get single order by ID
-      return getOrderByID(admin, userId, orderId);
+      return getOrderByID(supabase, userId, orderId);
     }
 
     // Get orders list with pagination
@@ -42,7 +50,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Get orders with count
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ordersResult = await (admin as any)
+    const ordersResult = await (supabase as any)
       .from('orders')
       .select('*', { count: 'exact' })
       .eq('user_id', userId)
@@ -60,7 +68,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     let orderItems: Array<Record<string, unknown>> = [];
     if (orderIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const itemsResult = await (admin as any)
+      const itemsResult = await (supabase as any)
         .from('order_items')
         .select(`
           id,
@@ -111,9 +119,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function getOrderByID(admin: AdminClient, userId: string, id: string): Promise<NextResponse> {
+async function getOrderByID(supabase: DbClient, userId: string, id: string): Promise<NextResponse> {
   // Get order
-  const orderResult = await admin
+  const orderResult = await supabase
     .from('orders')
     .select(`
       *,
@@ -159,7 +167,7 @@ async function getOrderByID(admin: AdminClient, userId: string, id: string): Pro
   }
 
   // Get order status events
-  const statusEventsResult = await admin
+  const statusEventsResult = await supabase
     .from('order_status_events')
     .select('*')
     .eq('order_id', id)
@@ -188,12 +196,13 @@ async function getOrderByID(admin: AdminClient, userId: string, id: string): Pro
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const admin = createAdminClient();
+    const userId = await requireSupabaseUserId(clerkUserId);
+
     const { pathname } = new URL(request.url);
     const pathParts = pathname.split('/').filter(Boolean);
 
@@ -217,10 +226,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'cancel') {
-      return cancelOrder(admin, userId, id, request);
+      const supabase = await createUserClient();
+      if (!supabase) {
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      }
+      return cancelOrder(supabase, userId, id, request);
     }
 
     if (action === 'status') {
+      const admin = createAdminClient();
       return updateOrderStatus(admin, userId, id, request);
     }
 
@@ -241,7 +255,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-async function cancelOrder(admin: AdminClient, userId: string, id: string, request: NextRequest): Promise<NextResponse> {
+async function cancelOrder(supabase: DbClient, userId: string, id: string, request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
   const result = OrderCancelSchema.safeParse(body);
   if (!result.success) {
@@ -255,7 +269,7 @@ async function cancelOrder(admin: AdminClient, userId: string, id: string, reque
 
   // Get order
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orderResult = await (admin as any)
+  const orderResult = await (supabase as any)
     .from('orders')
     .select('id, user_id, status')
     .eq('id', id)
@@ -282,7 +296,7 @@ async function cancelOrder(admin: AdminClient, userId: string, id: string, reque
 
   // Update order status
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updateResult = await (admin as any)
+  const updateResult = await (supabase as any)
     .from('orders')
     .update({
       status: 'cancelled',
@@ -297,7 +311,7 @@ async function cancelOrder(admin: AdminClient, userId: string, id: string, reque
 
   // Log cancellation event
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const logResult = await (admin as any)
+  const logResult = await (supabase as any)
     .from('order_status_events')
     .insert({
       order_id: id,
@@ -318,7 +332,7 @@ async function cancelOrder(admin: AdminClient, userId: string, id: string, reque
   });
 }
 
-async function updateOrderStatus(admin: AdminClient, userId: string, id: string, request: NextRequest): Promise<NextResponse> {
+async function updateOrderStatus(admin: DbClient, userId: string, id: string, request: NextRequest): Promise<NextResponse> {
   const body = await request.json();
   const result = OrderStatusUpdateSchema.safeParse(body);
   if (!result.success) {

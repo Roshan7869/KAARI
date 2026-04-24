@@ -5,11 +5,11 @@
  * Maintains the same useAuth() API as the previous Supabase implementation
  * so all consuming components work without changes.
  */
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { useUser, useClerk, useSession } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 
 /**
  * AuthUser is a simplified user shape that maps Clerk's user
@@ -30,6 +30,7 @@ interface AuthContextType {
   session: ReturnType<typeof useSession>['session'] | null;
   loading: boolean;
   isLoaded: boolean;
+  profileReady: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -53,6 +54,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { signOut: clerkSignOut } = useClerk();
   const { session } = useSession();
   const router = useRouter();
+
+  // profileReady: true once Clerk has loaded AND (briefly) settled.
+  // For guest users (no clerkUser), this becomes true immediately when isLoaded is true.
+  // For authenticated users, a small delay allows the Clerk webhook to create the
+  // Supabase profile before CartContext tries to fetch the cart.
+  const [profileReady, setProfileReady] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!clerkUser) {
+      // Guest user — no profile to wait for
+      setProfileReady(true);
+      return;
+    }
+    // Authenticated user — give the webhook a moment to create the profile.
+    // If the cart fetch fails, CartContext handles it gracefully.
+    const timer = setTimeout(() => setProfileReady(true), 500);
+    return () => clearTimeout(timer);
+  }, [isLoaded, clerkUser]);
 
   const user: AuthUser | null = clerkUser
     ? {
@@ -85,7 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast.success('Signed out successfully');
       router.push('/');
     } catch (err) {
-      logger.error('Sign out error:', err);
+      logger.error('Sign out failed', err, { context: 'auth' });
       toast.error('Failed to sign out');
     }
   };
@@ -107,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         session,
         loading: !isLoaded,
         isLoaded,
+        profileReady,
         isAdmin,
         signIn,
         signUp,

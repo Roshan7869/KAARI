@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
 import { revalidatePath } from 'next/cache';
-import { logger } from '@/lib/logger';
-
-// ── Auth helper ─────────────────────────────────────────────────────
-async function requireAdmin() {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  return { error: null };
-}
+import { logger } from '@/lib/logger-server';
 
 // ── GET — list all stories (admin view, includes inactive) ──────────
 export async function GET() {
-  const { error: authError } = await requireAdmin();
-  if (authError) return authError;
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,14 +17,16 @@ export async function GET() {
     .select('*')
     .order('position', { ascending: true });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ stories: data });
+  if (error) {
+    logger.error('Admin stories GET failed', { error }, { route: 'admin/stories' } as Record<string, unknown>);
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
 }
 
 // ── POST — upload new story image ───────────────────────────────────
 export async function POST(request: NextRequest) {
-  const { error: authError } = await requireAdmin();
-  if (authError) return authError;
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const formData = await request.formData();
   const file     = formData.get('file') as File | null;
@@ -133,8 +126,8 @@ export async function POST(request: NextRequest) {
 
 // ── PATCH — update caption, link_url, position, or is_active ───────
 export async function PATCH(request: NextRequest) {
-  const { error: authError } = await requireAdmin();
-  if (authError) return authError;
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const body = await request.json() as {
     id: string;
@@ -165,7 +158,10 @@ export async function PATCH(request: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logger.error('Admin stories PATCH failed', { error }, { route: 'admin/stories PATCH' } as Record<string, unknown>);
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
 
   revalidatePath('/');
   return NextResponse.json({ story: data });
@@ -173,8 +169,8 @@ export async function PATCH(request: NextRequest) {
 
 // ── DELETE — remove story + its Cloudinary asset ────────────────────
 export async function DELETE(request: NextRequest) {
-  const { error: authError } = await requireAdmin();
-  if (authError) return authError;
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -204,7 +200,10 @@ export async function DELETE(request: NextRequest) {
     .delete()
     .eq('id', id);
 
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  if (deleteError) {
+    logger.error('Admin story DELETE failed', { deleteError }, { route: 'admin/stories DELETE' } as Record<string, unknown>);
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
 
   revalidatePath('/');
   return NextResponse.json({ success: true });

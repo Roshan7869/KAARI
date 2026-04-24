@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 /**
  * Server-side rate limiting using Upstash Redis.
@@ -36,7 +36,13 @@ function createRatelimiters() {
       analytics: true,
       prefix:    'kaari:rl:auth',
     }),
-    // Checkout page — 20 req / 5 min (prevent checkout spam)
+    // Mutation routes — 20 req / 1 min (cart, orders, reviews, wishlist)
+    mutation: new Ratelimit({
+      redis,
+      limiter:   Ratelimit.slidingWindow(20, '1 m'),
+      analytics: true,
+      prefix:    'kaari:rl:mutation',
+    }),
     checkout: new Ratelimit({
       redis,
       limiter:   Ratelimit.slidingWindow(20, '5 m'),
@@ -77,7 +83,7 @@ function createRatelimiters() {
 // Singleton — only initializes once per worker process
 const limiters = createRatelimiters();
 
-type LimiterKey = 'api' | 'auth' | 'checkout' | 'webhook' | 'checkoutOrders' | 'checkoutOrdersIp' | 'checkoutOrdersGlobal';
+type LimiterKey = 'api' | 'auth' | 'checkout' | 'webhook' | 'checkoutOrders' | 'checkoutOrdersIp' | 'checkoutOrdersGlobal' | 'mutation';
 
 /**
  * Apply rate limiting. Returns 429 NextResponse on limit exceeded, null to allow.

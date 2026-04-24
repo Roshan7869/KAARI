@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { createClient } from '@/lib/supabase/server';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 import { ProductParamsSchema } from '@/lib/validations/product.schema';
 
 type SupabaseError = Error & { code?: string };
@@ -13,7 +17,7 @@ type SupabaseResponse<T> = { data: T | null; error: SupabaseError | null };
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = createAdminClient();
+    const supabase = await createClient();
     const { searchParams, pathname } = new URL(request.url);
     const id = pathname.split('/').pop();
 
@@ -124,13 +128,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  * Create a review for a product
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
     const { searchParams, pathname } = new URL(request.url);
     const id = pathname.split('/').pop();
 

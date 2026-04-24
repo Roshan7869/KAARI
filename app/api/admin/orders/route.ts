@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const ManualOrderSchema = z.object({
@@ -25,10 +26,8 @@ const ManualOrderSchema = z.object({
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const supabase = createAdminClient();
   const { searchParams } = new URL(request.url);
@@ -54,10 +53,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .range(offset, offset + limit - 1);
 
   if (status && status !== 'all') query = query.eq('status', status);
-  if (search) query = query.ilike('order_number', `%${search}%`);
+  if (search) {
+    const sanitized = search.replace(/[%_]/g, '\\$&');
+    query = query.ilike('order_number', `%${sanitized}%`);
+  }
 
   const { data: orders, count, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logger.error('Admin orders GET failed', error, { route: 'admin/orders' });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
 
   return NextResponse.json({
     orders: orders || [],
@@ -66,10 +71,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   let body: unknown;
   try { body = await request.json(); } catch {
@@ -113,7 +116,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .select('id, order_number')
     .single();
 
-  if (orderError) return NextResponse.json({ error: orderError.message }, { status: 500 });
+  if (orderError) {
+    logger.error('Admin manual order insert failed', orderError, { route: 'admin/orders POST' });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+  }
 
   // Insert order items
   const orderItems = data.items.map(item => ({
@@ -131,7 +137,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Rollback order
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).from('orders').delete().eq('id', order.id);
-    return NextResponse.json({ error: itemsError.message }, { status: 500 });
+    logger.error('Admin order items insert failed', itemsError, { route: 'admin/orders POST' });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
   }
 
   return NextResponse.json({ success: true, order_id: order.id, order_number: order.order_number }, { status: 201 });

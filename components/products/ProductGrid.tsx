@@ -1,9 +1,11 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { SlidersHorizontal, LayoutGrid, List } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useQueryState, parseAsString, parseAsInteger } from 'nuqs';
 import ProductCard, { type GridProduct } from './ProductCard';
 import FilterDrawer, { type FilterState } from './FilterDrawer';
 import { ProductCardSkeleton } from '@/components/ui/skeleton-loader';
@@ -56,35 +58,20 @@ export default function ProductGrid() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Initialise state from URL params
-  const [active, setActive] = useState<Category>(() => {
-    const cat = searchParams.get('cat');
-    return (DB_CATEGORIES.includes(cat as Category) ? cat : 'All') as Category;
-  });
-  const [sortBy, setSortBy] = useState<SortOption>(
-    () => (searchParams.get('sort') as SortOption) ?? 'featured'
-  );
-  const [page, setPage] = useState(() => Number(searchParams.get('page') ?? 1));
+  // URL-synced state via nuqs — filters survive refresh, bookmarkable, shareable
+  const [active, setActive] = useQueryState('cat', parseAsString.withDefault('All'));
+  const [sortBy, setSortBy] = useQueryState('sort', parseAsString.withDefault('featured'));
+  const [page, setPage] = useQueryState('page', parseAsInteger.withDefault(1));
+  const [maxPrice, setMaxPrice] = useQueryState('maxPrice', parseAsInteger);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerFilters, setDrawerFilters] = useState<FilterState>(DEFAULT_DRAWER_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<FilterState>(DEFAULT_DRAWER_FILTERS);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const shouldReduceMotion = useReducedMotion();
   const search = searchParams.get('search') ?? '';
   const pageSize = 9;
   const [totalCount, setTotalCount] = useState(0);
   const [loadMoreCount, setLoadMoreCount] = useState(0);
-
-  // Sync state → URL (replace, no scroll)
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (active !== 'All') params.set('cat', active);
-    if (sortBy !== 'featured') params.set('sort', sortBy);
-    if (page > 1) params.set('page', String(page));
-    if (search) params.set('search', search);
-
-    const qs = params.toString();
-    router.replace(qs ? `/products?${qs}` : '/products', { scroll: false });
-  }, [active, search, sortBy, page, router]);
 
   // Fetch products with server-side pagination (Load More pattern)
   const { data: dbProducts = [], isLoading } = useQuery<DatabaseProduct[]>({
@@ -93,18 +80,6 @@ export default function ProductGrid() {
     queryFn: async () => {
       // Fetch from offset 0 up to the current accumulated count
       const fetchLimit = loadMoreCount + pageSize;
-
-      let countQuery = supabase
-        .from('products')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_active', true);
-
-      if (active !== 'All') {
-        countQuery = countQuery.eq('category', active);
-      }
-
-      const { count } = await countQuery;
-      setTotalCount(count ?? 0);
 
       let query = supabase
         .from('products')
@@ -144,7 +119,7 @@ export default function ProductGrid() {
         const badge: GridProduct['badge'] =
           (p.sold_count ?? 0) === 0 && !p.is_active ? 'sold_out'
           : p.product_type === 'customized' ? 'custom'
-          : createdDaysAgo < 30 ? 'new'
+          : createdDaysAgo < 7 ? 'new'
           : null;
         return {
           id: p.id,
@@ -164,6 +139,24 @@ export default function ProductGrid() {
     },
     staleTime: 1000 * 60 * 5,
   });
+
+  // Separate effect for total count — avoids side effects inside queryFn
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      let countQuery = supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true);
+      if (active !== 'All') {
+        countQuery = countQuery.eq('category', active);
+      }
+      const { count } = await countQuery;
+      if (!cancelled) setTotalCount(count ?? 0);
+    };
+    fetchCount();
+    return () => { cancelled = true; };
+  }, [active]);
 
   const products: DisplayProduct[] = dbProducts;
 
@@ -210,8 +203,8 @@ export default function ProductGrid() {
     page * pageSize
   );
 
-  useEffect(() => { setPage(1); setLoadMoreCount(0); }, [active, sortBy, appliedFilters]);
-  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  useEffect(() => { setPage(1); setLoadMoreCount(0); }, [active, sortBy, appliedFilters, setPage, setLoadMoreCount]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages, setPage]);
 
   const drawerActiveCount = [
     appliedFilters.minPrice > DEFAULT_MIN_PRICE,
@@ -229,7 +222,7 @@ export default function ProductGrid() {
     setAppliedFilters(DEFAULT_DRAWER_FILTERS);
     setPage(1);
     setLoadMoreCount(0);
-  }, []);
+  }, [setActive, setPage, setSortBy, setDrawerFilters, setAppliedFilters, setLoadMoreCount]);
 
   const handleLoadMore = useCallback(() => {
     setLoadMoreCount((prev) => prev + pageSize);
@@ -278,7 +271,7 @@ export default function ProductGrid() {
             Unique Handmade Crochet
           </span>
 
-          <h1 className="font-display text-4xl md:text-6xl text-white mb-4">
+          <h1 className="font-display text-4xl md:text-6xl text-white mb-4" suppressHydrationWarning>
             Shop{' '}
             <span style={{ color: '#D4AF7F' }}>
               {active === 'All' ? 'All' : active}
@@ -305,7 +298,7 @@ export default function ProductGrid() {
                 setDrawerFilters(appliedFilters);
                 setDrawerOpen(true);
               }}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border rounded-md font-body text-xs transition-all ${
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border rounded-md font-body text-xs min-h-[44px] transition-all ${
                 drawerActiveCount > 0
                   ? 'bg-[#8B1F2A] text-white border-[#8B1F2A]'
                   : 'border-[rgba(139,31,42,0.3)] text-[#8B1F2A] hover:border-[#8B1F2A]'
@@ -327,7 +320,7 @@ export default function ProductGrid() {
                 <button
                   key={cat}
                   onClick={() => setActive(cat as Category)}
-                  className={`flex-shrink-0 px-4 py-1.5 font-body text-xs tracking-[0.12em] uppercase border rounded-full transition-all duration-200 ${
+                  className={`flex-shrink-0 px-4 py-1.5 font-body text-xs tracking-[0.12em] uppercase border rounded-full min-h-[44px] transition-all duration-200 ${
                     active === cat
                       ? 'bg-[#8B1F2A] text-white border-[#8B1F2A]'
                       : 'bg-transparent text-[#5a0f18]/70 border-[rgba(139,31,42,0.25)] hover:border-[#8B1F2A] hover:text-[#8B1F2A]'
@@ -342,7 +335,7 @@ export default function ProductGrid() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="flex-shrink-0 px-3 py-2 bg-transparent border border-[rgba(139,31,42,0.25)] rounded-md font-body text-xs text-[#5a0f18] hover:border-[#8B1F2A] transition-colors"
+              className="flex-shrink-0 px-3 py-2 bg-transparent border border-[rgba(139,31,42,0.25)] rounded-md font-body text-xs text-[#5a0f18] hover:border-[#8B1F2A] transition-colors min-h-[44px]"
               aria-label="Sort products"
             >
               <option value="featured">Featured</option>
@@ -359,7 +352,7 @@ export default function ProductGrid() {
               <button
                 onClick={() => setViewMode('grid')}
                 aria-label="Grid view"
-                className={`p-2 transition-colors ${
+                className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors ${
                   viewMode === 'grid'
                     ? 'bg-[#8B1F2A] text-white'
                     : 'hover:bg-[rgba(139,31,42,0.08)] text-[#5a0f18]'
@@ -370,7 +363,7 @@ export default function ProductGrid() {
               <button
                 onClick={() => setViewMode('list')}
                 aria-label="List view"
-                className={`p-2 transition-colors border-l border-[rgba(139,31,42,0.25)] ${
+                className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors border-l border-[rgba(139,31,42,0.25)] ${
                   viewMode === 'list'
                     ? 'bg-[#8B1F2A] text-white'
                     : 'hover:bg-[rgba(139,31,42,0.08)] text-[#5a0f18]'
@@ -416,12 +409,12 @@ export default function ProductGrid() {
               {paginatedProducts.map((product, i) => (
                 <motion.div
                   key={product.id || product.slug}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
+                  initial={shouldReduceMotion ? undefined : { opacity: 0, y: 20 }}
+                  whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: i * 0.05 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.4, delay: shouldReduceMotion ? 0 : i * 0.05 }}
                 >
-                  <a
+                  <Link
                     href={`/products/${product.slug}`}
                     className="group flex items-center gap-5 glass-card-cream rounded-xl overflow-hidden hover:shadow-md transition-shadow"
                   >
@@ -431,6 +424,7 @@ export default function ProductGrid() {
                         alt={product.title}
                         width={140}
                         height={140}
+                        sizes="140px"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     </div>
@@ -444,7 +438,7 @@ export default function ProductGrid() {
                         )}
                       </div>
                     </div>
-                  </a>
+                  </Link>
                 </motion.div>
               ))}
             </div>
@@ -462,7 +456,7 @@ export default function ProductGrid() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="w-9 h-9 flex items-center justify-center border border-border rounded-md font-body text-xs disabled:opacity-40 hover:bg-muted transition-colors"
+                className="min-w-[44px] h-[44px] flex items-center justify-center border border-border rounded-md font-body text-sm disabled:opacity-40 hover:bg-muted transition-colors"
                 aria-label="Previous page"
               >
                 ‹
@@ -471,7 +465,7 @@ export default function ProductGrid() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`w-9 h-9 flex items-center justify-center border rounded-md font-body text-xs transition-colors ${
+                  className={`min-w-[44px] h-[44px] flex items-center justify-center border rounded-md font-body text-sm transition-colors ${
                     p === page
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'border-border hover:bg-muted'
@@ -485,7 +479,7 @@ export default function ProductGrid() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="w-9 h-9 flex items-center justify-center border border-border rounded-md font-body text-xs disabled:opacity-40 hover:bg-muted transition-colors"
+                className="min-w-[44px] h-[44px] flex items-center justify-center border border-border rounded-md font-body text-sm disabled:opacity-40 hover:bg-muted transition-colors"
                 aria-label="Next page"
               >
                 ›

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { HttpError } from './http-error';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 /**
  * Error handling wrapper for API routes

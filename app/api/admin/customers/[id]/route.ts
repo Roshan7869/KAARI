@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const customerUpdateSchema = z.object({
@@ -22,10 +23,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const { id: customerId } = await params;
   if (!customerId) return NextResponse.json({ error: 'Missing customer ID' }, { status: 400 });
@@ -55,7 +54,10 @@ export async function PATCH(
       .update(updateData)
       .eq('id', customerId);
 
-    if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+    if (profileError) {
+      logger.error('Admin customer profile update failed', profileError, { route: 'admin/customers PATCH' });
+      return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
+    }
   }
 
   // Update default shipping address if address fields provided
@@ -106,10 +108,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const { id: customerId } = await params;
 

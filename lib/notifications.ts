@@ -23,7 +23,7 @@ function getSupabaseClient() {
 export type NotificationCategory = 'order_confirmation' | 'shipping_updates' | 'payment_alerts' | 'marketing_emails';
 
 export interface EmailPreferences {
-  emailNotificationsEnabled: boolean;
+  transactionalEmailsEnabled: boolean;
   smsNotificationsEnabled: boolean;
   marketingEmailsEnabled: boolean;
 }
@@ -33,7 +33,7 @@ export interface EmailPreferences {
  */
 export function getDefaultPreferences(): EmailPreferences {
   return {
-    emailNotificationsEnabled: true,
+    transactionalEmailsEnabled: true,
     smsNotificationsEnabled: true,
     marketingEmailsEnabled: false,
   };
@@ -63,7 +63,7 @@ export async function getEmailPreferences(userId: string): Promise<EmailPreferen
     }
 
     return {
-      emailNotificationsEnabled: data.email_notifications_enabled ?? true,
+      transactionalEmailsEnabled: data.email_notifications_enabled ?? true,
       smsNotificationsEnabled: data.sms_notifications_enabled ?? true,
       marketingEmailsEnabled: data.marketing_emails_enabled ?? false,
     };
@@ -85,8 +85,11 @@ export async function updateEmailPreferences(
 
     // Build update object with only provided fields
     const updateData: Record<string, boolean> = {};
-    if ('emailNotificationsEnabled' in preferences && preferences.emailNotificationsEnabled !== undefined) {
-      updateData.email_notifications_enabled = preferences.emailNotificationsEnabled;
+    if (
+      'transactionalEmailsEnabled' in preferences &&
+      preferences.transactionalEmailsEnabled !== undefined
+    ) {
+      updateData.email_notifications_enabled = preferences.transactionalEmailsEnabled;
     }
     if ('smsNotificationsEnabled' in preferences && preferences.smsNotificationsEnabled !== undefined) {
       updateData.sms_notifications_enabled = preferences.smsNotificationsEnabled;
@@ -113,7 +116,7 @@ export async function updateEmailPreferences(
     }
 
     const updatedPreferences: EmailPreferences = {
-      emailNotificationsEnabled: data.email_notifications_enabled ?? true,
+      transactionalEmailsEnabled: data.email_notifications_enabled ?? true,
       smsNotificationsEnabled: data.sms_notifications_enabled ?? true,
       marketingEmailsEnabled: data.marketing_emails_enabled ?? false,
     };
@@ -133,7 +136,7 @@ export async function updateEmailPreferences(
  */
 export async function optOutAllEmails(userId: string): Promise<{ success: boolean; error?: string }> {
   return updateEmailPreferences(userId, {
-    emailNotificationsEnabled: false,
+    transactionalEmailsEnabled: false,
     marketingEmailsEnabled: false,
   });
 }
@@ -143,7 +146,7 @@ export async function optOutAllEmails(userId: string): Promise<{ success: boolea
  */
 export async function optInAllEmails(userId: string): Promise<{ success: boolean; error?: string }> {
   return updateEmailPreferences(userId, {
-    emailNotificationsEnabled: true,
+    transactionalEmailsEnabled: true,
     marketingEmailsEnabled: false, // Marketing opt-in requires explicit consent
   });
 }
@@ -162,7 +165,7 @@ export async function toggleNotificationCategory(
     case 'order_confirmation':
     case 'shipping_updates':
     case 'payment_alerts':
-      update.emailNotificationsEnabled = enabled;
+      update.transactionalEmailsEnabled = enabled;
       break;
     case 'marketing_emails':
       update.marketingEmailsEnabled = enabled;

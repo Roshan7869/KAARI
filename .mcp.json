@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "cashfree": {
+      "command": "node",
+      "args": ["/mnt/c/Users/USER/Downloads/project-bolt-github-t6mylefb/project/cashfree-mcp/dist/index.js"],
+      "env": {
+        "PAYMENTS_APP_ID": "TEST110193084d0b0739e30026795c2480391011",
+        "PAYMENTS_APP_SECRET": "cfsk_ma_test_2703b542ef3678ea8bc823781ab5ef40_5f47223f",
+        "TOOLS": "pg",
+        "ENV": "sandbox",
+        "ELICITATION_ENABLED": "true"
+      }
+    }
+  }
+}

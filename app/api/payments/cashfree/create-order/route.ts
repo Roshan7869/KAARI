@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@clerk/nextjs/server'
 import { getCashfreeBaseUrl, getServerCashfreeConfig } from '@/lib/cashfree-server'
-import { logger } from '@/lib/logger'
+import { logger } from '@/lib/logger-server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { validateCashfreeConfig } from '@/lib/startup-checks'
 import { applyRateLimit } from '@/lib/server-rate-limit'
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Validate Cashfree config sync before processing payments
   const configCheck = validateCashfreeConfig()
   if (!configCheck.passed) {
-    console.error('[Payment] Cashfree misconfigured:', configCheck.errors)
+    logger.error('[Payment] Cashfree misconfigured', configCheck.errors, { context: 'cashfree-config' })
     return NextResponse.json(
       { error: 'Payment service misconfigured. Contact support.' },
       { status: 503 }
@@ -95,10 +95,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { orderId, amount, customerName, customerEmail, customerPhone, returnUrl, notifyUrl } =
       payload.data
 
+    // Payment session TTL — 15 minutes, matching Cashfree order expiry
+    const PAYMENT_SESSION_TTL_MS = 15 * 60 * 1000
+
     const admin = createAdminClient()
     const { data: order, error: orderError } = await admin
       .from('orders')
-      .select('id, user_id, total_amount')
+      .select('id, user_id, total_amount, status')
       .eq('id', orderId)
       .maybeSingle()
 
@@ -109,6 +112,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (order.user_id !== userId) {
       logger.warn('Unauthorized order payment attempt', { orderId, userId })
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 })
+    }
+
+    // Guard: only allow payment for orders in pending status
+    if (order.status !== 'pending') {
+      logger.warn('Payment attempted on non-pending order', { orderId, status: order.status })
+      return NextResponse.json(
+        { success: false, error: 'This order has already been processed or is no longer payable.' },
+        { status: 409 }
+      )
     }
 
     const orderAmount = typeof order.total_amount === 'number'
@@ -133,7 +145,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const paymentSessionId = `pay_${crypto.randomUUID().replace(/-/g, '')}`
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+    const expiresAt = new Date(Date.now() + PAYMENT_SESSION_TTL_MS).toISOString()
     const redirectBackUrl = new URL(returnUrl)
     redirectBackUrl.searchParams.set('session_id', paymentSessionId)
 
@@ -153,39 +165,52 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const cfOrderId = `KH${orderId.slice(0, 8)}`
-    const response = await fetch(`${getCashfreeBaseUrl(config.isTestMode)}/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-version': '2023-08-01',
-        'x-client-id': config.appId,
-        'x-client-secret': config.secretKey,
-      },
-      body: JSON.stringify({
-        order_id: cfOrderId,
-        order_amount: amount,
-        order_currency: 'INR',
-        order_note: `Kaari Order ${orderId.slice(0, 8)}`,
-        order_expiry_time: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes expiry
-        customer_details: {
-          customer_id: orderId,
-          customer_name: customerName,
-          customer_email: customerEmail,
-          customer_phone: customerPhone,
+    const cfAbortController = new AbortController()
+    const cfTimeoutId = setTimeout(() => cfAbortController.abort(), 10_000)
+    let response: Response
+    try {
+      response = await fetch(`${getCashfreeBaseUrl(config.isTestMode)}/orders`, {
+        method: 'POST',
+        signal: cfAbortController.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-version': '2023-08-01',
+          'x-client-id': config.appId,
+          'x-client-secret': config.secretKey,
         },
-        order_meta: {
-          return_url: redirectBackUrl.toString(),
-          notify_url: notifyUrl,
-          payment_methods: 'upi',
-        },
-      }),
-    })
-
+        body: JSON.stringify({
+          order_id: cfOrderId,
+          order_amount: amount,
+          order_currency: 'INR',
+          order_note: `Kaari Order ${orderId.slice(0, 8)}`,
+          order_expiry_time: new Date(Date.now() + PAYMENT_SESSION_TTL_MS).toISOString(),
+          customer_details: {
+            customer_id: orderId,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+          },
+          order_meta: {
+            return_url: redirectBackUrl.toString(),
+            notify_url: notifyUrl,
+            payment_methods: 'upi',
+          },
+        }),
+      })
+      clearTimeout(cfTimeoutId)
+    } catch (fetchError) {
+      clearTimeout(cfTimeoutId)
+      // Clean up orphaned payment_sessions on network/timeout errors
+      await admin.from('payment_sessions').delete().eq('session_id', paymentSessionId)
+      throw fetchError
+    }
     const responseText = await response.text()
     const responseData = responseText ? JSON.parse(responseText) as Record<string, unknown> : {}
 
     if (!response.ok) {
       logger.warn('Cashfree create-order request failed', { status: response.status, orderId })
+      // Delete the payment_sessions row to avoid orphaned records that block retries
+      await admin.from('payment_sessions').delete().eq('session_id', paymentSessionId)
       return NextResponse.json(
         {
           success: false,
@@ -195,7 +220,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       )
     }
 
-    await admin.from('cashfree_sessions').insert({
+    const { error: cfSessionError } = await admin.from('cashfree_sessions').insert({
       order_id: orderId,
       user_id: userId,
       cf_order_id: String(responseData.cf_order_id || ''),
@@ -208,9 +233,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       customer_name: customerName,
       return_url: returnUrl,
       notify_url: notifyUrl,
-      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 minutes expiry
+      expires_at: new Date(Date.now() + PAYMENT_SESSION_TTL_MS).toISOString(),
       raw_response: responseData,
     })
+
+    if (cfSessionError) {
+      // cashfree_sessions insert failed — clean up payment_sessions to keep DB consistent
+      await admin.from('payment_sessions').delete().eq('session_id', paymentSessionId)
+      throw cfSessionError
+    }
 
     return NextResponse.json({
       success: true,

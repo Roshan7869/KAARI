@@ -214,6 +214,3 @@ export function getCloudinaryImageProps(
 }
 
 export default cloudinary;
-
-// Re-export for convenience
-export { deleteCloudinaryAsset } from '@/lib/cloudinary-server';

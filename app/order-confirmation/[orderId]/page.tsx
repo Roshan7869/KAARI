@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import OrderConfirmation from "@/components/pages/OrderConfirmation";
-import ProtectedRoute from "@/app/components/ProtectedRoute";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { APP_URL } from "@/lib/metadata";
 
 export async function generateMetadata({

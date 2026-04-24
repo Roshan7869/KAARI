@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth, requireAdmin } from '@/lib/auth/verify-jwt';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import { ProductListSchema, ProductCreateSchema } from '@/lib/validations/product.schema';
 
 type SupabaseError = Error & { code?: string };
@@ -44,8 +44,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const { category, search, price_min, price_max, is_active, page, limit, sort_by, sort_order } = result.data;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = (supabase as any).from('products').select('*', { count: 'exact' });
+    let query = supabase.from('products').select('*', { count: 'exact' });
 
     // Apply filters
     if (category) {
@@ -75,8 +74,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Pagination
     const offset = (page - 1) * limit;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: products, error, count } = await (query as any).range(offset, offset + limit - 1) as { data: unknown[] | null; error: Error | null; count?: number };
+    const { data: products, error, count } = await query.range(offset, offset + limit - 1);
 
     if (error) {
       throw error;

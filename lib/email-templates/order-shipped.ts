@@ -146,7 +146,7 @@ export function renderOrderShippedHtml(data: OrderShippedData): string {
     <p style="margin: 0; color: #5c4a3a; font-size: 14px; line-height: 1.6; text-align: center;">
       Questions about your delivery?
       ${sanitizedOrderUrl ? `<a href="${sanitizedOrderUrl}" style="color: #D2691E; text-decoration: none;">View your order</a> or` : ''}
-      <a href="mailto:hello@kaari.shop" style="color: #D2691E; text-decoration: none;">contact us</a>.
+      <a href="mailto:hello@kaari.in" style="color: #D2691E; text-decoration: none;">contact us</a>.
     </p>
   `;
 
@@ -208,7 +208,7 @@ SHIPPING ADDRESS
 ${addressLines}
 
 ${sanitizedOrderUrl ? `Questions? View your order: ${sanitizedOrderUrl}` : ''}
-Or contact us at hello@kaari.shop
+Or contact us at hello@kaari.in
 
 Thank you for shopping with Kaari!
 `;

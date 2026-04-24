@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 import { CartItemUpdateSchema } from '@/lib/validations/cart.schema';
 import type { Database } from '@/types/database';
 
@@ -13,11 +16,21 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const { id } = await params;
     if (!id) {
@@ -34,7 +47,10 @@ export async function PUT(
     }
 
     const { quantity } = result.data;
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Get cart item and verify it belongs to the user
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,21 +129,34 @@ export async function PUT(
  * Remove item from cart
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ success: false, error: 'Item ID required' }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Verify ownership before deleting
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

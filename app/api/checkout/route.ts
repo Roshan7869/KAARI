@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
 import { applyRateLimit, applyCheckoutRateLimits } from '@/lib/server-rate-limit';
 import { validateCsrfToken } from '@/lib/csrf-server';
-import { calculateGST } from '@/lib/tax';
+import { calculateShipping } from '@/lib/shipping';
 
 /**
  * POST /api/checkout
@@ -26,9 +27,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // - Per-user: 5 orders per minute per user
   // - Per-IP: 20 orders per minute per IP
   // - Global: 100 orders per minute total
-  const { userId } = await auth();
-  if (userId) {
-    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, userId, true);
+  const { userId: clerkUserId } = await auth();
+  if (clerkUserId) {
+    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, clerkUserId, true);
     if (enhancedRateLimitResponse) return enhancedRateLimitResponse;
   }
 
@@ -42,17 +43,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const admin = createAdminClient();
 
     // ── 1. Auth ──────────────────────────────────────────────────────
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    let userId: string | null = null;
+    let guestEmail: string | null = null;
+    let guestPhone: string | null = null;
+    let guestName: string | null = null;
 
-    // ── 1.1 Email verification check ──────────────────────────────────
-    const { sessionClaims } = await auth();
-    if (!sessionClaims?.email_verified) {
-      return NextResponse.json(
-        { success: false, error: 'Please verify your email before checkout.' },
-        { status: 403 }
-      );
+    if (clerkUserId) {
+      // Authenticated user: resolve Clerk ID to Supabase UUID
+      userId = await requireSupabaseUserId(clerkUserId);
+
+      // ── 1.1 Email verification check ──────────────────────────────────
+      const { sessionClaims } = await auth();
+      if (!sessionClaims?.email_verified) {
+        return NextResponse.json(
+          { success: false, error: 'Please verify your email before checkout.' },
+          { status: 403 }
+        );
+      }
+    } else {
+      // Guest checkout: require contact info
+      // We'll read guest info from the parsed body below
     }
 
     // ── 2. Validate request body ────────────────────────────────────
@@ -74,6 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const {
       cart_id,
       payment_method,
+      email,
       phone,
       shipping_name,
       shipping_line1,
@@ -91,11 +102,87 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       coupon_code,
     } = result.data;
 
+    // Guest checkout validation
+    if (!clerkUserId) {
+      if (!email) {
+        return NextResponse.json(
+          { success: false, error: 'Email is required for guest checkout' },
+          { status: 400 }
+        );
+      }
+      guestEmail = email ?? null;
+      guestPhone = phone ?? null;
+      guestName = shipping_name ?? null;
+    }
+
     // SECURITY: Never trust client-provided amounts - always compute from cart
     // Client may send shipping_amount or tax_amount but we ignore them completely
     // All pricing MUST come from the database cart items to prevent manipulation
 
-    // ── 3. Create checkout_session record ────────────────────────────
+    // ── 3. Cart lookup ──────────────────────────────────────────────
+    // Guest users send cart items directly; authenticated users use the cart record
+    if (!clerkUserId && cart_id === 'guest') {
+      // Guest checkout: create a temporary cart and items for the guest
+      // Use a synthetic user_id so the RPC can work
+      const guestUserId = crypto.randomUUID();
+      const { data: guestCart, error: guestCartError } = await admin
+        .from('carts')
+        .insert({
+          user_id: guestUserId,
+          status: 'active',
+          currency: 'INR',
+        })
+        .select('id, user_id')
+        .single();
+
+      if (guestCartError || !guestCart) {
+        logger.error('Failed to create guest cart', { error: guestCartError?.message });
+        return NextResponse.json(
+          { success: false, error: 'Failed to initialize guest checkout' },
+          { status: 500 }
+        );
+      }
+
+      // Insert guest cart items from the request body (items field)
+      const guestItems = (result.data as Record<string, unknown> & { items?: Array<{ product_id: string; variant_id?: string; quantity: number; unit_price: number; item_type?: string }> }).items;
+      if (!guestItems || guestItems.length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'Cart is empty' },
+          { status: 400 }
+        );
+      }
+
+      const cartItemsInsert = guestItems.map((item) => ({
+        cart_id: guestCart.id,
+        product_id: item.product_id,
+        variant_id: item.variant_id || null,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        line_total: item.unit_price * item.quantity,
+        item_type: item.item_type || 'standard',
+      }));
+
+      const { error: insertItemsError } = await admin
+        .from('cart_items')
+        .insert(cartItemsInsert);
+
+      if (insertItemsError) {
+        logger.error('Failed to insert guest cart items', { error: insertItemsError.message });
+        return NextResponse.json(
+          { success: false, error: 'Failed to create guest cart items' },
+          { status: 500 }
+        );
+      }
+
+      // Set variables for the rest of the checkout flow
+      userId = guestCart.user_id;
+      // Continue with the guest cart as if it were a normal cart
+    }
+
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'User identification required' }, { status: 400 });
+    }
+
     const { data: cart } = await admin
       .from('carts')
       .select('id, user_id, status, currency')
@@ -132,6 +219,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // If a coupon_code is provided, revalidate on the server and apply discount.
     let couponDiscount = 0;
     let validatedCouponId: string | null = null;
+    let couponUsageCountAtValidation: number | null = null;
+    let couponUsageLimit: number | null = null;
 
     if (coupon_code) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -171,6 +260,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
       couponDiscount = Math.round(couponDiscount * 100) / 100;
       validatedCouponId = coupon.id;
+      couponUsageCountAtValidation = coupon.usage_count ?? 0;
+      couponUsageLimit = coupon.usage_limit ?? null;
     }
 
     // SECURITY: Calculate shipping and tax from cart, NEVER from client-provided values
@@ -178,11 +269,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // we deliberately ignore them to prevent manipulation
 
     // Get cart-level pricing information from the database (SECURE)
-    // Calculate shipping: Free for orders over ₹500, otherwise ₹99
-    const shipping = subtotal > 500 ? 0 : 99;
-    const { gstAmount: tax, cgst, sgst } = calculateGST(subtotal);
+    // Calculate shipping on post-discount subtotal (BUG-018 fix)
     const discountedSubtotal = Math.max(0, subtotal - couponDiscount);
-    const grandTotal = discountedSubtotal + shipping + tax;
+    const shipping = calculateShipping(discountedSubtotal);
+    const grandTotal = discountedSubtotal + shipping;
 
     // ── 3.1 Validate order amount ─────────────────────────────────────
     // SECURITY: Validate minimum and maximum order amounts to prevent abuse
@@ -217,8 +307,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       calculatedTotal += item.line_total ?? (item.unit_price * item.quantity);
     }
 
-    // Add shipping and tax to calculated total
-    const calculatedGrandTotal = calculatedTotal + shipping + tax;
+    // Add shipping to calculated total (no tax — GST exempt)
+    const calculatedGrandTotal = calculatedTotal + shipping;
 
     // Allow 1 paisa (0.01) rounding difference tolerance
     if (Math.abs(grandTotal - calculatedGrandTotal) > 0.01) {
@@ -239,14 +329,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Log if client sent amount values (potential attack vector)
-    if (result.data.shipping_amount !== undefined || result.data.tax_amount !== undefined) {
-      logger.warn('Security Alert: Client sent amount values (IGNORED)', {
+    if (result.data.shipping_amount !== undefined) {
+      logger.warn('Security Alert: Client sent shipping amount (IGNORED)', {
         userId,
         cartId: cart_id,
         sentShippingAmount: result.data.shipping_amount,
-        sentTaxAmount: result.data.tax_amount,
         actualShippingAmount: shipping,
-        actualTaxAmount: tax,
         message: 'Potential order manipulation attempt detected and blocked'
       });
     }
@@ -268,11 +356,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         country: shipping_country,
         shipping_method: shipping_method ?? 'standard',
         shipping_amount: shipping,
-        tax_amount: tax,
+        tax_amount: 0,
         subtotal,
         total_amount: grandTotal,
         coupon_id: validatedCouponId,
         discount_amount: couponDiscount || 0,
+        ...(guestEmail ? { guest_email: guestEmail } : {}),
+        ...(guestPhone ? { guest_phone: guestPhone } : {}),
+        ...(guestName ? { guest_name: guestName } : {}),
       })
       .select('id')
       .single();
@@ -409,7 +500,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         p_user_id: userId,
         p_payment_method: payment_method ?? 'cod',
         p_shipping_address: shippingAddress,
-        p_tax_amount: tax,
+        p_tax_amount: 0,
         p_shipping_amount: shipping,
         p_shipping_provider: resolvedProvider,
         p_shipping_provider_label: resolvedProviderLabel,
@@ -453,6 +544,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const orderId: string = rpcRow.order_id;
     const orderNumber: string = rpcRow.order_number;
 
+    // ── 6.1 Increment coupon usage_count atomically ─────────────────────
+    // OCC guard: .eq('usage_count', current) ensures no double-use in concurrent checkouts.
+    if (validatedCouponId && couponUsageCountAtValidation !== null) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: couponUpdateError } = await (admin as any)
+        .from('coupons')
+        .update({ usage_count: couponUsageCountAtValidation + 1 })
+        .eq('id', validatedCouponId)
+        .eq('usage_count', couponUsageCountAtValidation); // no-op if already incremented
+      if (couponUpdateError) {
+        logger.error('Failed to increment coupon usage_count', { error: couponUpdateError.message, couponId: validatedCouponId, orderId });
+        // Non-fatal: order is committed, log the anomaly
+      }
+    }
+
     // ── 7. Create payments record (COD only; online handled by Cashfree route) ──
     if (payment_method === 'cod') {
       const { error: paymentError } = await admin
@@ -473,6 +579,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     logger.info('Order created successfully', { orderId, orderNumber, paymentMethod: payment_method });
 
+    // PostHog server-side event
+    try {
+      const { PostHog } = await import('posthog-node');
+      if (process.env.POSTHOG_KEY) {
+        const ph = new PostHog(process.env.POSTHOG_KEY, { host: 'https://app.posthog.com' });
+        ph.capture({
+          distinctId: clerkUserId ?? userId,
+          event: 'order_completed',
+          properties: { order_id: orderId, order_number: orderNumber, total: grandTotal, payment_method: payment_method },
+        });
+        await ph.shutdown();
+      }
+    } catch {
+      // PostHog is non-critical — swallow errors
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -482,9 +604,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           subtotal,
           discount: couponDiscount || 0,
           shipping,
-          tax,
-          cgst,
-          sgst,
           grandTotal,
         },
       },

@@ -37,28 +37,59 @@ export function HeroBillboard({ products }: Props) {
   const goNext = useCallback(() => api?.scrollNext(), [api]);
   const goPrev = useCallback(() => api?.scrollPrev(), [api]);
 
-  /* Parallax on mouse move */
+  /* Parallax on mouse move — RAF throttled */
+  const rafRef = useRef<number>(0);
+  const pendingRef = useRef<{ x: number; y: number } | null>(null);
+
+  const applyParallax = useCallback(() => {
+    if (!pendingRef.current) return;
+    const { x, y } = pendingRef.current;
+    const bg = document.querySelector<HTMLElement>('.parallax-bg-active');
+    if (bg) bg.style.transform = `translate3d(${x * 18}px,${y * 10}px,0) scale(1.04)`;
+    pendingRef.current = null;
+  }, []);
+
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width - 0.5;
     const y = (e.clientY - rect.top) / rect.height - 0.5;
-    const bg = e.currentTarget.querySelector<HTMLElement>('.parallax-bg-active');
-    if (bg) bg.style.transform = `translate3d(${x * 18}px,${y * 10}px,0) scale(1.04)`;
-  }, []);
+    pendingRef.current = { x, y };
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        applyParallax();
+        rafRef.current = 0;
+      });
+    }
+  }, [applyParallax]);
 
-  const handleMouseLeave = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    const bg = e.currentTarget.querySelector<HTMLElement>('.parallax-bg-active');
+  const handleMouseLeave = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    pendingRef.current = null;
+    const bg = document.querySelector<HTMLElement>('.parallax-bg-active');
     if (bg) bg.style.transform = '';
   }, []);
 
   if (!products.length) {
     return (
-      <section className="relative w-full h-[calc(100vh-60px)] min-h-[500px] max-h-[820px] bg-maroon-deep flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-gold/60 font-dm-sans text-lg">No billboard products yet.</p>
-          <p className="text-gold/40 font-dm-sans text-sm">
-            Admin can add products via Admin → Billboard.
+      <section className="relative w-full h-[calc(100vh-60px)] min-h-[500px] max-h-[820px] bg-maroon-deep flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[rgba(90,15,24,0.3)] to-[rgba(31,4,7,0.9)]" />
+        <div className="relative z-10 text-center space-y-6 px-6">
+          <h2 className="font-cormorant text-[clamp(36px,5vw,64px)] font-bold leading-tight tracking-tight text-white">
+            Handcrafted with Love
+          </h2>
+          <p className="font-dm-sans text-sm leading-[1.75] text-white/60 max-w-md mx-auto">
+            Discover unique crochet creations made by Indian artisans. Each piece tells a story of tradition and care.
           </p>
+          <Link
+            href="/products"
+            className="h-12 px-7 bg-gold text-maroon-deep rounded-full text-[12.5px] font-dm-sans font-semibold tracking-[0.12em] uppercase inline-flex items-center gap-2 shadow-[0_8px_28px_rgba(212,175,127,0.4)] hover:bg-gold-light hover:-translate-y-0.5 transition-all duration-250"
+          >
+            Shop Now
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+          </Link>
         </div>
       </section>
     );
@@ -77,6 +108,7 @@ export function HeroBillboard({ products }: Props) {
         plugins={[autoplayRef.current]}
         opts={{ loop: true, align: 'start' }}
         className="w-full h-full"
+        suppressHydrationWarning
       >
         <CarouselContent className="h-full ml-0">
           {products.map((product, index) => (
@@ -200,8 +232,8 @@ export function HeroBillboard({ products }: Props) {
             onClick={() => scrollTo(i)}
             className={`transition-all duration-300 rounded-full ${
               i === current
-                ? 'w-7 h-2 bg-gold'
-                : 'w-2 h-2 bg-white/30 hover:bg-white/60'
+                ? 'w-7 h-3 bg-gold'
+                : 'w-2 h-3 bg-white/30 hover:bg-white/60'
             }`}
           />
         ))}

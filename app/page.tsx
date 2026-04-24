@@ -1,3 +1,19 @@
+
+import { Metadata } from 'next';
+import { APP_URL } from '@/lib/metadata';
+
+export const metadata: Metadata = {
+  title: 'Home | Kaari',
+  description: 'Home page for Kaari Handmade Crochet.',
+  
+  openGraph: {
+    type: 'website',
+    url: `${APP_URL}/`,
+    title: 'Home | Kaari',
+    description: 'Home page for Kaari Handmade Crochet.',
+  },
+};
+
 import { Suspense } from 'react';
 import { HeroBillboard } from '@/components/home/HeroBillboard';
 import { ProductShowcase } from '@/components/home/ProductShowcase';

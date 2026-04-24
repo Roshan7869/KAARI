@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { z } from 'zod';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 const UpdateReviewSchema = z.object({
   status: z.enum(['approved', 'rejected', 'pending']).optional(),
@@ -44,7 +44,7 @@ export async function PATCH(
 
       if (error) {
         logger.error('Failed to update review status', { error, reviewId: id });
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
       }
       return NextResponse.json({ review: data });
     }
@@ -84,7 +84,7 @@ export async function PATCH(
 
     if (error) {
       logger.error('Failed to update review visibility', { error, reviewId: id });
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
@@ -94,10 +94,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
     }
     if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
     }
     logger.error('Admin review PATCH failed', { error: error.message });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
   }
 }
 
@@ -123,16 +123,16 @@ export async function DELETE(
 
     if (error) {
       logger.error('Failed to delete review', { error, reviewId: id });
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
     const error = err as Error;
     if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
-      return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: error.message.includes('Unauthorized') ? 401 : 403 });
     }
     logger.error('Admin review DELETE failed', { error: error.message });
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred. Please try again.' }, { status: 500 });
   }
 }

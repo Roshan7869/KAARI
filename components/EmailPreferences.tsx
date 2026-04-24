@@ -100,48 +100,32 @@ export default function EmailPreferences({ userId }: EmailPreferencesProps) {
           <div className="flex items-center justify-between py-2">
             <div className="space-y-0.5">
               <Label htmlFor="toggle-order-confirmation" className="font-medium">
-                Order Confirmations
+                Transactional Emails
               </Label>
               <p className="font-body text-xs text-muted-foreground">
-                Receive confirmation when your order is placed
+                Order confirmations, payment updates, and shipping emails
               </p>
             </div>
             <Switch
               id="toggle-order-confirmation"
-              checked={preferences.emailNotificationsEnabled}
-              onCheckedChange={() => handleToggle('emailNotificationsEnabled')}
+              checked={preferences.transactionalEmailsEnabled}
+              onCheckedChange={() => handleToggle('transactionalEmailsEnabled')}
             />
           </div>
 
           <div className="flex items-center justify-between py-2">
             <div className="space-y-0.5">
               <Label htmlFor="toggle-shipping-updates" className="font-medium">
-                Shipping Updates
+                SMS Updates
               </Label>
               <p className="font-body text-xs text-muted-foreground">
-                Get tracking info when your order ships
+                Important order alerts sent to your phone number
               </p>
             </div>
             <Switch
               id="toggle-shipping-updates"
-              checked={preferences.emailNotificationsEnabled}
-              onCheckedChange={() => handleToggle('emailNotificationsEnabled')}
-            />
-          </div>
-
-          <div className="flex items-center justify-between py-2">
-            <div className="space-y-0.5">
-              <Label htmlFor="toggle-payment-alerts" className="font-medium">
-                Payment Alerts
-              </Label>
-              <p className="font-body text-xs text-muted-foreground">
-                Updates about payment processing
-              </p>
-            </div>
-            <Switch
-              id="toggle-payment-alerts"
-              checked={preferences.emailNotificationsEnabled}
-              onCheckedChange={() => handleToggle('emailNotificationsEnabled')}
+              checked={preferences.smsNotificationsEnabled}
+              onCheckedChange={() => handleToggle('smsNotificationsEnabled')}
             />
           </div>
 

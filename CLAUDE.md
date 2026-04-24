@@ -439,6 +439,34 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->
 
+## Code Conventions
+
+- **Components**: Functional with hooks, no class components
+- **Exports**: Named exports preferred (default only for page.tsx per Next.js convention)
+- **State**: TanStack Query for server state, Context for client-only global state (auth, cart), `useState` for local UI state
+- **Error handling**: Toast via Sonner for user-facing errors, `HttpError` class for API errors, never swallow silently
+- **CSS**: Tailwind with `cn()` utility (from `lib/utils`) for conditional classes
+- **Forms**: Zod schemas in `lib/validations/`, `sanitizeTextInput()` on all free-text fields before DB
+- **Imports**: Use `@/` path aliases, never relative paths across directories
+
+## Boundaries
+
+- **NEVER modify `middleware.ts` without verifying CSP impact** — every change affects security headers and route protection
+- **NEVER modify `lib/supabase/server.ts` without checking both server and browser client paths** — 120+ files depend on it
+- **NEVER commit `.env*` files** — secrets must stay local or in Vercel Env Variables
+- **NEVER use `SUPABASE_SERVICE_ROLE_KEY` in client components** — import `server-only` guard is there for a reason
+- **Always run `npm run type-check` before committing** — catch type errors early
+- **Always run `npm run lint` before committing** — ESLint catches security and accessibility issues
+- **Ask before modifying database schema** — RLS policies and migration files must stay in sync
+
+## Architecture Hotspots (from knowledge graph)
+
+- `lib/supabase/server.ts` — **120 dependents**, highest blast-radius file
+- `lib/logger.ts` — 72 dependents, second-highest blast-radius
+- All `route.ts` files share the same import pattern (server, logger, auth, validation) — consider a shared `createApiRoute()` factory
+- `lib/firebase.ts` — **isolated singleton, likely dead code** — verify before using
+- `cashfree-mcp/` is embedded in the main project (72 graph nodes across 18 communities) — should be extracted to its own package
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

@@ -167,7 +167,7 @@ export function renderOrderConfirmationHtml(data: OrderConfirmationData): string
     ${sanitizedOrderUrl ? renderButton('Track Your Order', sanitizedOrderUrl) : ''}
 
     <p style="margin: 20px 0 0 0; color: #a08070; font-size: 13px; text-align: center;">
-      If you have any questions, reply to this email or contact us at hello@kaari.shop
+      If you have any questions, reply to this email or contact us at hello@kaari.in
     </p>
   `;
 
@@ -224,7 +224,7 @@ Estimated Delivery: ${sanitizeProductText(data.estimatedDelivery)}
 
 ${sanitizedOrderUrl ? `Track your order: ${sanitizedOrderUrl}` : ''}
 
-Questions? Contact us at hello@kaari.shop
+Questions? Contact us at hello@kaari.in
 
 Thank you for shopping with Kaari!
 `;

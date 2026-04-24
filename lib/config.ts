@@ -9,7 +9,7 @@
  * - API keys for payment gateways should be server-side only
  */
 
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 // Define required and optional environment variables
 interface EnvConfig {
@@ -132,7 +132,10 @@ export const config: EnvConfig = {
   },
 
   get cashfreeTestMode(): boolean {
-    return getEnvVar('NEXT_PUBLIC_CASHFREE_MODE') !== 'production';
+    // Client-side reads NEXT_PUBLIC_CASHFREE_MODE, server-side reads CASHFREE_MODE.
+    // Both default to sandbox for safety.
+    const mode = getEnvVar('NEXT_PUBLIC_CASHFREE_MODE') ?? getEnvVar('CASHFREE_MODE') ?? 'sandbox';
+    return mode.toLowerCase().trim() !== 'production';
   },
 
   get enableAnalytics(): boolean {

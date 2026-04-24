@@ -2,7 +2,7 @@ import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 
 /**
  * POST /api/webhooks/clerk
@@ -85,16 +85,18 @@ export async function POST(req: Request): Promise<NextResponse> {
             ?.phone_number ?? null;
         const fullName = [data.first_name, data.last_name].filter(Boolean).join(' ').trim() || null;
 
+        // Clerk user IDs (e.g. "user_xxx") are not valid UUIDs, so we store them
+        // in the clerk_id column and let Supabase generate the UUID for the id column.
         const { error } = await supabase.from('profiles').upsert(
           {
-            id: data.id,
+            clerk_id: data.id,
             email: primaryEmail,
             full_name: fullName,
             phone: primaryPhone,
             avatar_url: data.image_url ?? null,
             updated_at: new Date().toISOString(),
           },
-          { onConflict: 'id' }
+          { onConflict: 'clerk_id' }
         );
 
         if (error) {
@@ -121,7 +123,7 @@ export async function POST(req: Request): Promise<NextResponse> {
             deleted_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq('id', data.id);
+          .eq('clerk_id', data.id);
 
         if (error) {
           logger.error('[clerk-webhook] Failed to soft-delete profile', {

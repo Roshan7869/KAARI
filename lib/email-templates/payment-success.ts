@@ -131,7 +131,7 @@ export function renderPaymentSuccessHtml(data: PaymentSuccessData): string {
     ${sanitizedOrderUrl ? renderButton('View Order Details', sanitizedOrderUrl) : ''}
 
     <p style="margin: 25px 0 0 0; color: #a08070; font-size: 13px; text-align: center;">
-      Questions about your order? Reply to this email or contact us at hello@kaari.shop
+      Questions about your order? Reply to this email or contact us at hello@kaari.in
     </p>
   `;
 
@@ -178,7 +178,7 @@ WHAT HAPPENS NEXT?
 
 ${sanitizedOrderUrl ? `View order details: ${sanitizedOrderUrl}` : ''}
 
-Questions? Contact us at hello@kaari.shop
+Questions? Contact us at hello@kaari.in
 
 Thank you for shopping with Kaari!
 `;

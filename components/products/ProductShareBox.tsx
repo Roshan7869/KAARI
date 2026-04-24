@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Share2, Link2, Instagram, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { WHATSAPP_NUMBER } from '@/lib/constants';
 import {
   buildTrackedProductUrl,
   createDmOrderIntentPayload,
@@ -48,7 +49,7 @@ export default function ProductShareBox({
     `Hi Kaari Handmade! 🧶\n\nI'd like to order:\n*${title}*\nPrice: ₹${price.toLocaleString('en-IN')}\n\n${productUrl}\n\nKindly share availability & delivery details. Thank you!`
   );
 
-  const whatsappUrl = `https://wa.me/919131548788?text=${waText}`;
+  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${waText}`;
   const instagramUrl = `https://www.instagram.com/kaari.handmade/`;
 
   const handleCopyLink = async () => {

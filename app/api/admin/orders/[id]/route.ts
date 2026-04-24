@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const UpdateOrderSchema = z.object({
@@ -17,10 +18,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const { id } = await params;
   const supabase = createAdminClient();
@@ -38,7 +37,10 @@ export async function GET(
     .eq('id', id)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+  if (error) {
+    logger.error('Admin order GET failed', { id, error: error.message });
+    return NextResponse.json({ error: 'Failed to fetch order' }, { status: 404 });
+  }
   return NextResponse.json({ order });
 }
 
@@ -46,10 +48,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   let body: unknown;
   try { body = await req.json(); } catch {
@@ -70,6 +70,9 @@ export async function PATCH(
     .update({ ...parsed.data, updated_at: new Date().toISOString() })
     .eq('id', id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logger.error('Admin order PATCH failed', { id, error: error.message });
+    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+  }
   return NextResponse.json({ success: true });
 }

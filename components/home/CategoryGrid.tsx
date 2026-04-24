@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 interface Category {
   slug: string;
@@ -156,82 +156,119 @@ const CATEGORIES: Category[] = [
       </svg>
     ),
   },
+  {
+    slug: "dolls",
+    name: "Crochet Dolls",
+    description: "Handcrafted amigurumi dolls",
+    pill: "New",
+    gradient: "from-maroon-deep/80 via-maroon/55 to-transparent",
+    svgArt: (
+      <svg
+        viewBox="0 0 200 240"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-full h-full opacity-25"
+        aria-hidden="true"
+      >
+        {/* Doll body */}
+        <ellipse cx="100" cy="140" rx="30" ry="50" stroke="white" strokeWidth="2.5" fill="white" fillOpacity="0.1"/>
+        {/* Head */}
+        <circle cx="100" cy="70" r="25" stroke="white" strokeWidth="2.5" fill="white" fillOpacity="0.1"/>
+        {/* Hair */}
+        <path d="M75 65 Q80 40 100 38 Q120 40 125 65" stroke="white" strokeWidth="2" fill="white" fillOpacity="0.15"/>
+        {/* Eyes */}
+        <circle cx="90" cy="68" r="3" fill="white" fillOpacity="0.6"/>
+        <circle cx="110" cy="68" r="3" fill="white" fillOpacity="0.6"/>
+        {/* Smile */}
+        <path d="M92 80 Q100 88 108 80" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round"/>
+        {/* Arms */}
+        <path d="M70 120 L50 150" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+        <path d="M130 120 L150 150" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+        {/* Stitch texture */}
+        {Array.from({ length: 3 }).map((_, i) => (
+          <path key={i} d={`M${80 + i * 13} 125 Q${86 + i * 13} 130 ${92 + i * 13} 125`} stroke="white" strokeWidth="1.5" fill="none"/>
+        ))}
+      </svg>
+    ),
+  },
 ];
 
-const pillcolours: Record<string, string> = {
+const PILL_COLORS: Record<string, string> = {
   "Most Loved": "bg-maroon text-gold-light",
   New: "bg-gold text-maroon-deep",
   Custom: "bg-ivory/90 text-maroon",
 };
 
+function getPillColor(pill: string) {
+  return PILL_COLORS[pill] ?? "bg-ivory/90 text-maroon";
+}
+
 export default function CategoryGrid() {
+  const shouldReduceMotion = useReducedMotion();
   return (
-    <section className="py-14 px-4 bg-cream-warm" aria-labelledby="cat-heading">
+    <section className="py-10 md:py-14 px-3 md:px-4 bg-cream-warm" aria-labelledby="cat-heading">
       <div className="max-w-6xl mx-auto">
         {/* Heading */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6 md:mb-10">
           <p className="text-[11px] tracking-[.22em] uppercase text-maroon/60 mb-2">
             Browse by Category
           </p>
           <h2
             id="cat-heading"
-            className="font-display text-3xl md:text-4xl text-maroon-deep leading-tight"
+            className="font-display text-2xl md:text-4xl text-maroon-deep leading-tight"
           >
             Shop Our Collections
           </h2>
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[220px] md:auto-rows-[260px] gap-3 md:gap-4">
-          {CATEGORIES.map((cat, idx) => (
+        {/* Grid — single column on very small screens, 2-col on mobile, 4-col on desktop */}
+        <div className="grid grid-cols-2 md:grid-cols-4 auto-rows-[180px] sm:auto-rows-[220px] md:auto-rows-[260px] gap-2.5 md:gap-4">
+          {CATEGORIES.map((cat) => (
             <motion.div
               key={cat.slug}
-              className={`relative overflow-hidden rounded-2xl bg-maroon cursor-pointer group${cat.colSpan ? " row-span-2" : ""}`}
-              whileHover={{ y: -6, scale: 1.02 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
+              className={cat.colSpan ? "row-span-2" : ""}
+              whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.02 }}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: "easeOut" }}
             >
               <Link
                 href={`/products?cat=${encodeURIComponent(cat.name)}`}
-                className="absolute inset-0 z-10"
+                className="block relative overflow-hidden rounded-2xl bg-maroon group h-full min-h-[180px]"
                 aria-label={`Browse ${cat.name}`}
-              />
+              >
+                {/* SVG art fill */}
+                <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+                  {cat.svgArt}
+                </div>
 
-              {/* SVG art fill */}
-              <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                {cat.svgArt}
-              </div>
+                {/* Gradient overlay */}
+                <div
+                  className={`absolute inset-0 bg-gradient-to-t ${cat.gradient}`}
+                />
 
-              {/* Gradient overlay */}
-              <div
-                className={`absolute inset-0 bg-gradient-to-t ${cat.gradient}`}
-              />
+                {/* Pill */}
+                {cat.pill && (
+                  <span
+                    className={`absolute top-2.5 right-2.5 z-20 text-[10px] font-semibold tracking-wider uppercase px-2.5 py-1 rounded-full ${getPillColor(cat.pill)}`}
+                  >
+                    {cat.pill}
+                  </span>
+                )}
 
-              {/* Pill */}
-              {cat.pill && (
-                <span
-                  className={`absolute top-3 right-3 z-20 text-[10px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-full ${pillColors(cat.pill)}`}
-                >
-                  {cat.pill}
-                </span>
-              )}
-
-              {/* Text */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 z-20">
-                <h3 className="font-display text-lg md:text-xl font-bold text-ivory leading-tight">
-                  {cat.name}
-                </h3>
-                <p className="text-[12px] text-gold-light/80 mt-0.5">
-                  {cat.description}
-                </p>
-              </div>
+                {/* Text */}
+                <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4 z-10">
+                  <h3 className="font-display text-base md:text-xl font-bold text-ivory leading-tight">
+                    {cat.name}
+                  </h3>
+                  <p className="text-[11px] md:text-[12px] text-gold-light/80 mt-0.5">
+                    {cat.description}
+                  </p>
+                </div>
+              </Link>
             </motion.div>
           ))}
         </div>
       </div>
     </section>
   );
-}
-
-function pillColors(pill: string) {
-  return pillcolours[pill] ?? "bg-ivory/90 text-maroon";
 }

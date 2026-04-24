@@ -1,8 +1,9 @@
 import { Metadata } from "next";
 import * as Sentry from "@sentry/nextjs";
-import Checkout from "@/components/pages/Checkout";
-import ProtectedRoute from "@/app/components/ProtectedRoute";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { APP_URL } from "@/lib/metadata";
+import CheckoutClient from "@/components/pages/CheckoutClient";
 
 export const metadata: Metadata = {
   title: "Checkout | Kaari - Handmade Crochet Marketplace",
@@ -23,14 +24,14 @@ export default function CheckoutPage() {
           <div className="text-center">
             <h2 className="font-display text-2xl mb-2">Something went wrong</h2>
             <p className="font-body text-muted-foreground mb-4">An error occurred during checkout. Our team has been notified.</p>
-            <a href="/checkout" className="text-primary underline">Try again</a>
+            <Button asChild variant="default">
+              <Link href="/checkout">Try again</Link>
+            </Button>
           </div>
         </div>
       }
     >
-      <ProtectedRoute>
-        <Checkout />
-      </ProtectedRoute>
+      <CheckoutClient />
     </Sentry.ErrorBoundary>
   );
 }

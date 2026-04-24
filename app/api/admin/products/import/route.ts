@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 // Maximum rows per import
@@ -45,10 +46,8 @@ const RowSchema = z.object({
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   let csvText: string;
   const contentType = request.headers.get('content-type') || '';
@@ -118,7 +117,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .select('id, title, slug');
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    logger.error('Admin products import failed', { count: valid.length, error: insertError.message });
+    return NextResponse.json({ error: 'Failed to import products' }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -130,10 +130,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 /** GET returns the CSV template for download */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   const template = `title,slug,base_price,category,description,product_type,is_active,allow_customization
 "My Product","my-product",999,"Earrings","Beautiful handmade earrings","standard",true,false`;

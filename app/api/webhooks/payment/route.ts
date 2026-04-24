@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerCashfreeConfig, verifyCashfreeWebhookSignature } from '@/lib/cashfree-server';
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { applyRateLimit } from '@/lib/server-rate-limit';
 import { z } from 'zod';

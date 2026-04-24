@@ -53,7 +53,7 @@ export function escapeHtmlAttribute(text: string | undefined | null): string {
  * Only allows http/https protocols to prevent javascript: and data: URLs
  *
  * @param url - URL to validate
- * @param allowedDomains - Optional array of allowed domains (e.g., ['kaari.shop'])
+ * @param allowedDomains - Optional array of allowed domains (e.g., ['kaari.in'])
  * @returns Sanitized URL or empty string if invalid
  */
 export function sanitizeEmailUrl(
@@ -82,7 +82,7 @@ export function sanitizeEmailUrl(
       const hostname = parsedUrl.hostname.toLowerCase();
       const isAllowed = allowedDomains.some(domain => {
         const lowerDomain = domain.toLowerCase();
-        // Allow subdomains (e.g., shop.kaari.shop for kaari.shop)
+        // Allow subdomains (e.g., shop.kaari.in for kaari.in)
         return hostname === lowerDomain || hostname.endsWith('.' + lowerDomain);
       });
 
@@ -305,7 +305,7 @@ export function sanitizeErrorMessage(message: string | undefined | null): string
  * These are the only domains that can appear in email href attributes
  */
 export const ALLOWED_EMAIL_DOMAINS = [
-  'kaari.shop',
+  'kaari.in',
   'localhost', // For development
 ];
 

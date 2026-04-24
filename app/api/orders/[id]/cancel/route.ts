@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { logger } from '@/lib/logger-server';
 
 /**
  * POST /api/orders/[id]/cancel
@@ -15,11 +17,16 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const { id: orderId } = await params;
     if (!orderId) {
@@ -31,11 +38,14 @@ export async function POST(
       ? body.cancellation_reason.slice(0, 500)
       : null;
 
-    const admin = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     // ── 1. Fetch order and verify ownership ─────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: order, error: fetchError } = await (admin as any)
+    const { data: order, error: fetchError } = await (supabase as any)
       .from('orders')
       .select('id, user_id, status, created_at')
       .eq('id', orderId)
@@ -70,7 +80,7 @@ export async function POST(
 
     // ── 4. Update order status to "cancelled" ───────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: updateError } = await (admin as any)
+    const { error: updateError } = await (supabase as any)
       .from('orders')
       .update({
         status: 'cancelled',
@@ -87,11 +97,11 @@ export async function POST(
     // ── 5. If order was paid, mark payment for refund ───────────────
     if (order.status === 'paid') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: paymentUpdateError } = await (admin as any)
+      const { error: paymentUpdateError } = await (supabase as any)
         .from('payments')
         .update({ status: 'refund_pending' })
         .eq('order_id', orderId)
-        .in('status', ['captured', 'completed', 'created']) as { error: Error | null };
+        .in('status', ['completed', 'created']) as { error: Error | null };
 
       if (paymentUpdateError) {
         // Log but don't fail — order is already cancelled
@@ -104,7 +114,7 @@ export async function POST(
 
     // ── 6. Log status event ─────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: eventError } = await (admin as any)
+    const { error: eventError } = await (supabase as any)
       .from('order_status_events')
       .insert({
         order_id: orderId,

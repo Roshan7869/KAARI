@@ -1,15 +1,13 @@
 import { z } from 'zod';
+import { INDIAN_PHONE_REGEX, PHONE_ERROR_MSG } from '../validation/phone';
 
 export const CheckoutSchema = z.object({
-  cart_id: z.string().uuid(),
+  cart_id: z.string().min(1, 'Cart ID is required'),
   payment_method: z.enum(['cod', 'online', 'upi', 'card', 'netbanking', 'wallet']).default('cod'),
   email: z.string().email().min(1).max(255).optional(),
   phone: z
     .string({ required_error: 'Phone number is required' })
-    .regex(
-      /^[6-9]\d{9}$/,
-      'Enter a valid 10-digit Indian mobile number (must start with 6, 7, 8, or 9)'
-    ),
+    .regex(INDIAN_PHONE_REGEX, PHONE_ERROR_MSG),
   shipping_name: z.string().min(1).max(100).optional(),
   shipping_line1: z.string().min(1).max(200).optional(),
   shipping_line2: z.string().max(200).optional(),
@@ -24,6 +22,13 @@ export const CheckoutSchema = z.object({
   shipping_provider_label: z.string().max(100).optional(),
   coupon_code: z.string().min(3).max(50).optional(),
   notes: z.string().max(1000).optional(),
+  items: z.array(z.object({
+    product_id: z.string(),
+    variant_id: z.string().optional(),
+    quantity: z.number().min(1),
+    unit_price: z.number().min(0),
+    item_type: z.enum(['standard', 'customized']).default('standard'),
+  })).optional(),
 });
 
 export const OrderParamsSchema = z.object({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
 
 type OrderItem = {
   id: string;
@@ -26,11 +28,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const { id: orderId } = await params;
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const { data: order, error } = await supabase
       .from('orders')
       .select(`
@@ -113,9 +120,14 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const rateLimitResponse = await applyRateLimit(request, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
-    const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const userId = await requireSupabaseUserId(clerkUserId);
 
     const { id: orderId } = await params;
 
@@ -130,7 +142,10 @@ export async function POST(
       return NextResponse.json({ error: 'items and reason are required' }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Verify ownership + delivery status (re-check server-side)
     const { data: order, error: orderError } = await supabase

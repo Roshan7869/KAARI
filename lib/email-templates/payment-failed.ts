@@ -195,6 +195,6 @@ ${sanitizedSupportUrl ? `Need help? Contact our support team: ${sanitizedSupport
 NOTE: Your order will remain in pending status for 24 hours.
 If payment is not completed within this time, the order will be automatically cancelled.
 
-Questions? Contact us at hello@kaari.shop
+Questions? Contact us at hello@kaari.in
 `;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/logger-client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Bell, Package, CheckCircle, AlertCircle, Truck, PackageCheck, XCircle, ThumbsUp, ThumbsDown, Megaphone, ShieldCheck, Trash2, Check, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';

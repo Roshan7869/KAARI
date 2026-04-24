@@ -1,5 +1,4 @@
 import KaariFooter from "@/components/KaariFooter";
-import Navbar from "@/components/Navbar";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -11,7 +10,6 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-background">
-      <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="prose dark:prose-invert max-w-none">
           <h1 className="text-3xl md:text-4xl font-display font-bold mb-8">

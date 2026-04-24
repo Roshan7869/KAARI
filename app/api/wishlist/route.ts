@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
+import { createUserClient } from '@/lib/supabase/auth-client';
+import { logger } from '@/lib/logger-server';
 
 // GET /api/wishlist - Get user's wishlist items
 export async function GET() {
@@ -10,7 +13,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const supabase = await createClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Get wishlist items with product details
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,19 +37,27 @@ export async function GET() {
       .order('added_at', { ascending: false });
 
     if (error) {
-      console.error('Wishlist fetch error:', error);
+      logger.error('Wishlist fetch error', error, { context: 'wishlist-get' });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ items: items || [] });
   } catch (error) {
-    console.error('Unexpected wishlist error:', error);
+    logger.error('Unexpected wishlist error', error, { context: 'wishlist-get' });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 // POST /api/wishlist - Toggle item in wishlist
 export async function POST(req: NextRequest) {
+  const rateLimitResponse = await applyRateLimit(req, 'mutation');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(req);
+  if (!csrfValid) {
+    return NextResponse.json({ error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -55,7 +69,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = await createUserClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
@@ -68,7 +85,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (wishlistError && wishlistError.code !== 'PGRST116') { // Not found error
-      console.error('Wishlist lookup error:', wishlistError);
+      logger.error('Wishlist lookup error', wishlistError, { context: 'wishlist-post' });
       return NextResponse.json({ error: 'Failed to find wishlist' }, { status: 500 });
     }
 
@@ -81,7 +98,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (createError) {
-        console.error('Wishlist creation error:', createError);
+        logger.error('Wishlist creation error', createError, { context: 'wishlist-post' });
         return NextResponse.json({ error: 'Failed to create wishlist' }, { status: 500 });
       }
 
@@ -97,7 +114,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (checkError) {
-      console.error('Wishlist item check error:', checkError);
+      logger.error('Wishlist item check error', checkError, { context: 'wishlist-post' });
       return NextResponse.json({ error: 'Failed to check wishlist item' }, { status: 500 });
     }
 
@@ -111,7 +128,7 @@ export async function POST(req: NextRequest) {
         .eq('id', existingItem.id);
 
       if (removeError) {
-        console.error('Wishlist item removal error:', removeError);
+        logger.error('Wishlist item removal error', removeError, { context: 'wishlist-post' });
         return NextResponse.json({ error: 'Failed to remove item from wishlist' }, { status: 500 });
       }
 
@@ -127,7 +144,7 @@ export async function POST(req: NextRequest) {
         });
 
       if (addError) {
-        console.error('Wishlist item addition error:', addError);
+        logger.error('Wishlist item addition error', addError, { context: 'wishlist-post' });
         return NextResponse.json({ error: 'Failed to add item to wishlist' }, { status: 500 });
       }
 
@@ -136,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(actionResult);
   } catch (error) {
-    console.error('Unexpected wishlist error:', error);
+    logger.error('Unexpected wishlist error', error, { context: 'wishlist-post' });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { APP_URL } from "@/lib/metadata";
 export const metadata: Metadata = {
   title: "Admin Dashboard | Kaari",
   description: "Kaari Marketplace Admin Dashboard",
+  robots: { index: false, follow: false },
   openGraph: {
     type: "website",
     url: `${APP_URL}/admin`,

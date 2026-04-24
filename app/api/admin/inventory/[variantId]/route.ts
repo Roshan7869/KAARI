@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireAdmin } from '@/lib/auth/verify-jwt';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger-server';
 import { z } from 'zod';
 
 const UpdateStockSchema = z.object({
@@ -11,10 +12,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ variantId: string }> }
 ): Promise<NextResponse> {
-  const { userId, sessionClaims } = await auth();
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const role = (sessionClaims?.metadata as { role?: string } | undefined)?.role;
-  if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminErr = await requireAdmin();
+  if (adminErr) return adminErr;
 
   let body: unknown;
   try { body = await req.json(); } catch {
@@ -35,6 +34,9 @@ export async function PATCH(
     .update({ stock_qty: parsed.data.stock_qty })
     .eq('id', variantId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logger.error('Admin inventory PATCH failed', { variantId, error: error.message });
+    return NextResponse.json({ error: 'Failed to update inventory' }, { status: 500 });
+  }
   return NextResponse.json({ success: true });
 }
