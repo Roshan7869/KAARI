@@ -8,6 +8,9 @@ const withBundleAnalyzer = process.env.ANALYZE === 'true'
   : (/** @type {any} */ config) => config;
 
 const nextConfig = {
+  // Output standalone for Docker / containerized deployments
+  output: 'standalone',
+
   // TypeScript strict mode
   typescript: {
     tsconfigPath: './tsconfig.json',
