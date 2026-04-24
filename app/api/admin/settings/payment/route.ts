@@ -118,7 +118,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       ({ error } = await supabase
         .from('payment_gateways')
-        .update(updateData)
+        .update(updateData as any)
         .eq('id', existing.id));
     } else {
       ({ error } = await supabase

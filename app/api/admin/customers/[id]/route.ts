@@ -44,14 +44,14 @@ export async function PATCH(
   const supabase = createAdminClient();
 
   // Update profile fields
-  const updateData: Record<string, unknown> = {};
-  if (parsed.data.full_name !== undefined) updateData.full_name = parsed.data.full_name;
-  if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone;
+  const updateData: Record<string, string | null> = {};
+  if (parsed.data.full_name !== undefined) updateData.full_name = parsed.data.full_name ?? null;
+  if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone ?? null;
 
   if (Object.keys(updateData).length > 0) {
     const { error: profileError } = await supabase
       .from('profiles')
-      .update(updateData)
+      .update(updateData as any)
       .eq('id', customerId);
 
     if (profileError) {
@@ -84,7 +84,7 @@ export async function PATCH(
     );
 
     if (existingAddr) {
-      await supabase.from('addresses').update(addrPayload).eq('id', existingAddr.id);
+      await supabase.from('addresses').update(addrPayload as any).eq('id', existingAddr.id);
     } else if (addressFields.address_line1) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any).from('addresses').insert({

@@ -227,7 +227,7 @@ async function retryWebhookEvent(
               status: 'completed',
               provider: 'cashfree',
               external_transaction_id: event.cf_payment_id,
-            });
+            } as any);
         }
       }
     }

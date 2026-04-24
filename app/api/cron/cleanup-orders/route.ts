@@ -89,7 +89,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
               status: 'paid',
               payment_status: 'paid',
               updated_at: new Date().toISOString()
-            })
+            } as any)
             .eq('id', order.id);
 
           recovered++;
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
               status: 'failed',
               payment_status: 'failed',
               updated_at: new Date().toISOString()
-            })
+            } as any)
             .eq('id', order.id);
 
           // Restore stock for failed orders

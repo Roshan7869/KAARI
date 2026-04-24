@@ -131,7 +131,7 @@ async function processWebhookInBackground(params: {
                   status: 'completed',
                   provider: 'cashfree',
                   external_transaction_id: cfPaymentId,
-                });
+                } as any);
               if (paymentInsertError) {
                 logger.error('Failed to insert payment record on webhook success', {
                   error: paymentInsertError.message,

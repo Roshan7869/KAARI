@@ -364,7 +364,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ...(guestEmail ? { guest_email: guestEmail } : {}),
         ...(guestPhone ? { guest_phone: guestPhone } : {}),
         ...(guestName ? { guest_name: guestName } : {}),
-      })
+      } as any)
       .select('id')
       .single();
 
