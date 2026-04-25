@@ -7,22 +7,22 @@ const steps = [
   {
     title: 'Selecting Yarn',
     description: 'Hand-picked premium yarn in rich, vibrant colours',
-    image: '/images/yarn-selection.webp',
+    image: '/images/yarn-selection.svg',
   },
   {
     title: 'Pattern Design',
     description: 'Traditional crochet patterns reimagined with modern aesthetics',
-    image: '/images/product-2.webp',
+    image: '/images/pattern-design.svg',
   },
   {
     title: 'Hand Crocheting',
     description: 'Every stitch made by skilled artisan hands with love',
-    image: '/images/hand-crocheting.webp',
+    image: '/images/hand-crocheting.svg',
   },
   {
     title: 'Finished Piece',
     description: 'A unique creation ready to be cherished',
-    image: '/images/product-1.webp',
+    image: '/images/finished-piece.svg',
   },
 ];
 

@@ -6,6 +6,11 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
+// Mock CSRF validation to pass for all tests
+vi.mock('@/lib/csrf-server', () => ({
+  validateCsrfToken: vi.fn().mockResolvedValue(true),
+}));
+
 import { createClient } from '@/lib/supabase/server';
 
 function createMockRequest(body: Record<string, unknown>) {

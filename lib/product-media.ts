@@ -28,7 +28,13 @@ export function resolveProductImageUrl(filePath?: string | null, size: ImageSize
   }
 
   // Local static assets in /public — return as-is for Next.js Image optimization
+  // Only serve local images that exist (e.g. /images/logo.svg, /og-image.svg).
+  // Product media paths like /images/products/... are stored in Supabase/Cloudinary
+  // in production and won't exist locally in dev — fall back to placeholder.
   if (filePath.startsWith('/images/')) {
+    if (filePath.startsWith('/images/products/')) {
+      return '/placeholder.svg';
+    }
     return filePath;
   }
 

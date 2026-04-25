@@ -7,6 +7,7 @@ import { WhatsAppButton } from "@/components/ui/WhatsAppButton";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import Navbar from "@/components/Navbar";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { SentryUserSync } from "@/components/SentryUserSync";
@@ -52,7 +53,7 @@ const notoDevanagari = Noto_Serif_Devanagari({
   weight: ["400", "600", "700"],
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export const metadata: Metadata = {
   title: {
@@ -156,6 +157,12 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${inter.className} antialiased`}>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg focus:outline-none"
+        >
+          Skip to content
+        </a>
         <ClerkProvider>
           <SentryUserSync />
           <Suspense fallback={null}>
@@ -165,7 +172,7 @@ export default async function RootLayout({
                   <Providers>
                     <AnnouncementBar />
                     <Navbar />
-                    {children}
+                    <main id="main-content">{children}</main>
                   </Providers>
                 </ErrorBoundary>
               </NuqsAdapter>
@@ -175,6 +182,7 @@ export default async function RootLayout({
         </ClerkProvider>
         <SpeedInsights />
         <Analytics />
+        <CookieConsentBanner />
       </body>
     </html>
   );

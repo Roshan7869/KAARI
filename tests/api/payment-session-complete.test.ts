@@ -9,8 +9,8 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(),
+vi.mock('@/lib/supabase/auth-client', () => ({
+  createUserClient: vi.fn(),
 }));
 
 vi.mock('@/lib/cashfree-server', () => ({
@@ -21,9 +21,14 @@ vi.mock('@/lib/logger-server', () => ({
   logger: { warn: vi.fn(), error: vi.fn() },
 }));
 
+// Mock CSRF validation to pass for all tests
+vi.mock('@/lib/csrf-server', () => ({
+  validateCsrfToken: vi.fn().mockResolvedValue(true),
+}));
+
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createUserClient } from '@/lib/supabase/auth-client';
 import { getCashfreePaymentDetailsServer } from '@/lib/cashfree-server';
 
 function createMockRequest(body: Record<string, unknown>) {
@@ -139,7 +144,7 @@ describe('POST /api/payment-session/complete', () => {
         error: null,
       }),
     };
-    (createAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(mockAdminSupabase);
+    (createUserClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockAdminSupabase);
 
     const req = createMockRequest({ sessionId: 'sess_123', transactionId: 'txn_123' });
     const res = await POST(req as unknown as import('next/server').NextRequest);
@@ -172,7 +177,7 @@ describe('POST /api/payment-session/complete', () => {
         error: null,
       }),
     };
-    (createAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(mockAdminSupabase);
+    (createUserClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockAdminSupabase);
 
     const req = createMockRequest({ sessionId: 'dummy_123', transactionId: 'txn_123' });
     const res = await POST(req as unknown as import('next/server').NextRequest);

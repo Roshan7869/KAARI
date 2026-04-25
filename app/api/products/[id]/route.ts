@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger-server';
@@ -11,6 +12,11 @@ import { ProductUpdateSchema, ProductParamsSchema } from '@/lib/validations/prod
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     await requireAuth();
+
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
 
     const supabase = await createClient();
     const { searchParams, pathname } = new URL(request.url);
@@ -90,6 +96,11 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   try {
     await requireAuth();
+
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
 
     const supabase = await createClient();
     const { searchParams, pathname } = new URL(request.url);

@@ -173,12 +173,11 @@ export function logEnvStatus(): void {
   const result = validateEnv();
 
   if (result.missing.length > 0) {
-    console.error('❌ Missing required environment variables:', result.missing);
+    logger.error('Missing required environment variables', { missing: result.missing });
   }
 
   if (result.warnings.length > 0) {
-    console.warn('⚠️  Environment configuration warnings:');
-    result.warnings.forEach(w => console.warn('  ', w));
+    logger.warn('Environment configuration warnings', { warnings: result.warnings });
   }
 
   if (result.valid && result.warnings.length === 0) {

@@ -3,6 +3,9 @@
  *
  * Provides optimized image storage, transformations, and CDN delivery
  * Free tier: 25 credits/month (~25GB storage + transformations)
+ *
+ * SECURITY: Supports signed uploads via server-side signature endpoint.
+ * Use signed uploads for admin/product images to prevent unauthorized uploads.
  */
 
 interface CloudinaryConfig {
@@ -15,6 +18,15 @@ interface UploadOptions {
   publicId?: string;
   tags?: string[];
   transformation?: string;
+}
+
+interface SignedUploadParams {
+  signature: string;
+  timestamp: number;
+  apiKey: string;
+  cloudName: string;
+  uploadPreset: string;
+  folder?: string;
 }
 
 interface UploadResult {
@@ -70,7 +82,76 @@ class CloudinaryService {
   }
 
   /**
-   * Upload an image to Cloudinary
+   * Fetch signed upload parameters from the server
+   * Only authenticated admins can request signatures
+   */
+  async getSignedUploadParams(options: UploadOptions = {}): Promise<SignedUploadParams> {
+    const response = await fetch('/api/admin/media/signed-upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        folder: options.folder,
+        publicId: options.publicId,
+        tags: options.tags,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to get signed upload params');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Upload an image to Cloudinary using signed params (recommended for admin uploads)
+   */
+  async uploadImageSigned(
+    file: File,
+    signedParams: SignedUploadParams,
+    options: UploadOptions = {}
+  ): Promise<UploadResult> {
+    this.validateFile(file);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', signedParams.apiKey);
+    formData.append('timestamp', signedParams.timestamp.toString());
+    formData.append('signature', signedParams.signature);
+    formData.append('upload_preset', signedParams.uploadPreset);
+
+    if (signedParams.folder || options.folder) {
+      formData.append('folder', signedParams.folder || options.folder || '');
+    }
+
+    if (options.publicId) {
+      formData.append('public_id', options.publicId);
+    }
+
+    if (options.tags && options.tags.length > 0) {
+      formData.append('tags', options.tags.join(','));
+    }
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${signedParams.cloudName}/image/upload`,
+      {
+        method: 'POST',
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Upload an image to Cloudinary (unsigned — legacy, for public/user uploads)
+   * SECURITY: Unsigned uploads are less secure. Prefer uploadImageSigned for admin flows.
    */
   async uploadImage(
     file: File,
@@ -212,3 +293,4 @@ export function getCloudinaryImageProps(
 }
 
 export default cloudinary;
+export type { SignedUploadParams };

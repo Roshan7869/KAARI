@@ -37,7 +37,7 @@ function buildCsp(nonce: string): string {
     // 'unsafe-inline' is a CSP2 fallback — in CSP3 it's ignored when a nonce is
     // present.  It allows Next.js dev-mode HMR scripts and third-party libs
     // (PostHog, Sentry) that inject inline scripts without the nonce.
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://va.vercel-scripts.com https://*.sentry.io https://browser.sentry-cdn.com https://app.posthog.com`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://js.cashfree.com https://vercel.live https://apis.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://va.vercel-scripts.com https://*.sentry.io https://browser.sentry-cdn.com https://app.posthog.com https://www.instagram.com`,
     // NOTE: 'unsafe-inline' required by Tailwind CSS + Framer Motion dynamic styles.
     // In CSP3, nonce presence causes browsers to ignore 'unsafe-inline', so we
     // must NOT include the nonce here — only 'unsafe-inline' allows dynamic styles.
@@ -45,7 +45,7 @@ function buildCsp(nonce: string): string {
     `font-src 'self' https://fonts.gstatic.com data:`,
     `img-src 'self' data: blob: https://*.supabase.co https://*.cloudinary.com https://images.unsplash.com https://lh3.googleusercontent.com https://*.googleusercontent.com https://img.clerk.com`,
     `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cashfree.com https://sandbox.cashfree.com https://api.resend.com https://*.clerk.com https://*.clerk.accounts.dev https://clerk-telemetry.com https://challenges.cloudflare.com https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.de.sentry.io https://vitals.vercel-insights.com https://*.vercel-analytics.com https://app.posthog.com https://*.posthog.com`,
-    `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com`,
+    `frame-src https://js.cashfree.com https://accounts.google.com https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://www.instagram.com`,
     `worker-src 'self' blob:`,
     `object-src 'none'`,
     `base-uri 'self'`,

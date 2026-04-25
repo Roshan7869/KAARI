@@ -63,13 +63,11 @@ CREATE TABLE IF NOT EXISTS public.payment_gateways (
   webhook_secret text, -- for signature validation
   config jsonb DEFAULT '{}'::jsonb, -- additional provider-specific config
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-
-  CONSTRAINT single_active_gateway UNIQUE (provider) WHERE is_active = true
+  updated_at timestamptz DEFAULT now()
 );
 
 -- Only one gateway can be active at a time for each provider
-CREATE INDEX idx_payment_gateways_active ON public.payment_gateways(provider) WHERE is_active = true;
+CREATE UNIQUE INDEX idx_payment_gateways_single_active ON public.payment_gateways(provider) WHERE is_active = true;
 
 -- ============================================================================
 -- 4. CASHFREE PAYMENT SESSIONS
@@ -487,9 +485,7 @@ BEGIN
       NEW.user_id,
       'order_shipped',
       'email',
-      (SELECT p.email FROM public.profiles p
-       JOIN auth.users u ON u.id = p.id
-       WHERE p.id = NEW.user_id),
+      (SELECT u.email FROM auth.users u WHERE u.id = NEW.user_id),
       'Your order has been shipped!',
       NULL,
       NEW.id
@@ -511,9 +507,7 @@ BEGIN
       NEW.user_id,
       'order_delivered',
       'email',
-      (SELECT p.email FROM public.profiles p
-       JOIN auth.users u ON u.id = p.id
-       WHERE p.id = NEW.user_id),
+      (SELECT u.email FROM auth.users u WHERE u.id = NEW.user_id),
       'Your order has been delivered!',
       NULL,
       NEW.id

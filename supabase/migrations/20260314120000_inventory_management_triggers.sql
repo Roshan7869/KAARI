@@ -34,19 +34,28 @@ BEGIN
 END $$;
 
 -- Create function to restore inventory when payment fails
+-- Handles both INSERT (no OLD) and UPDATE transitions
 CREATE OR REPLACE FUNCTION public.restore_inventory_on_payment_failure()
 RETURNS TRIGGER AS $$
 DECLARE
   v_order_id uuid;
   v_item RECORD;
+  v_is_failure boolean;
 BEGIN
-  -- Only process when payment transitions to 'failed' or 'cancelled'
-  IF (NEW.status IN ('failed', 'cancelled') AND 
-      OLD.status NOT IN ('failed', 'cancelled')) THEN
-    
+  -- Determine if this is a failure transition:
+  -- INSERT: NEW.status is 'failed' (no OLD)
+  -- UPDATE: transitioned TO 'failed'/'cancelled' FROM a non-failure status
+  IF TG_OP = 'INSERT' THEN
+    v_is_failure := NEW.status IN ('failed', 'cancelled');
+  ELSE
+    v_is_failure := (NEW.status IN ('failed', 'cancelled') AND
+                     OLD.status NOT IN ('failed', 'cancelled'));
+  END IF;
+
+  IF v_is_failure THEN
     -- Get the order ID
     v_order_id := NEW.order_id;
-    
+
     -- Restore stock for each item in the order
     FOR v_item IN
       SELECT oi.variant_id, oi.quantity
@@ -54,56 +63,35 @@ BEGIN
       WHERE oi.order_id = v_order_id
     LOOP
       UPDATE public.product_variants
-      SET stock_qty = stock_qty + v_item.quantity,
-          updated_at = now()
+      SET stock_qty = stock_qty + v_item.quantity
       WHERE id = v_item.variant_id;
     END LOOP;
-    
+
     -- Update order status to cancelled
     UPDATE public.orders
-    SET status = 'cancelled',
-        updated_at = now()
+    SET status = 'cancelled'
     WHERE id = v_order_id
       AND status IN ('payment_pending', 'awaiting_review');
-    
+
     -- Log this restoration
-    INSERT INTO public.order_status_events (order_id, status, notes)
+    INSERT INTO public.order_status_events (order_id, new_status, note)
     VALUES (v_order_id, 'cancelled', 'Inventory restored due to payment failure');
   END IF;
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Drop old trigger if exists
+-- Drop old triggers if exists
 DROP TRIGGER IF EXISTS tr_restore_inventory_on_payment_fail ON public.payments;
-
--- Create trigger for payment failure
-CREATE TRIGGER tr_restore_inventory_on_payment_fail
-  AFTER UPDATE ON public.payments
-  FOR EACH ROW
-  EXECUTE FUNCTION public.restore_inventory_on_payment_failure();
-
--- Create function to also trigger on payment insert with failed status
-CREATE OR REPLACE FUNCTION public.handle_payment_insert()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- If payment created with failed status, restore inventory immediately
-  IF NEW.status = 'failed' THEN
-    PERFORM public.restore_inventory_on_payment_failure()
-      USING NEW, NEW;
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS tr_payment_insert_failed ON public.payments;
-CREATE TRIGGER tr_payment_insert_failed
-  AFTER INSERT ON public.payments
+
+-- Single trigger for both INSERT and UPDATE
+CREATE TRIGGER tr_restore_inventory_on_payment_fail
+  AFTER INSERT OR UPDATE ON public.payments
   FOR EACH ROW
-  WHEN (NEW.status = 'failed')
-  EXECUTE FUNCTION public.handle_payment_insert();
+  WHEN (NEW.status = 'failed' OR NEW.status = 'cancelled')
+  EXECUTE FUNCTION public.restore_inventory_on_payment_failure();
 
 -- Create function to clean up stale orders (pending payment > 24 hours)
 CREATE OR REPLACE FUNCTION public.cleanup_stale_orders()
@@ -130,8 +118,7 @@ BEGIN
       WHERE order_id = v_order_id
     LOOP
       UPDATE public.product_variants
-      SET stock_qty = stock_qty + v_item.quantity,
-          updated_at = now()
+      SET stock_qty = stock_qty + v_item.quantity
       WHERE id = v_item.variant_id;
       
       v_restored := v_restored + 1;
@@ -140,12 +127,11 @@ BEGIN
     -- Cancel the order
     UPDATE public.orders
     SET status = 'cancelled',
-        payment_status = 'cancelled',
-        updated_at = now()
+        payment_status = 'cancelled'
     WHERE id = v_order_id;
     
     -- Log the cancellation
-    INSERT INTO public.order_status_events (order_id, status, notes)
+    INSERT INTO public.order_status_events (order_id, new_status, note)
     VALUES (v_order_id, 'cancelled', 'Auto-cancelled due to payment timeout (>24hrs)');
     
     v_cleaned := v_cleaned + 1;
@@ -172,8 +158,7 @@ BEGIN
   
   -- Mark them as abandoned (don't delete in case of audit needs)
   UPDATE public.checkout_sessions
-  SET status = 'abandoned',
-      updated_at = now()
+  SET status = 'abandoned'
   WHERE status IN ('draft', 'payment_pending')
     AND created_at < now() - INTERVAL '30 minutes';
   

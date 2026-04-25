@@ -3,7 +3,7 @@
  * Override NEXT_PUBLIC_APP_URL in Vercel Environment Variables for production.
  */
 
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kaari.in';
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
 export function buildOpenGraph(page: {
   title: string;

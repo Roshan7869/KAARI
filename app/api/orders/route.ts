@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { createUserClient } from '@/lib/supabase/auth-client';
 import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
 import { logger } from '@/lib/logger-server';
@@ -203,6 +203,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const userId = await requireSupabaseUserId(clerkUserId);
 
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
+
     const { pathname } = new URL(request.url);
     const pathParts = pathname.split('/').filter(Boolean);
 
@@ -234,7 +239,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (action === 'status') {
-      const admin = createAdminClient();
+      const admin = await createUserClient();
+      if (!admin) {
+        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      }
       return updateOrderStatus(admin, userId, id, request);
     }
 

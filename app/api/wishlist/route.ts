@@ -4,6 +4,7 @@ import { applyRateLimit } from '@/lib/server-rate-limit';
 import { auth } from '@clerk/nextjs/server';
 import { createUserClient } from '@/lib/supabase/auth-client';
 import { logger } from '@/lib/logger-server';
+import { WishlistToggleSchema } from '@/lib/validations/payment.schema';
 
 // GET /api/wishlist - Get user's wishlist items
 export async function GET() {
@@ -64,10 +65,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { productId } = await req.json();
-    if (!productId) {
-      return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
+    const body = await req.json();
+    const parsed = WishlistToggleSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.errors }, { status: 400 });
     }
+    const { productId } = parsed.data;
 
     const supabase = await createUserClient();
     if (!supabase) {

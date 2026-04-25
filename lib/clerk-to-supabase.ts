@@ -28,10 +28,46 @@ async function provisionSupabaseProfile(clerkUserId: string): Promise<string | n
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || null;
 
     const supabase = createAdminClient();
+
+    // First check if a profile already exists for this clerk_id
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('clerk_id', clerkUserId)
+      .maybeSingle();
+
+    if (existingProfile?.id) {
+      // Profile exists — update it
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          email: primaryEmail,
+          full_name: fullName,
+          phone: primaryPhone,
+          avatar_url: user.imageUrl ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('clerk_id', clerkUserId)
+        .select('id')
+        .single();
+
+      if (error) {
+        logger.error('Failed to update Supabase profile from Clerk', {
+          clerkUserId,
+          error: error.message,
+        });
+        return null;
+      }
+
+      return data.id;
+    }
+
+    // No existing profile — insert with a generated UUID for id
     const { data, error } = await supabase
       .from('profiles')
       .upsert(
         {
+          id: crypto.randomUUID(),
           clerk_id: clerkUserId,
           email: primaryEmail,
           full_name: fullName,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateBody } from '@/lib/api-validate';
 import { sanitizeTextInput } from '@/lib/sanitization';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
@@ -30,6 +31,11 @@ export async function POST(request: NextRequest) {
   // Rate limit: 10 requests per minute per IP
   const rateLimitResponse = await applyRateLimit(request, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
 
   const validation = await validateBody(request, SocialOrderIntentSchema);
   if ('error' in validation) return validation.error;

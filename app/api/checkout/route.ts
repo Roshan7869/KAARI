@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createUserClient } from '@/lib/supabase/auth-client';
 import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
 import { logger } from '@/lib/logger-server';
 import { CheckoutSchema } from '@/lib/validations/checkout.schema';
@@ -18,8 +18,8 @@ import { calculateShipping } from '@/lib/shipping';
  *  4. Marks cart converted with unique constraint (prevents double-checkout)
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Rate limit: 20 checkout requests / 5 min per IP (fail-closed for payment safety)
-  const rateLimitResponse = await applyRateLimit(request, 'checkout', true);
+  // Rate limit: 20 checkout requests / 5 min per IP (fail-open for checkout availability)
+  const rateLimitResponse = await applyRateLimit(request, 'checkout', false);
   if (rateLimitResponse) return rateLimitResponse;
 
   // ── Enhanced rate limiting for order placement ────────────────────────
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // - Global: 100 orders per minute total
   const { userId: clerkUserId } = await auth();
   if (clerkUserId) {
-    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, clerkUserId, true);
+    const enhancedRateLimitResponse = await applyCheckoutRateLimits(request, clerkUserId, false);
     if (enhancedRateLimitResponse) return enhancedRateLimitResponse;
   }
 
@@ -40,7 +40,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
     }
 
-    const admin = createAdminClient();
+    const admin = await createUserClient();
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
 
     // ── 1. Auth ──────────────────────────────────────────────────────
     let userId: string | null = null;

@@ -10,10 +10,12 @@ export const CreateReviewSchema = z.object({
 
 export const UpdateReviewSchema = z.object({
   rating: z.number().int().min(1).max(5).optional(),
-  title: z.string().min(1).max(200).optional(),
+  title: z.string().min(3).max(200).optional(),
+  content: z.string().min(10).max(2000).optional(),
   body: z.string().min(1).max(5000).optional(),
   images: z.array(z.string().url()).max(5).optional(),
   is_published: z.boolean().optional(),
+  status: z.enum(['pending', 'approved', 'rejected']).optional(),
 });
 
 export const ReviewParamsSchema = z.object({

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@clerk/nextjs/server'
+import { validateCsrfToken } from '@/lib/csrf-server'
 import { getCashfreeBaseUrl, getServerCashfreeConfig } from '@/lib/cashfree-server'
 import { logger } from '@/lib/logger-server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createUserClient } from '@/lib/supabase/auth-client'
 import { validateCashfreeConfig } from '@/lib/startup-checks'
 import { applyRateLimit } from '@/lib/server-rate-limit'
 import { INDIAN_PHONE_REGEX } from '@/lib/validation/phone'
@@ -42,6 +43,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
+    }
+
+    const csrfValid = await validateCsrfToken(request)
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 })
     }
 
     const payload = CreateOrderSchema.safeParse(await request.json())
@@ -99,7 +105,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Payment session TTL — 15 minutes, matching Cashfree order expiry
     const PAYMENT_SESSION_TTL_MS = 15 * 60 * 1000
 
-    const admin = createAdminClient()
+    const admin = await createUserClient()
+    if (!admin) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 })
+    }
     const { data: order, error: orderError } = await admin
       .from('orders')
       .select('id, user_id, total_amount, status')

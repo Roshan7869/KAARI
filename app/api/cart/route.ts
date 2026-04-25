@@ -45,7 +45,12 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     // Auto-provision the Supabase profile if it doesn't exist yet.
     // requireSupabaseUserId looks up by clerk_id; on miss it calls the Clerk API
     // to create the profile row, eliminating the "profile not found" 500 on first login.
-    const userId = await requireSupabaseUserId(clerkUserId);
+    let userId;
+    try {
+      userId = await requireSupabaseUserId(clerkUserId);
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     const supabase = await createUserClient();
     if (!supabase) {
@@ -150,7 +155,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Resolve Clerk ID to Supabase UUID
-    const userId = await requireSupabaseUserId(clerkUserId);
+    let userId: string;
+    try {
+      userId = await requireSupabaseUserId(clerkUserId);
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     const validation = await validateBody(request, AddToCartSchema);
     if ('error' in validation) return validation.error;
@@ -351,7 +361,12 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     }
 
     // Resolve Clerk ID to Supabase UUID
-    const userId = await requireSupabaseUserId(clerkUserId);
+    let userId: string;
+    try {
+      userId = await requireSupabaseUserId(clerkUserId);
+    } catch {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     const supabase = await createUserClient();
     if (!supabase) {

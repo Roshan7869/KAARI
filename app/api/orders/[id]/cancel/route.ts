@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { auth } from '@clerk/nextjs/server';
 import { createUserClient } from '@/lib/supabase/auth-client';
 import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
 import { logger } from '@/lib/logger-server';
+import { OrderCancelSchema } from '@/lib/validations/checkout.schema';
 
 /**
  * POST /api/orders/[id]/cancel
@@ -20,6 +22,11 @@ export async function POST(
   const rateLimitResponse = await applyRateLimit(request, 'mutation');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
     const { userId: clerkUserId } = await auth();
     if (!clerkUserId) {
@@ -34,9 +41,8 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}));
-    const cancellationReason = typeof body.cancellation_reason === 'string'
-      ? body.cancellation_reason.slice(0, 500)
-      : null;
+    const parsed = OrderCancelSchema.safeParse(body);
+    const cancellationReason = parsed.success ? (parsed.data.cancellation_reason ?? null) : null;
 
     const supabase = await createUserClient();
     if (!supabase) {

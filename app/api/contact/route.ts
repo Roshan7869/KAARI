@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger-server';
 import { APP_URL } from '@/lib/metadata';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { validateCsrfToken } from '@/lib/csrf-server';
 
 const ContactSchema = z.object({
   name: z.string().min(1).max(200),
@@ -13,6 +14,11 @@ const ContactSchema = z.object({
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const rateLimitResponse = await applyRateLimit(request, 'api', true);
   if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();

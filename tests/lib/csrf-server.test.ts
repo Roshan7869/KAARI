@@ -26,10 +26,11 @@ describe('generateCsrfToken', () => {
     const { token, cookie } = generateCsrfToken();
     expect(token).toBeDefined();
     expect(token.length).toBe(64); // 32 bytes hex = 64 chars
-    expect(cookie).toContain(CSRF_COOKIE_NAME);
+    expect(cookie).toContain(`${CSRF_COOKIE_NAME}=`);
     expect(cookie).toContain('HttpOnly');
     expect(cookie).toContain('Secure');
     expect(cookie).toContain('SameSite=Strict');
+    expect(cookie).toContain('Path=/');
   });
 });
 
@@ -49,6 +50,12 @@ describe('validateCsrfToken', () => {
 
   it('returns false when header is missing', async () => {
     const request = createMockRequest('token', undefined);
+    const result = await validateCsrfToken(request);
+    expect(result).toBe(false);
+  });
+
+  it('returns false when neither cookie nor header is present', async () => {
+    const request = createMockRequest(undefined, undefined);
     const result = await validateCsrfToken(request);
     expect(result).toBe(false);
   });

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createUserClient } from '@/lib/supabase/auth-client';
 import { getCashfreePaymentDetailsServer } from '@/lib/cashfree-server';
 import { logger } from '@/lib/logger-server';
+import { PaymentCompleteSchema } from '@/lib/validations/payment.schema';
 
 /**
  * POST /api/payment-session/complete
@@ -18,15 +20,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { sessionId, transactionId } = body as {
-    sessionId: string;
-    transactionId: string;
-  };
-
-  if (!sessionId || !transactionId) {
-    return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
   }
+
+  const body = await request.json();
+  const parsed = PaymentCompleteSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ success: false, error: 'Invalid input', details: parsed.error.errors }, { status: 400 });
+  }
+  const { sessionId, transactionId } = parsed.data;
 
   const supabase = await createClient();
 
@@ -91,8 +95,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Step 3: Complete the session with verified status
-  // RPC requires elevated privileges — use admin client only for the RPC call
-  const adminSupabase = createAdminClient();
+  const adminSupabase = await createUserClient();
+  if (!adminSupabase) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
   const { data, error } = await adminSupabase.rpc('complete_payment_session', {
     p_session_id: sessionId,
     p_transaction_id: transactionId,

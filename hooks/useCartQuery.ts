@@ -117,8 +117,10 @@ function mapApiItemToCartItem(item: Record<string, any>): CartItem {
 
 async function fetchServerCart(): Promise<Cart | null> {
   const res = await fetch('/api/cart');
+  // Non-2xx means not logged in or profile not ready — not an error, just empty cart
+  if (!res.ok) return null;
   const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load cart');
+  if (!json.success) return null;
 
   const { cart: rawCart, items, subtotal, shipping, total } = json.data;
   if (!rawCart) return null;

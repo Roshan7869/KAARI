@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@/lib/supabase/server';
 import { sanitizeTextInput } from '@/lib/sanitization';
+import { UpdateReviewSchema } from '@/lib/validations/review.schema';
 import type { Database } from '@/types/database';
 
 type Review = Database['public']['Tables']['product_reviews']['Row'];
@@ -42,6 +44,12 @@ export async function PATCH(
       );
     }
     const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
+
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
+
     const supabase = await createClient();
 
     // Validate review ID format
@@ -77,73 +85,38 @@ export async function PATCH(
       );
     }
 
-    // Parse request body
-    const body = await request.json() as Partial<UpdateReviewBody>;
+    // Parse and validate request body
+    const rawBody = await request.json();
+    const parsed = UpdateReviewSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid input', details: parsed.error.errors },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
 
     // Build update object
     const updateData: Partial<ReviewUpdate> = {};
 
-    // Validate and sanitize rating if provided
     if (body.rating !== undefined) {
-      if (typeof body.rating !== 'number' || body.rating < 1 || body.rating > 5 || !Number.isInteger(body.rating)) {
-        return NextResponse.json(
-          { success: false, error: 'rating must be an integer between 1 and 5' },
-          { status: 400 }
-        );
-      }
       updateData.rating = body.rating;
     }
 
-    // Validate and sanitize title if provided
     if (body.title !== undefined) {
-      if (typeof body.title !== 'string') {
-        return NextResponse.json(
-          { success: false, error: 'title must be a string' },
-          { status: 400 }
-        );
-      }
-      const sanitizedTitle = sanitizeTextInput(body.title, 100);
-      if (sanitizedTitle.length < 3) {
-        return NextResponse.json(
-          { success: false, error: 'title must be at least 3 characters' },
-          { status: 400 }
-        );
-      }
-      updateData.title = sanitizedTitle;
+      updateData.title = sanitizeTextInput(body.title, 200);
     }
 
-    // Validate and sanitize content if provided
     if (body.content !== undefined) {
-      if (typeof body.content !== 'string') {
-        return NextResponse.json(
-          { success: false, error: 'content must be a string' },
-          { status: 400 }
-        );
-      }
-      const sanitizedContent = sanitizeTextInput(body.content, 2000);
-      if (sanitizedContent.length < 10) {
-        return NextResponse.json(
-          { success: false, error: 'content must be at least 10 characters' },
-          { status: 400 }
-        );
-      }
-      updateData.content = sanitizedContent;
+      updateData.content = sanitizeTextInput(body.content, 2000);
     }
 
-    // Validate and handle status update (admin only)
+    // Handle status update (admin only)
     if (body.status !== undefined) {
       if (!isAdmin) {
         return NextResponse.json(
           { success: false, error: 'Only admins can update review status' },
           { status: 403 }
-        );
-      }
-
-      const validStatuses: ReviewStatus[] = ['pending', 'approved', 'rejected'];
-      if (!validStatuses.includes(body.status)) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid status. Must be one of: pending, approved, rejected' },
-          { status: 400 }
         );
       }
       updateData.status = body.status;
@@ -207,6 +180,12 @@ export async function DELETE(
       );
     }
     const isAdmin = (sessionClaims?.metadata as { role?: string } | undefined)?.role === 'admin';
+
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
+
     const supabase = await createClient();
 
     // Validate review ID format

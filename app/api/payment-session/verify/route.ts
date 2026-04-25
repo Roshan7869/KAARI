@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { auth } from '@clerk/nextjs/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createUserClient } from '@/lib/supabase/auth-client';
 import { logger } from '@/lib/logger-server';
+import { PaymentVerifySchema } from '@/lib/validations/payment.schema';
 
 /**
  * POST /api/payment-session/verify
@@ -17,17 +19,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ valid: false, error: 'Authentication required' }, { status: 401 });
   }
 
-  const { sessionId } = await request.json() as {
-    sessionId: string;
-  };
-
-  if (!sessionId) {
-    return NextResponse.json({ valid: false, error: 'sessionId is required' }, { status: 400 });
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ valid: false, error: 'CSRF validation failed' }, { status: 403 });
   }
+
+  const body = await request.json();
+  const parsed = PaymentVerifySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ valid: false, error: 'Invalid input', details: parsed.error.errors }, { status: 400 });
+  }
+  const { sessionId } = parsed.data;
 
   // Always enforce ownership — pass authenticated userId, never null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const admin = createAdminClient() as any;
+  const admin = (await createUserClient()) as any;
+  if (!admin) {
+    return NextResponse.json({ valid: false, error: 'Authentication required' }, { status: 401 });
+  }
   const { data, error } = await admin.rpc('verify_payment_session', {
     p_session_id: sessionId,
     p_user_id: userId,

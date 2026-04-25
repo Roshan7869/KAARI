@@ -7,7 +7,7 @@ import { getCloudinaryImageUrl } from '@/lib/cloudinary';
 
 const artisanSrc = process.env.NEXT_PUBLIC_CLD_ARTISAN_STORY
   ? getCloudinaryImageUrl(process.env.NEXT_PUBLIC_CLD_ARTISAN_STORY, { quality: 'auto', format: 'auto' })
-  : '/images/artisan-story.webp';
+  : '/og-image.svg';
 
 const STATS = [
   { value: '500+', label: 'Happy Customers' },

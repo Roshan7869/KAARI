@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyRateLimit } from '@/lib/server-rate-limit';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { auth } from '@clerk/nextjs/server';
 import { createUserClient } from '@/lib/supabase/auth-client';
 import { requireSupabaseUserId } from '@/lib/clerk-to-supabase';
+import { ReturnRequestSchema } from '@/lib/validations/payment.schema';
 
 type OrderItem = {
   id: string;
@@ -123,6 +125,11 @@ export async function POST(
   const rateLimitResponse = await applyRateLimit(request, 'mutation');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const csrfValid = await validateCsrfToken(request);
+  if (!csrfValid) {
+    return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+  }
+
   try {
     const { userId: clerkUserId } = await auth();
     if (!clerkUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -131,16 +138,12 @@ export async function POST(
 
     const { id: orderId } = await params;
 
-    const body = await request.json() as {
-      items: { order_item_id: string; quantity: number; reason: string }[];
-      reason: string;
-      description?: string;
-      photos?: string[];
-    };
-
-    if (!body.items?.length || !body.reason) {
-      return NextResponse.json({ error: 'items and reason are required' }, { status: 400 });
+    const body = await request.json();
+    const parsed = ReturnRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.errors }, { status: 400 });
     }
+    const { items, reason, description, photos } = parsed.data;
 
     const supabase = await createUserClient();
     if (!supabase) {

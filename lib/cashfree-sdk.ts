@@ -58,7 +58,26 @@ export const UPI_APPS: UPIApp[] = [
 ];
 
 // ── Cashfree Mode Configuration ──────────────────────────────────────────
-const CF_MODE = (process.env.NEXT_PUBLIC_CASHFREE_MODE ?? 'sandbox') as 'sandbox' | 'production'
+// FAIL-CLOSED: In production, missing env var throws instead of silently falling back to sandbox.
+const getCashfreeMode = (): 'sandbox' | 'production' => {
+  const mode = process.env.NEXT_PUBLIC_CASHFREE_MODE?.trim().toLowerCase();
+  if (process.env.NODE_ENV === 'production') {
+    if (!mode) {
+      throw new Error(
+        'NEXT_PUBLIC_CASHFREE_MODE is required in production. ' +
+        'Set it to "production" for live payments or "sandbox" for testing.'
+      );
+    }
+    if (mode !== 'production' && mode !== 'sandbox') {
+      throw new Error(
+        `Invalid NEXT_PUBLIC_CASHFREE_MODE="${mode}". Must be "production" or "sandbox".`
+      );
+    }
+  }
+  return (mode === 'production' ? 'production' : 'sandbox');
+};
+
+const CF_MODE = getCashfreeMode();
 
 export const cashfreeConfig = {
   mode:       CF_MODE,

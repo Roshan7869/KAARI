@@ -29,10 +29,14 @@ export function useProductReviews(productId: string) {
       setError(null);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: userData } = await supabase.auth.getUser();
+      const currentUserId = userData?.user?.id ?? null;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error: fetchError } = await (supabase as any)
         .rpc('get_product_reviews_user', {
           p_product_id: productId,
-          p_include_pending: false,
+          p_user_id: currentUserId,
         });
 
       if (fetchError) throw fetchError;

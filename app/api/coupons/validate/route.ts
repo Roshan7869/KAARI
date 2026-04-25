@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
+import { CouponValidateSchema } from '@/lib/validations/payment.schema';
 
 type CouponRow = {
   id: string;
@@ -17,14 +19,19 @@ type CouponRow = {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { code?: string; subtotal?: number };
-    const { code, subtotal } = body;
-
-    if (!code || typeof subtotal !== 'number') {
+    const body = await request.json();
+    const parsed = CouponValidateSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { valid: false, error: 'code and subtotal are required' },
+        { valid: false, error: 'Invalid input', details: parsed.error.errors },
         { status: 400 }
       );
+    }
+    const { code, subtotal } = parsed.data;
+
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ valid: false, error: 'CSRF validation failed' }, { status: 403 });
     }
 
     const supabase = await createClient();

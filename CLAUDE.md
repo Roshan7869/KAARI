@@ -70,13 +70,19 @@ components/
 lib/
 ├── supabase/           # Client + server Supabase clients
 ├── validation/         # Zod schemas
+├── errors/             # HttpError class + withErrorHandler wrapper for API routes
 ├── email-templates/    # Email templates
 └── ...
 contexts/               # AuthContext, CartContext
 hooks/                  # Custom React hooks
+mocks/                  # MSW test handlers (setup.ts, server.ts, handlers.ts)
 types/                  # Global TypeScript types
-tests/                  # E2E tests
+tests/                  # E2E tests (Playwright)
+providers/              # PostHogProvider (separate from app/providers.tsx)
 emails/                 # React Email JSX templates
+cashfree-mcp/           # Embedded Cashfree MCP server (not yet extracted)
+instrumentation.ts      # Sentry + OpenTelemetry (Next.js instrumentation hook)
+instrumentation-client.ts # Client-side Sentry instrumentation
 ```
 
 ### Provider Hierarchy (Critical)
@@ -139,15 +145,19 @@ const isAdmin = sessionClaims?.metadata?.role === 'admin';
 - `orders.status`: `'pending' | 'paid' | 'processing' | 'shipped' | 'delivered' | 'cancelled'`
 - `reviews.status`: `'pending' | 'approved' | 'rejected'`
 
-## API Routes
+## Payment Flow
 
-| Path | Method | Purpose |
-|------|--------|---------|
-| `/api/checkout` | POST | Create order from cart |
-| `/api/payments/*` | - | Cashfree payment handling |
-| `/api/webhooks/*` | POST | Payment webhooks |
-| `/api/admin/*` | - | Admin operations (requires admin role) |
-| `/api/reviews` | GET/POST | Product reviews CRUD |
+1. Checkout collects shipping/payment info
+2. `POST /api/checkout` creates order via RPC `create_order_from_cart`
+3. Cashfree payment session created server-side
+4. Webhook at `/api/webhooks/cashfree` updates payment status
+5. Order confirmation at `/order-confirmation/[orderId]`
+
+## Admin Dashboard
+
+- Route: `/admin/*` (protected by role check in middleware)
+- Features: Products, Orders, Customers, Reviews, Media, Billboards, Coupons, Analytics, Audit Logs, Inventory
+- Admin role set via Clerk: `user.publicMetadata.role = 'admin'`
 
 ## Import Patterns
 
@@ -183,6 +193,37 @@ type CartItem = Tables<'cart_items'>;
 - **Playwright**: E2E tests in `tests/` directory
 - **Config**: `vitest.config.mjs`, `playwright.config.ts`
 
+### Test Directory Layout
+```
+tests/
+├── setup.ts                    # Server-only mock + console silencing
+├── utils/
+│   └── mock-request.ts         # createMockRequest(), createMockSupabaseClient(), parseResponse()
+├── api/                        # Route handler tests (import GET/POST from route files)
+├── lib/                        # Pure unit tests for utilities
+└── e2e/                        # Playwright E2E specs (separate config)
+mocks/
+├── setup.ts                    # MSW lifecycle (beforeAll/afterEach/afterAll)
+├── server.ts                   # MSW node server instance
+└── handlers.ts                 # HTTP mock handlers for 6 endpoints
+```
+
+### Test Patterns
+- **Unit tests**: `describe('functionName')` wrapping `it('case description')` blocks. Pure assertions, no mocking.
+- **API route tests**: `vi.mock()` at module top for all external deps (Clerk, Supabase, logger, rate limiter). `beforeEach(() => vi.clearAllMocks())`. Import route handlers directly (`import { GET } from '@/app/api/.../route'`) and call with a `Request` object. Assert on both status code and response shape.
+- **E2E tests**: Standard Playwright `test.describe` / `test` blocks using `page` fixture. Multiple selector fallbacks per locator.
+
+### Key Test Utilities
+- `createMockRequest({ method, url, body, headers })` — builds a `Request` with cookie mocks
+- `createMockSupabaseClient(returnData, error)` — fully chainable mock (`.from().select().eq().single()`)
+- MSW handlers mock 6 endpoints (`/api/products`, `/api/cart`, `/api/checkout`, etc.)
+- The `server-only` module is auto-mocked in `tests/setup.ts` so server-side modules can be imported
+
+### Vitest Config
+- Pattern: `tests/**/*.test.{ts,tsx}` and `tests/**/*.spec.{ts,tsx}` (e2e excluded)
+- Environment: jsdom with `@/` path alias
+- Coverage thresholds: 80% lines, 75% branches
+
 ## React Query Patterns
 
 ```typescript
@@ -200,99 +241,128 @@ queryClient.invalidateQueries({ queryKey: ['admin-products'] });
 ## Security Notes
 
 ### Middleware CSP (Critical)
-
-Content-Security-Policy built per-request with unique nonce:
-```typescript
-function buildCsp(nonce: string): string {
-  return [
-    `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://js.cashfree.com...`,
-    // ... see middleware.ts for full config
-  ].join('; ')
-}
-```
+Content-Security-Policy built per-request with unique nonce. See `middleware.ts` for full config.
 
 ### Clerk + Supabase Integration
-
-`createUserClient()` in `lib/supabase/auth-client.ts` uses Clerk's native Supabase integration (passes Clerk session token directly). No JWT template is required — Clerk automatically validates the session against Supabase RLS policies.
+`createUserClient()` in `lib/supabase/auth-client.ts` uses Clerk's native Supabase integration (passes Clerk session token directly). No JWT template is required.
 
 ### Environment Variables
-
 Required in `.env.local`:
 ```
 # App
 NEXT_PUBLIC_APP_URL
-
 # Clerk (auto-injected by Clerk)
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY
 CLERK_WEBHOOK_SECRET
-
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY (server-side only)
-
 # Cashfree (server-side only)
 CASHFREE_APP_ID
 CASHFREE_SECRET_KEY
 CASHFREE_WEBHOOK_SECRET
-
-# Cloudinary (image uploads)
+# Cloudinary
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 NEXT_PUBLIC_CLOUDINARY_API_KEY
 CLOUDINARY_API_SECRET
-
-# Resend (emails)
+# Resend
 RESEND_API_KEY
-
-# Upstash Redis (rate limiting)
+# Upstash Redis
 UPSTASH_REDIS_REST_URL
 UPSTASH_REDIS_REST_TOKEN
-
 # PostHog
 POSTHOG_KEY
-
 # Sentry (optional)
 SENTRY_AUTH_TOKEN
 SENTRY_DSN
-
 # Misc
 NEXT_PUBLIC_WHATSAPP_NUMBER
 ```
 
 ### Input Sanitization
-
-Use utilities from `lib/sanitization.ts` and `lib/sanitize.ts`:
+Use utilities from `lib/sanitization.ts`:
 - `sanitizeTextInput()` - XSS prevention
 - `sanitizeSearchQuery()` - SQL injection prevention
 - `sanitizeUrl()` - URL validation (blocks javascript:/data:)
 
 ### Rate Limiting
-
 - Client-side: `lib/client-rate-limit.ts`
 - Server-side: `lib/server-rate-limit.ts` (Upstash Redis)
 
-## Payment Flow
+## Code Conventions
 
-1. Checkout collects shipping/payment info
-2. `POST /api/checkout` creates order via RPC `create_order_from_cart`
-3. Cashfree payment session created server-side
-4. Webhook at `/api/webhooks/cashfree` updates payment status
-5. Order confirmation at `/order-confirmation/[orderId]`
+- **Components**: Functional with hooks, no class components
+- **Exports**: Named exports preferred (default only for page.tsx per Next.js convention)
+- **State**: TanStack Query for server state, Context for client-only global state (auth, cart), `useState` for local UI state
+- **Error handling**: Toast via Sonner for user-facing errors, `HttpError` class for API errors, never swallow silently
+- **CSS**: Tailwind with `cn()` utility (from `lib/utils`) for conditional classes
+- **Forms**: Zod schemas in `lib/validations/`, `sanitizeTextInput()` on all free-text fields before DB
+- **Imports**: Use `@/` path aliases, never relative paths across directories
 
-## Admin Dashboard
+## Boundaries
 
-- Route: `/admin/*` (protected by role check in middleware)
-- Features: Products, Orders, Customers, Reviews, Media, Billboards, Coupons, Analytics, Audit Logs, Inventory
-- Admin role set via Clerk: `user.publicMetadata.role = 'admin'`
+- **NEVER** modify `middleware.ts` without verifying CSP impact — every change affects security headers and route protection
+- **NEVER** modify `lib/supabase/server.ts` without checking both server and browser client paths — 120+ files depend on it
+- **NEVER** commit `.env*` files
+- **NEVER** use `SUPABASE_SERVICE_ROLE_KEY` in client components
+- **Always** run `npm run type-check` before committing
+- **Always** run `npm run lint` before committing
+- **Ask before modifying database schema** — RLS policies and migration files must stay in sync
+
+## Architecture Hotspots (high blast-radius files)
+
+- `lib/supabase/server.ts` — 120 dependents, highest blast-radius
+- `lib/logger.ts` — 72 dependents
+- `lib/firebase.ts` — isolated singleton, likely dead code
+- `cashfree-mcp/` — embedded in main project, should be extracted to own package
+
+## Error Handling Conventions
+
+### Response Envelope
+```typescript
+// Success: { "success": true, "data": { ... } }
+// Error:   { "success": false, "error": "message", "details": { ... } }
+```
+
+### HttpError + Error Handler (recommended pattern)
+```typescript
+import { HttpError, badRequest, notFound } from '@/lib/errors/http-error';
+import { withErrorHandler } from '@/lib/errors/handler';
+
+// Wrap route handlers for consistent error formatting
+export const GET = withErrorHandler(async () => {
+  const product = await findProduct(id);
+  if (!product) throw notFound('Product not found');
+  if (!product.inStock) throw badRequest('Out of stock', { productId: id });
+  return NextResponse.json({ success: true, data: product });
+});
+// withErrorHandler catches HttpError, ZodError, and unknown errors,
+// logs them via the shared logger, and returns the standard envelope.
+```
+
+### HTTP Status Codes
+400 Validation, 401 Auth, 403 Forbidden, 404 Not found, 409 Conflict, 410 Expired, 429 Rate limit, 500 Internal
+
+### Logger Levels
+- `logger.error` — Unexpected errors, HTTP errors, critical failures
+- `logger.warn` — Validation failures, security alerts, recoverable anomalies
+- `logger.info` — Successful operations (order created, cart modified)
+- `logger.debug` — Trace-level diagnostics
+
+## Database Migrations
+
+- **Location**: `supabase/migrations/`
+- **Naming**: `YYYYMMDDHHMMSS_description.sql`
+- **CRITICAL**: Never edit existing migrations; always add a new one. RLS policies and migration files must stay in sync.
 
 ## Deployment
 
-- **Vercel**: Primary deployment platform
-- Headers configured in `vercel.json` and `middleware.ts`
-- ISR for product pages (revalidate 60s)
-- Static asset caching (immutable)
+- **Vercel** (Primary): Config in `vercel.json`, ISR for product pages (revalidate 60s), static asset caching (immutable 1yr)
+- **Docker** (Alternative): `Dockerfile` and `docker-compose.yml` at project root
+- **CI/CD**: GitHub Actions in `.github/workflows/ci.yml`, triggers on push to `main`, `develop`, `backup-before-moving-nextjs`
+- **next.config.js** key settings: `output: 'standalone'` (for Docker), Sentry bundling via `withSentryConfig()`, image remote patterns for Supabase + Cloudinary + Unsplash, HSTS + security headers, `optimizePackageImports` for Radix/lucide/framer-motion
 
 ## Key Files
 
@@ -308,211 +378,23 @@ Use utilities from `lib/sanitization.ts` and `lib/sanitize.ts`:
 | `lib/supabase/auth-client.ts` | Clerk-authenticated Supabase client for user-specific API routes |
 | `lib/supabase/admin.ts` | Service-role client — RLS bypass, high privilege |
 | `lib/cashfree.ts` | Cashfree SDK integration |
+| `lib/errors/http-error.ts` | HttpError class + factory functions (badRequest, notFound, etc.) |
+| `lib/errors/handler.ts` | withErrorHandler wrapper for API route error formatting |
 | `types/database.ts` | Auto-generated Supabase types |
+| `instrumentation.ts` | Sentry + OpenTelemetry instrumentation (Next.js hook) |
+| `instrumentation-client.ts` | Client-side Sentry instrumentation |
+| `next.config.js` | Standalone output (Docker), image remote patterns, redirects, HSTS + security headers, Sentry bundle |
 
-<!-- VERCEL BEST PRACTICES START -->
-## Best practices for developing on Vercel
+## Resource Discovery
 
-These defaults are optimized for AI coding agents (and humans) working on apps that deploy to Vercel.
-
-- Treat Vercel Functions as stateless + ephemeral (no durable RAM/FS, no background daemons), use Blob or marketplace integrations for preserving state
-- Edge Functions (standalone) are deprecated; prefer Vercel Functions
-- Don't start new projects on Vercel KV/Postgres (both discontinued); use Marketplace Redis/Postgres instead
-- Store secrets in Vercel Env Variables; not in git or `NEXT_PUBLIC_*`
-- Provision Marketplace native integrations with `vercel integration add` (CI/agent-friendly)
-- Sync env + project settings with `vercel env pull` / `vercel pull` when you need local/offline parity
-- Use `waitUntil` for post-response work; avoid the deprecated Function `context` parameter
-- Set Function regions near your primary data source; avoid cross-region DB/service roundtrips
-- Tune Fluid Compute knobs (e.g., `maxDuration`, memory/CPU) for long I/O-heavy calls (LLMs, APIs)
-- Use Runtime Cache for fast **regional** caching + tag invalidation (don't treat it as global KV)
-- Use Cron Jobs for schedules; cron runs in UTC and triggers your production URL via HTTP GET
-- Use Vercel Blob for uploads/media; Use Edge Config for small, globally-read config
-- If Enable Deployment Protection is enabled, use a bypass secret to directly access them
-- Add OpenTelemetry via `@vercel/otel` on Node; don't expect OTEL support on the Edge runtime
-- Enable Web Analytics + Speed Insights early
-- Use AI Gateway for model routing, set AI_GATEWAY_API_KEY, using a model string (e.g. 'anthropic/claude-sonnet-4.6'), Gateway is already default in AI SDK
-  needed. Always curl https://ai-gateway.vercel.sh/v1/models first; never trust model IDs from memory
-- For durable agent loops or untrusted code: use Workflow (pause/resume/state) + Sandbox; use Vercel MCP for secure infra access
-<!-- VERCEL BEST PRACTICES END -->
-
-<!-- rtk-instructions v2 -->
-# RTK (Rust Token Killer) - Token-Optimized Commands
-
-## Golden Rule
-
-**Always prefix commands with `rtk`**. If RTK has a dedicated filter, it uses it. If not, it passes through unchanged. This means RTK is always safe to use.
-
-**Important**: Even in command chains with `&&`, use `rtk`:
+When you need skills, agents, commands, or any Claude Code resources:
 ```bash
-# ❌ Wrong
-git add . && git commit -m "msg" && git push
-
-# ✅ Correct
-rtk git add . && rtk git commit -m "msg" && rtk git push
+# Knowledge Graph — 302 indexed resources across all repos
+python3 ~/wiki/vault/.db/query_db.py stats                          # All counts
+python3 ~/wiki/vault/.db/query_db.py skills "<search>"              # Skills by name/desc
+python3 ~/wiki/vault/.db/query_db.py agents "<search>"              # Agents
+python3 ~/wiki/vault/.db/query_db.py commands "<search>"            # Commands
+python3 ~/wiki/vault/.db/query_db.py byrepo <repo-name>             # All resources in a repo
 ```
 
-## RTK Commands by Workflow
-
-### Build & Compile (80-90% savings)
-```bash
-rtk cargo build         # Cargo build output
-rtk cargo check         # Cargo check output
-rtk cargo clippy        # Clippy warnings grouped by file (80%)
-rtk tsc                 # TypeScript errors grouped by file/code (83%)
-rtk lint                # ESLint/Biome violations grouped (84%)
-rtk prettier --check    # Files needing format only (70%)
-rtk next build          # Next.js build with route metrics (87%)
-```
-
-### Test (90-99% savings)
-```bash
-rtk cargo test          # Cargo test failures only (90%)
-rtk vitest run          # Vitest failures only (99.5%)
-rtk playwright test     # Playwright failures only (94%)
-rtk test <cmd>          # Generic test wrapper - failures only
-```
-
-### Git (59-80% savings)
-```bash
-rtk git status          # Compact status
-rtk git log             # Compact log (works with all git flags)
-rtk git diff            # Compact diff (80%)
-rtk git show            # Compact show (80%)
-rtk git add             # Ultra-compact confirmations (59%)
-rtk git commit          # Ultra-compact confirmations (59%)
-rtk git push            # Ultra-compact confirmations
-rtk git pull            # Ultra-compact confirmations
-rtk git branch          # Compact branch list
-rtk git fetch           # Compact fetch
-rtk git stash           # Compact stash
-rtk git worktree        # Compact worktree
-```
-
-Note: Git passthrough works for ALL subcommands, even those not explicitly listed.
-
-### GitHub (26-87% savings)
-```bash
-rtk gh pr view <num>    # Compact PR view (87%)
-rtk gh pr checks        # Compact PR checks (79%)
-rtk gh run list         # Compact workflow runs (82%)
-rtk gh issue list       # Compact issue list (80%)
-rtk gh api              # Compact API responses (26%)
-```
-
-### JavaScript/TypeScript Tooling (70-90% savings)
-```bash
-rtk pnpm list           # Compact dependency tree (70%)
-rtk pnpm outdated       # Compact outdated packages (80%)
-rtk pnpm install        # Compact install output (90%)
-rtk npm run <script>    # Compact npm script output
-rtk npx <cmd>           # Compact npx command output
-rtk prisma              # Prisma without ASCII art (88%)
-```
-
-### Files & Search (60-75% savings)
-```bash
-rtk ls <path>           # Tree format, compact (65%)
-rtk read <file>         # Code reading with filtering (60%)
-rtk grep <pattern>      # Search grouped by file (75%)
-rtk find <pattern>      # Find grouped by directory (70%)
-```
-
-### Analysis & Debug (70-90% savings)
-```bash
-rtk err <cmd>           # Filter errors only from any command
-rtk log <file>          # Deduplicated logs with counts
-rtk json <file>         # JSON structure without values
-rtk deps                # Dependency overview
-rtk env                 # Environment variables compact
-rtk summary <cmd>       # Smart summary of command output
-rtk diff                # Ultra-compact diffs
-```
-
-### Infrastructure (85% savings)
-```bash
-rtk docker ps           # Compact container list
-rtk docker images       # Compact image list
-rtk docker logs <c>     # Deduplicated logs
-rtk kubectl get         # Compact resource list
-rtk kubectl logs        # Deduplicated pod logs
-```
-
-### Network (65-70% savings)
-```bash
-rtk curl <url>          # Compact HTTP responses (70%)
-rtk wget <url>          # Compact download output (65%)
-```
-
-### Meta Commands
-```bash
-rtk gain                # View token savings statistics
-rtk gain --history      # View command history with savings
-rtk discover            # Analyze Claude Code sessions for missed RTK usage
-rtk proxy <cmd>         # Run command without filtering (for debugging)
-rtk init                # Add RTK instructions to CLAUDE.md
-rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
-```
-
-## Token Savings Overview
-
-| Category | Commands | Typical Savings |
-|----------|----------|-----------------|
-| Tests | vitest, playwright, cargo test | 90-99% |
-| Build | next, tsc, lint, prettier | 70-87% |
-| Git | status, log, diff, add, commit | 59-80% |
-| GitHub | gh pr, gh run, gh issue | 26-87% |
-| Package Managers | pnpm, npm, npx | 70-90% |
-| Files | ls, read, grep, find | 60-75% |
-| Infrastructure | docker, kubectl | 85% |
-| Network | curl, wget | 65-70% |
-
-Overall average: **60-90% token reduction** on common development operations.
-<!-- /rtk-instructions -->
-
-## Code Conventions
-
-- **Components**: Functional with hooks, no class components
-- **Exports**: Named exports preferred (default only for page.tsx per Next.js convention)
-- **State**: TanStack Query for server state, Context for client-only global state (auth, cart), `useState` for local UI state
-- **Error handling**: Toast via Sonner for user-facing errors, `HttpError` class for API errors, never swallow silently
-- **CSS**: Tailwind with `cn()` utility (from `lib/utils`) for conditional classes
-- **Forms**: Zod schemas in `lib/validations/`, `sanitizeTextInput()` on all free-text fields before DB
-- **Imports**: Use `@/` path aliases, never relative paths across directories
-
-## Boundaries
-
-- **NEVER modify `middleware.ts` without verifying CSP impact** — every change affects security headers and route protection
-- **NEVER modify `lib/supabase/server.ts` without checking both server and browser client paths** — 120+ files depend on it
-- **NEVER commit `.env*` files** — secrets must stay local or in Vercel Env Variables
-- **NEVER use `SUPABASE_SERVICE_ROLE_KEY` in client components** — import `server-only` guard is there for a reason
-- **Always run `npm run type-check` before committing** — catch type errors early
-- **Always run `npm run lint` before committing** — ESLint catches security and accessibility issues
-- **Ask before modifying database schema** — RLS policies and migration files must stay in sync
-
-## Architecture Hotspots (from knowledge graph)
-
-- `lib/supabase/server.ts` — **120 dependents**, highest blast-radius file
-- `lib/logger.ts` — 72 dependents, second-highest blast-radius
-- All `route.ts` files share the same import pattern (server, logger, auth, validation) — consider a shared `createApiRoute()` factory
-- `lib/firebase.ts` — **isolated singleton, likely dead code** — verify before using
-- `cashfree-mcp/` is embedded in the main project (72 graph nodes across 18 communities) — should be extracted to its own package
-
-## Skill routing
-
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
-- Save progress, checkpoint, resume → invoke checkpoint
-- Code quality, health check → invoke health
+Wiki vault at `~/wiki/vault/topics/` has 59 topic files with full documentation.

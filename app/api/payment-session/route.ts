@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@/lib/supabase/server';
+import { PaymentSessionIdSchema } from '@/lib/validations/payment.schema';
 
 /**
  * GET /api/payment-session?session_id=xxx
@@ -13,11 +14,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const { searchParams } = new URL(request.url);
-  const sessionId = searchParams.get('session_id');
-
-  if (!sessionId) {
-    return NextResponse.json({ success: false, error: 'session_id is required' }, { status: 400 });
+  const parsed = PaymentSessionIdSchema.safeParse({ session_id: searchParams.get('session_id') });
+  if (!parsed.success) {
+    return NextResponse.json({ success: false, error: 'Invalid session_id', details: parsed.error.errors }, { status: 400 });
   }
+  const { session_id: sessionId } = parsed.data;
 
   const supabase = await createClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

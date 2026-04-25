@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateCsrfToken } from '@/lib/csrf-server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAuth, requireAdmin } from '@/lib/auth/verify-jwt';
 import { logger } from '@/lib/logger-server';
@@ -113,6 +114,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const adminErr = await requireAdmin();
     if (adminErr) return adminErr;
+
+    const csrfValid = await validateCsrfToken(request);
+    if (!csrfValid) {
+      return NextResponse.json({ success: false, error: 'CSRF validation failed' }, { status: 403 });
+    }
 
     const supabase = await createClient();
     const body = await request.json();
